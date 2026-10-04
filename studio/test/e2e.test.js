@@ -28,7 +28,7 @@ test('full pipeline produces a rendered, QC-checked documentary from mocks', { t
   const config = loadConfig({
     projectsDir: path.join(tmp, 'projects'), assetsDir: path.join(tmp, 'assets'), libraryDir: path.join(tmp, 'library'),
     llm: { provider: 'mock', mock: mockResponders() }, voice: { provider: 'synthetic', voice: 'synthetic' },
-    flow: { mode: 'synthetic' }, render: { motionStub: true, threads: 2, preset: 'ultrafast' }, testMode: true, stageRetries: 0, concurrency: 2,
+    flow: { mode: 'synthetic' }, render: { motionStub: true, threads: 2, preset: 'ultrafast', crf: 32 }, testMode: true, stageRetries: 0, concurrency: 2,
     gates: { G2: 'auto', G3: 'auto', G4: 'auto' }, disabledSources: ['nasa', 'wikimedia'],
   });
   const brief = newBrief({ genre: 'military', title: 'Why Aircraft Carriers Are So Hard to Sink', question: 'How can a ship everyone can find survive?', minutes: 3 });
@@ -56,4 +56,5 @@ test('full pipeline produces a rendered, QC-checked documentary from mocks', { t
   await runProject(config, brief.project_id, { llm: createLlm(config), log: (l) => again.push(l) });
   assert.equal(again.length, 0, again.join('\n'));
   assert.equal(projectStatus(config, brief.project_id).status, 'done');
+  fs.rmSync(tmp, { recursive: true, force: true });
 });

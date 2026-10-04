@@ -55,6 +55,7 @@ export function loadConfig(overrides = {}) {
       motionStub: env.STUDIO_MOTION_STUB === '1',
       threads: Number(env.STUDIO_FFMPEG_THREADS || 0),
       preset: env.STUDIO_FFMPEG_PRESET || 'medium',
+      crf: Number(env.STUDIO_FFMPEG_CRF || 18),
     },
 
     // auto: gate passes when its automated checks pass. manual: pipeline stops until `studio gate`.

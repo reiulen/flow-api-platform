@@ -50,7 +50,7 @@ async function normalizeClip(clip, next, edl, style, outDir, threads, preset) {
 
 // Joins clips with cuts/dissolves. Groups are closed on cuts so each ffmpeg graph stays small,
 // then groups are concatenated losslessly.
-async function assemble(normalized, clips, edl, workDir, threads, preset) {
+async function assemble(normalized, clips, edl, workDir, threads, preset, crf) {
   const groups = [];
   let cur = [];
   clips.forEach((clip, i) => {
@@ -79,7 +79,7 @@ async function assemble(normalized, clips, edl, workDir, threads, preset) {
       consumed += clip.duration_s;
     }
     chain.push(`[${label}]trim=duration=${round(consumed, 3)},setpts=PTS-STARTPTS,format=yuv420p[v]`);
-    args.push('-filter_complex', chain.join(';'), '-map', '[v]', '-r', String(edl.fps), '-c:v', 'libx264', '-preset', preset, '-crf', '17', '-g', String(edl.fps * 2), '-pix_fmt', 'yuv420p');
+    args.push('-filter_complex', chain.join(';'), '-map', '[v]', '-r', String(edl.fps), '-c:v', 'libx264', '-preset', preset, '-crf', String(crf), '-g', String(edl.fps * 2), '-pix_fmt', 'yuv420p');
     if (threads) args.push('-threads', String(threads));
     args.push(out);
     await run('ffmpeg', args, { timeoutMs: 60 * 60 * 1000 });
@@ -172,7 +172,7 @@ export async function renderProject({ project, edl, audioPlan, style, config, na
   const workDir = ensureDir(project.file('renders', 'work'));
   const clipDir = ensureDir(path.join(workDir, 'clips'));
   const normalized = await mapLimit(edl.clips, Math.max(1, config.concurrency), (clip, i) => normalizeClip(clip, edl.clips[i + 1], edl, style, clipDir, config.render.threads, config.render.preset));
-  const video = await assemble(normalized, edl.clips, edl, workDir, config.render.threads, config.render.preset);
+  const video = await assemble(normalized, edl.clips, edl, workDir, config.render.threads, config.render.preset, config.render.crf);
   const audio = await renderAudio(audioPlan, style, workDir);
   const renders = ensureDir(project.file('renders'));
   const existing = fs.readdirSync(renders).filter((f) => f.startsWith(`${name}_v`)).length;

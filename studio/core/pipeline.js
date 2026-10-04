@@ -278,7 +278,10 @@ const STAGE_RUNNERS = {
   async final({ project, config }) {
     const render = project.read('render.json');
     const out = project.file('renders', 'final.mp4');
-    fs.copyFileSync(project.file(render.file), out);
+    fs.rmSync(out, { force: true });
+    try { fs.linkSync(project.file(render.file), out); } catch { fs.copyFileSync(project.file(render.file), out); }
+    // Intermediate clips are only needed to re-render; the final file and plans stay.
+    fs.rmSync(project.file('renders', 'work'), { recursive: true, force: true });
     const upload = buildUploadPackage({ project, config });
     project.write('credits.json', upload.credits);
     project.write('upload.json', upload.youtube);

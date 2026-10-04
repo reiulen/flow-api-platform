@@ -72,7 +72,7 @@ export function mockResponders() {
       const mapJson = JSON.stringify({ template: 'map', data: { title: 'Pacific', view: { center: [150, 20], scale_from: 1.5, scale_to: 3 }, steps: [{ type: 'point', lon: 144.8, lat: 13.4, label: 'Guam', role: 'info' }, { type: 'ring', lon: 144.8, lat: 13.4, radius_km: 900, label: '900 km', role: 'sensor' }] } });
       const techJson = JSON.stringify({ template: 'process', data: { title: 'Layers', steps: [{ label: 'Detect', detail: '', role: 'sensor' }, { label: 'Track', detail: '', role: 'sensor' }, { label: 'Engage', detail: '', role: 'warning' }] } });
       return {
-        cold_open: act === 1 ? [{ visual_type: 'FLOW', need: need('carrier alone at sea at dawn'), flow: { ...noFlow, reconstruction: false, composition: 'small in frame' } }, { visual_type: 'REAL', need: need('ocean horizon'), flow: noFlow }] : [],
+        cold_open: act === 1 ? [{ visual_type: 'FLOW', need: need('carrier alone at sea at dawn', 'Nimitz-class'), flow: { ...noFlow, reconstruction: true, composition: 'small in frame' } }, { visual_type: 'REAL', need: need('ocean horizon'), flow: noFlow }] : [],
         segments: segs.map((seg_id, i) => ({
           seg_id,
           beats: i === 0 && act === 3
