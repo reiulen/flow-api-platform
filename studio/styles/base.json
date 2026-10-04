@@ -1,0 +1,138 @@
+{
+  "version": "0.1.0",
+  "canvas": { "width": 1920, "height": 1080, "fps": 30 },
+
+  "acts": [
+    { "act": 1, "name": "Hook", "share": 0.055, "mode": "CINEMATIC", "goal": "Mystery, contradiction, central question, visual proof" },
+    { "act": 2, "name": "Context & Scale", "share": 0.15, "mode": "INFORMATION", "goal": "Size, cost, range, short history" },
+    { "act": 3, "name": "Mechanism", "share": 0.24, "mode": "INFORMATION", "goal": "How it works, step by step" },
+    { "act": 4, "name": "System", "share": 0.12, "mode": "INFORMATION", "goal": "How the parts work together" },
+    { "act": 5, "name": "Threat", "share": 0.16, "mode": "CINEMATIC", "goal": "What could defeat it" },
+    { "act": 6, "name": "Response", "share": 0.16, "mode": "INFORMATION", "goal": "How the system responds" },
+    { "act": 7, "name": "Limits & Implication", "share": 0.115, "mode": "CINEMATIC", "goal": "Weaknesses, what changes, the final answer" }
+  ],
+
+  "narration": {
+    "wpm": 150,
+    "speech_share": [0.8, 0.88],
+    "pause_per_min": [2, 4],
+    "max_run_s": 30,
+    "breathing_every_s": 240,
+    "breathing_s": [3, 6],
+    "act_break_s": [3, 6],
+    "cold_open_s": 12,
+    "pause_default_s": 0.6,
+    "beat_s": 2.0,
+    "banned_phrases": [
+      "today we're going to", "in this video", "hey guys", "let's dive in", "dive into", "delve",
+      "in a world where", "game-changer", "game changer", "it's not just", "buckle up", "stay tuned",
+      "smash that like", "don't forget to subscribe", "without further ado", "fascinating world",
+      "unleash", "tapestry", "testament to", "plays a crucial role", "it's important to note"
+    ]
+  },
+
+  "pacing": {
+    "asl_target": [7, 10],
+    "footage": { "min": 3.0, "target": 5.0, "max": 7.0 },
+    "fast": { "min": 1.5, "max": 3.0 },
+    "hold": { "min": 7.0, "max": 15.0 },
+    "hero": { "max": 25.0 },
+    "explainer": { "min": 8.0, "max": 40.0, "change_every": [3, 6] },
+    "static_max": 6.0,
+    "min_shot": 1.5,
+    "max_consecutive_info": 4,
+    "dense_block_max_s": 90,
+    "sequence_shots": [4, 10],
+    "short_shot_time_share_max": 0.08
+  },
+
+  "visual_mix": {
+    "footage": [0.45, 0.55],
+    "explainer": [0.3, 0.4],
+    "flow": [0.05, 0.15],
+    "flow_hard_max": 0.2
+  },
+
+  "transitions": {
+    "same_sequence": "cut",
+    "between_sources_information": "dissolve_short",
+    "between_sources_cinematic": "cut",
+    "explainer_boundary": "dissolve_short",
+    "time_jump": "dissolve",
+    "act_break": "fade_black",
+    "durations": { "cut": 0, "dissolve_short": 0.5, "dissolve": 1.5, "dissolve_slow": 2.5, "fade_black": 2.0, "match_cut": 0 }
+  },
+
+  "black_beats": { "min": 3, "max": 6, "duration_s": 2.0, "with_title_s": 3.5 },
+
+  "type_cards": { "max_per_min": 1, "duration_s": 2.6, "min_gap_s": 20 },
+
+  "look": {
+    "footage_filter": "eq=contrast=1.04:saturation=0.9:gamma=0.98,unsharp=3:3:0.25",
+    "grain": "noise=alls=3:allf=t",
+    "still_zoom": 0.06
+  },
+
+  "audio": {
+    "lufs": -14,
+    "true_peak": -1.0,
+    "lra": [4, 7],
+    "vo_gain_db": 0,
+    "bed_db_rel_vo": -23,
+    "bed_breath_boost_db": 8,
+    "music_max_share": 0.75,
+    "no_music_every_s": 300,
+    "no_music_s": [20, 45],
+    "ambience_db": -26,
+    "duck_attack_s": 0.25,
+    "duck_release_s": 0.6,
+    "music_fade_s": 2.0
+  },
+
+  "colors": {
+    "bg": "#0B0D10",
+    "panel": "#14181D",
+    "land": "#232A33",
+    "land_edge": "#3A424C",
+    "water": "#0B0D10",
+    "grid": "#20262D",
+    "info": "#EDEFF2",
+    "muted": "#8A939E",
+    "threat": "#E5484D",
+    "warning": "#F2A93B",
+    "sensor": "#3CCFCF",
+    "friendly": "#7FA7C9",
+    "success": "#5BB98C"
+  },
+
+  "fonts": {
+    "sans": "Inter Tight",
+    "mono": "IBM Plex Mono"
+  },
+
+  "labels": {
+    "reconstruction": "RECONSTRUCTION",
+    "illustrative": "ILLUSTRATIVE"
+  },
+
+  "flow": {
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "duration_s": 8,
+    "count": 2,
+    "max_attempts": 3,
+    "look": "Natural documentary cinematography. Photorealistic, restrained, serious. Natural light, stable camera, realistic scale and atmosphere.",
+    "avoid": [
+      "text", "subtitles", "watermark", "logos", "HUD overlays", "lens flares", "oversaturated colors",
+      "exaggerated explosions", "fantasy elements", "impossible geometry", "shaky handheld camera", "slow motion"
+    ]
+  },
+
+  "assets": {
+    "allowed_licenses": ["public_domain", "open_commercial", "stock_licensed"],
+    "stock_only_for": ["atmosphere", "ambient", "generic"],
+    "min_quality_height": 720,
+    "min_speed": 0.8,
+    "source_priority": ["library", "nasa", "wikimedia", "pexels", "pixabay"]
+  }
+}

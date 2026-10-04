@@ -1,38 +1,71 @@
 # Studio — Sistem Produksi Dokumenter
 
-Sistem produksi dokumenter yang berjalan di samping Flow API. Satu pipeline untuk semua genre. Perbedaan antar genre hanya ada di *bible pack*.
+Generator dokumenter otomatis di samping Flow API. Satu pipeline untuk semua genre. Perbedaan antar genre hanya ada di *style profile* dan *bible pack*. Topik dan footage boleh berbeda di setiap video, tapi gaya, ritme editing, dan audio selalu sama.
+
+## Cara kerja konsistensi
+
+| Keputusan | Siapa yang memutuskan | Di mana |
+|---|---|---|
+| Topik, riset, narasi, apa yang tampil per kalimat | LLM, dengan instruksi yang sudah dirakit lengkap (tanpa membaca skill atau kode) | `core/prompts.js` |
+| Durasi shot, cut, transisi, jeda, black beat, kartu angka | Editor engine deterministik | `core/engine/editor.js` |
+| Semua angka selera (ASL, rasio, loudness, warna, font, transisi) | Style profile | `styles/base.json` + `styles/<genre>.json` |
+| Grafis (peta, diagram, kartu angka, label, judul) | Template HyperFrames yang dikunci, hanya diisi data | `motion/templates/` |
+| Prompt Flow | Dirakit dari spesifikasi shot + style, tidak pernah ditulis bebas | `core/stages/flow.js` |
+| Grading, grain, mixing, loudness | Renderer ffmpeg deterministik | `core/render.js` |
+| Lolos atau tidak | QC otomatis + gate | `core/stages/qc.js`, `core/pipeline.js` |
+
+Input yang sama selalu menghasilkan shot list, grafis, dan mix yang sama. Grafis yang identik dirender sekali lalu di-cache.
+
+## Alur
+
+```
+topics → new → research → outline → script → [G2] → voice → visual → shotlist
+       → assets → [G3] → flow → motion → edit → render → qc → [G4] → final
+```
+
+Setiap tahap menulis file JSON sesuai kontrak di `core/contracts.js`. Kalau sebuah tahap gagal atau menunggu, `studio run` melanjutkan dari titik itu. Tahap yang input-nya tidak berubah dilewati.
+
+## Perintah
+
+```bash
+npm run studio -- doctor                                   # cek ffmpeg, HyperFrames, key, library, Flow API
+npm run studio -- topics --genre military --count 8        # usulan topik + skor (cek footage ke DVIDS/NASA)
+npm run studio -- new --genre military --topic T-001       # buat proyek dari topik
+npm run studio -- run <project>                            # jalankan / lanjutkan
+npm run studio -- batch --genre military --count 5         # pilih 5 topik terbaik yang belum dipakai, produksi semuanya
+npm run studio -- status [project]
+npm run studio -- gate <project> G4 approve                # persetujuan manusia
+npm run studio -- flow-runner --watch                      # (mode queue) jalankan di Mac yang menjalankan Flow API
+npm run test:studio
+```
+
+## Konfigurasi (`.env`)
+
+| Variabel | Default | Arti |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | — | LLM untuk riset, script, visual, QC |
+| `STUDIO_LLM_MODEL` | `claude-opus-5-5` | |
+| `STUDIO_VOICE_PROVIDER` | `edge` | `edge`, `elevenlabs` (`ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`), `file` (rekaman manusia di `vo/<seg>.source.wav`) |
+| `STUDIO_FLOW_MODE` | `direct` | `direct` (Flow API di mesin yang sama), `queue` (cloud menulis antrean, `flow-runner` di Mac yang mengeksekusi), `off` |
+| `FLOW_API_KEY`, `STUDIO_FLOW_BASE_URL` | | akses ke Flow API |
+| `DVIDS_API_KEY`, `NARA_API_KEY`, `PEXELS_API_KEY`, `PIXABAY_API_KEY` | | sumber footage (NASA dan Wikimedia tanpa key) |
+| `STUDIO_GATE_G2/G3/G4` | `auto/auto/manual` | `auto` lolos kalau cek otomatis lolos, `manual` selalu menunggu manusia |
+
+Musik dan ambience berlisensi ditaruh di `library/` (lihat `library/README.md`).
+
+## Folder
 
 ```
 studio/
-  AGENTS.md            aturan untuk agent yang bekerja di studio/
-  bibles/
-    _common/           01–08: aturan yang berlaku untuk semua dokumenter
-    military/          override militer + daftar sumber + QC hardware
-    tech/              override tech (belum ditulis)
-  references/          analisis video referensi (00) + tools analisis
-  core/                (langkah 2) kontrak zod, tahap pipeline, render
-  assets/              (langkah 2) database aset + file
+  cli.js               perintah
+  core/                pipeline (kontrak, tahap, editor engine, renderer)
+  styles/              style profile mesin (sumber semua angka selera)
+  motion/templates/    template grafis HyperFrames
+  bibles/              versi manusia dari aturan yang sama
+  references/          analisis video referensi + tools
+  library/             musik/ambience/footage berlisensi (tidak di-commit)
+  projects/            output per video (tidak di-commit)
+  assets/              database + cache footage dan grafis (tidak di-commit)
 ```
 
-## Urutan bible
-
-| File | Isi |
-|---|---|
-| `references/00_REFERENCE_ANALYSIS.md` | Angka terukur dari video referensi, dasar semua parameter |
-| `_common/01_STYLE_BIBLE.md` | Identitas, mode visual, pacing, transisi, warna, typography |
-| `_common/02_EDITORIAL_BIBLE.md` | Pemilihan topik, struktur cerita, hook, script, standar fakta |
-| `_common/03_VISUAL_LANGUAGE.md` | Enam tipe visual, peta, visualisasi teknis, motion, 3D |
-| `_common/04_ASSET_SYSTEM.md` | Sourcing, lisensi, metadata, penamaan, kontinuitas |
-| `_common/05_FLOW_PROMPT_SYSTEM.md` | Spesifikasi shot Flow, kamera, realisme, QC footage generated |
-| `_common/06_AUDIO_BIBLE.md` | VO, musik, ambience, SFX, silence, mixing, loudness |
-| `_common/07_QC_SYSTEM.md` | Delapan QC pass, cek otomatis vs cek manusia |
-| `_common/08_PIPELINE_CONTRACTS.md` | Tahap pipeline, human gate, format data JSON, integrasi Flow API |
-| `<genre>/GENRE.md` | Override per genre. Nilai di sini mengalahkan `_common` |
-
-## Cara membaca aturan
-
-1. `_common` adalah default.
-2. `<genre>/GENRE.md` menimpa parameter yang disebut eksplisit.
-3. Brief proyek (`brief.json`, lihat `08`) boleh menimpa untuk satu video saja, dan wajib menulis alasannya.
-
-Parameter bertanda **[v0.1]** masih sementara. Nilainya dikunci setelah pilot Aircraft Carrier.
+Kalau aturan di bible berubah, perbarui juga `styles/*.json` dan `core/prompts.js`. Mesin hanya membaca keduanya.

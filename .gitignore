@@ -16,3 +16,8 @@ studio/projects/*/renders/
 studio/assets/files/
 *.wav
 *.m4a
+studio/projects/
+studio/assets/
+studio/data/
+studio/library/**/*
+!studio/library/README.md

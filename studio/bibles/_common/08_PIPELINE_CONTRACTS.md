@@ -2,7 +2,7 @@
 
 Tahap-tahap pipeline, human gate, dan format data antar tahap. Setiap tahap hanya membaca file dari tahap sebelumnya dan menulis file miliknya sendiri. Dengan begitu tahap bisa diulang, diganti, atau dikerjakan manual tanpa merusak tahap lain.
 
-Di langkah 2, kontrak ini menjadi skema zod di `studio/core/contracts/`. Kalau dokumen dan kode berbeda, **kode yang benar** dan dokumen ini wajib diperbarui.
+Kontrak ini diimplementasikan sebagai skema zod di `studio/core/contracts.js`, dan urutan tahapnya di `studio/core/pipeline.js`. Kalau dokumen dan kode berbeda, **kode yang benar** dan dokumen ini wajib diperbarui. Nama file di implementasi: `visual_beats.json` (S5a), `shotlist.plan.json` (S5b), `shotlist.assets.json` + `asset_report.json` (S6), `shotlist.flow.json` + `flow_results.json` (S8), `shotlist.final.json` (S9), `render.json` (S11).
 
 ## 1. Alur
 

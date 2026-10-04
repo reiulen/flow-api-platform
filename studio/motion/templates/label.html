@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<script src="vendor/gsap.min.js"></script>
+<link rel="stylesheet" href="common.css" />
+<style>
+  #tag { position: absolute; left: 72px; top: 64px; display: flex; align-items: center; gap: 12px; }
+  #dot { width: 8px; height: 8px; background: var(--info); opacity: 0.8; }
+  #text { font-weight: 500; font-size: 18px; color: var(--info); opacity: 0.78; text-shadow: 0 1px 8px rgba(0,0,0,0.7); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="__DURATION__">
+  <section id="scene" class="clip" data-start="0" data-duration="__DURATION__">
+    <div id="tag"><div id="dot"></div><div id="text" class="caps"></div></div>
+  </section>
+</div>
+<script>
+  const P = __PAYLOAD__;
+  const root = document.getElementById('root');
+  for (const [k, v] of Object.entries(P.colors)) root.style.setProperty(`--${k}`, v);
+  document.getElementById('text').textContent = P.data.text;
+  const D = P.duration;
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo('#tag', { opacity: 0 }, { opacity: 1, duration: 0.6, ease: 'power1.out' }, 0.3);
+  if (D > 2) tl.to('#tag', { opacity: 0, duration: 0.5, ease: 'power1.in' }, D - 0.6);
+  window.__timelines['main'] = tl;
+</script>
+</body>
+</html>
