@@ -10,7 +10,8 @@ import { loadStyle } from './core/style.js';
 import { adapters } from './core/sources.js';
 import { pickTopic, scoutTopics } from './core/stages/editorial.js';
 import { runFlowQueue } from './core/stages/flow.js';
-import { chromePath } from './core/geo.js';
+import { chromePath, renderGeo } from './core/geo.js';
+import { MotionData } from './core/stages/visual.js';
 import { listProjects, markTopicUsed, newBrief, projectStatus, runProject, setGate, topicsFile, usedTopicsFile } from './core/pipeline.js';
 import { readJson, run, sleep, writeJson } from './core/util.js';
 
@@ -28,6 +29,8 @@ const HELP = `studio <command> [options]
   gate    <project> <G2|G3|G4> <approve|revise|reject> [--note "..."]
   status  [project]
   flow-runner [--watch]                    (Flow machine) process queued Flow requests
+  map-preview [--file map.json] [--seconds 15] [--out preview.mp4]
+                                           render one map shot with the configured imagery
 `;
 
 const config = loadConfig();
@@ -38,6 +41,7 @@ const { values: opt, positionals: pos } = parseArgs({
     genre: { type: 'string', default: 'military' }, count: { type: 'string' }, seed: { type: 'string' }, topic: { type: 'string' },
     title: { type: 'string' }, question: { type: 'string' }, angle: { type: 'string' }, minutes: { type: 'string' },
     from: { type: 'string' }, until: { type: 'string' }, note: { type: 'string' }, watch: { type: 'boolean' },
+    file: { type: 'string' }, seconds: { type: 'string' }, out: { type: 'string' },
   },
 });
 
@@ -156,6 +160,15 @@ const commands = {
     const s = projectStatus(config, pos[0]);
     console.log(`${s.project}: ${s.status}`);
     for (const st of s.stages) console.log(`  ${st.label.padEnd(24)} ${String(st.status).padEnd(9)} ${st.seconds ? `${st.seconds}s ` : ''}${st.summary ? JSON.stringify(st.summary) : ''}${st.error ? ` ERROR ${st.error}` : ''}`);
+  },
+
+  async 'map-preview'() {
+    const file = opt.file || path.join(config.root, 'motion', 'geo', 'examples', 'red-sea.json');
+    const data = MotionData.map.parse(readJson(file));
+    const out = path.resolve(opt.out || 'map-preview.mp4');
+    const started = Date.now();
+    await renderGeo({ config, style: loadStyle(config, opt.genre), data, duration: Number(opt.seconds || 15), out });
+    console.log(`${out} (${config.map.provider}, ${Math.round((Date.now() - started) / 1000)}s)`);
   },
 
   async 'flow-runner'() {

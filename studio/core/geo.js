@@ -159,10 +159,13 @@ export async function renderGeo({ config, style, data, duration, out }) {
   let ffmpeg;
   try {
     const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
+    const debug = process.env.STUDIO_GEO_DEBUG ? (...a) => console.error('[geo]', ...a) : () => {};
     const errors = [];
+    const tiles = { ok: 0, fail: 0, lastError: '' };
     page.on('pageerror', (e) => errors.push(e.message));
     await page.route('**/*', async (route) => {
       const url = new URL(route.request().url());
+      debug('request', url.href.slice(0, 120));
       if (url.host === 'geo.local') {
         const file = localFile(url.pathname, provider);
         if (!file || !fs.existsSync(file)) return route.fulfill({ status: 404, body: '' });
@@ -171,20 +174,29 @@ export async function renderGeo({ config, style, data, duration, out }) {
       // Remote tiles: disk cache keyed without the API key, so renders are repeatable offline.
       const keyless = `${url.origin}${url.pathname}`;
       const cached = path.join(tileDir, `${crypto.createHash('sha1').update(keyless).digest('hex')}${path.extname(url.pathname) || '.img'}`);
-      if (fs.existsSync(cached)) return route.fulfill({ status: 200, contentType: MIME[path.extname(cached)] || 'image/jpeg', body: fs.readFileSync(cached) });
+      if (fs.existsSync(cached)) { tiles.ok += 1; return route.fulfill({ status: 200, contentType: MIME[path.extname(cached)] || 'image/jpeg', body: fs.readFileSync(cached) }); }
       try {
-        const res = await fetch(url.href, { headers: { 'user-agent': 'flow-api-platform-studio/0.1' } });
-        if (!res.ok) return route.fulfill({ status: res.status, body: '' });
+        const res = await fetch(url.href, { headers: { 'user-agent': 'flow-api-platform-studio/0.1' }, signal: AbortSignal.timeout(20000) });
+        if (!res.ok) { tiles.fail += 1; tiles.lastError = `HTTP ${res.status}`; return route.fulfill({ status: res.status, body: '' }); }
         const body = Buffer.from(await res.arrayBuffer());
         fs.writeFileSync(cached, body);
+        tiles.ok += 1;
         return route.fulfill({ status: 200, contentType: res.headers.get('content-type') || 'image/jpeg', body });
-      } catch {
+      } catch (err) {
+        tiles.fail += 1;
+        tiles.lastError = err.message;
         return route.fulfill({ status: 503, body: '' });
       }
     });
+    page.on('console', (m) => debug('console', m.text()));
     await page.goto('http://geo.local/geo/page.html');
+    debug('page loaded');
     await page.waitForFunction(() => typeof window.geoInit === 'function', null, { timeout: 60000 });
     await page.evaluate((s) => window.geoInit(s), spec);
+    debug('init done');
+    if (provider.kind === 'raster' && !tiles.ok && tiles.fail) {
+      throw new Error(`map imagery provider "${config.map.provider}" unreachable (${tiles.fail} tile requests failed, last: ${tiles.lastError})`);
+    }
     if (errors.length) throw new Error(`geo page: ${errors.join('; ')}`);
 
     const geo = style.geo || {};
@@ -197,6 +209,10 @@ export async function renderGeo({ config, style, data, duration, out }) {
     const frames = Math.round(duration * spec.fps);
     for (let f = 0; f < frames; f++) {
       await page.evaluate((t) => window.geoRender(t), f / spec.fps);
+      // A map without imagery is never acceptable: stop instead of rendering black frames.
+      if (f === 0 && provider.kind === 'raster' && !tiles.ok && tiles.fail) {
+        throw new Error(`map imagery provider "${config.map.provider}" unreachable (${tiles.fail} tile requests failed, last: ${tiles.lastError})`);
+      }
       const jpg = await page.screenshot({ type: 'jpeg', quality: 95 });
       if (!ffmpeg.stdin.write(jpg)) await new Promise((r) => ffmpeg.stdin.once('drain', r));
     }

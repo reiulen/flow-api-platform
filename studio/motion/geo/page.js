@@ -273,7 +273,7 @@ function waitIdle() {
     const poll = () => {
       if (done) return;
       if (map.loaded() && map.areTilesLoaded()) return finish();
-      if (performance.now() - start > 30000) return finish();
+      if (performance.now() - start > 45000) return finish();
       setTimeout(poll, 50);
     };
     setTimeout(poll, 50);
@@ -310,7 +310,9 @@ window.geoInit = async (s) => {
     pixelRatio: 1, maxPitch: 60, renderWorldCopies: false,
     center: spec.camera.keys[0].center, zoom: spec.camera.keys[0].zoom,
   });
-  await new Promise((r) => map.once('load', r));
+  // 'load' can wait forever when imagery fails; the driver checks tile health itself.
+  await Promise.race([new Promise((r) => map.once('load', r)), new Promise((r) => setTimeout(r, 30000))]);
+  if (!map.isStyleLoaded()) await new Promise((r) => map.once('styledata', r));
   spec.elements.forEach((e, i) => els.push(builders[e.type](e, i)));
   if (spec.title) { const d = document.createElement('div'); d.className = 'title'; d.textContent = spec.title; ui.appendChild(d); els.push((t) => { d.style.opacity = String(clamp01((t - 0.2) / 0.6)); }); }
   if (spec.legend?.length) {
