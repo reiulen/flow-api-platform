@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { REPO_ROOT } from '../config.js';
+import { renderGeo } from '../geo.js';
 import { ensureDir, ffprobe, hash, mapLimit, round, run } from '../util.js';
 
 const OVERLAY_TEMPLATES = new Set(['stat', 'label']);
@@ -32,6 +33,7 @@ function prepareVendor(dir) {
 
 // Renders one template. Results are cached by content hash, so identical graphics are never re-rendered.
 export async function renderMotion({ config, style, template, data, duration }) {
+  if (template === 'map' && !config.render.motionStub) return renderMapShot({ config, style, data, duration });
   const templatesDir = path.join(config.motionDir, 'templates');
   const html = fs.readFileSync(path.join(templatesDir, `${template}.html`), 'utf8');
   const css = fs.readFileSync(path.join(templatesDir, 'common.css'), 'utf8');
@@ -99,5 +101,16 @@ async function stubMotion(out, overlay, duration, template) {
   await run('ffmpeg', ['-y', '-v', 'error', ...args, tmp]);
   fs.renameSync(tmp, out);
   void template;
+  return out;
+}
+
+// Maps go through the MapLibre renderer; cached by data, duration, provider and renderer code.
+async function renderMapShot({ config, style, data, duration }) {
+  const code = ['studio/motion/geo/page.js', 'studio/motion/geo/page.html', 'studio/core/geo.js'].map((f) => fs.readFileSync(path.join(REPO_ROOT, f), 'utf8'));
+  const key = hash({ data, duration: round(duration, 3), provider: config.map.provider, geo: style.geo, colors: style.colors, code, v: 1 });
+  const cacheDir = ensureDir(path.join(config.assetsDir, 'motion-cache'));
+  const out = path.join(cacheDir, `map-${key}.mp4`);
+  if (fs.existsSync(out)) return out;
+  await renderGeo({ config, style, data, duration: round(duration, 3), out });
   return out;
 }

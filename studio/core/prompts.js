@@ -169,9 +169,17 @@ For each beat:
 - need is required for every beat. For MAP/TECH it describes the real footage that would prove the explainer (used if the explainer cannot be built).
 - flow is required for every beat; for non-FLOW beats fill it with reconstruction false and empty strings/arrays.
 - motion_json (for MAP or TECH; empty string otherwise) is a JSON string {"template": "...", "data": {...}} using these templates:
-  map: { "title": "", "view": {"center":[lon,lat], "scale_from":1, "scale_to":4}, "steps": [ step, ... ] }
-       step types (2-6 steps, revealed in order): {"type":"highlight","countries":["Yemen"],"role":"threat|friendly|warning|info"} | {"type":"point","lon":0,"lat":0,"label":"BAB EL-MANDEB","role":"info"} | {"type":"route","from":[lon,lat],"via":[[lon,lat],...],"to":[lon,lat],"label":"TO EUROPE","role":"friendly"} (via = sea/air waypoints so the line follows the real path, e.g. through a strait) | {"type":"ring","lon":0,"lat":0,"radius_km":400,"label":"400 KM","role":"sensor"} | {"type":"zoom","center":[lon,lat],"scale":6}
-       Coordinates must be accurate. Labels uppercase, max 3 words. Only label what the narration mentions.
+  map: { "title": "", "legend": [{"label":"HOUTHI CONTROLLED","role":"threat"}], "view": {"center":[lon,lat], "scale_from":4, "scale_to":5.5, "pitch":32}, "steps": [ step, ... ] }
+       Rendered on graded satellite imagery with a slowly drifting, tilted 3D camera. scale: 1 = whole world, 4 = a region like the Middle East, 20 = a country like Yemen, 80+ = a city or strait.
+       step types (2-8 steps, revealed in order, one per narrative idea):
+         {"type":"label","lon":0,"lat":0,"text":"SAUDI ARABIA","role":"info"}   big plate naming a country or sea
+         {"type":"point","lon":0,"lat":0,"label":"STRAIT OF HORMUZ","role":"threat","marker":"chokepoint|dot"}   chokepoint = glowing pulsing marker for critical places
+         {"type":"highlight","countries":["Yemen"],"role":"threat","label":"","legend":"HOUTHI CONTROLLED"}
+         {"type":"route","from":[lon,lat],"via":[[lon,lat],...],"to":[lon,lat],"label":"TO EUROPE","role":"friendly","icon":"ship|plane|missile"}   glowing line; via = waypoints so it follows real sea lanes/air paths, never across land for ships
+         {"type":"pipeline","coords":[[lon,lat],...],"label":"EAST-WEST PIPELINE","role":"sensor"}   flowing dashed line for pipelines, cables, supply lines
+         {"type":"ring","lon":0,"lat":0,"radius_km":400,"label":"400 KM","role":"sensor"}   range/coverage circle
+         {"type":"zoom","center":[lon,lat],"scale":20}   camera move to a new area
+       Coordinates must be accurate. Labels uppercase, max 3 words. Only label what the narration mentions. Colors carry meaning: threat red, friendly blue, sensor teal, warning amber.
   process: { "title": "", "steps": [ {"label":"DETECTION","detail":"max 5 words","role":"sensor"}, ... 3-6 steps ] }
   compare: { "title": "", "unit": "", "items": [ {"label":"","value":0,"role":"info"}, ... 2-5 items ] }   (values from claims only)
 - flow (for FLOW): { "reconstruction": true if it depicts a specific real event/place/hardware, "composition": "", "camera": "", "lighting": "", "motion": "", "constraints": ["key hardware facts that must be visually correct"] }

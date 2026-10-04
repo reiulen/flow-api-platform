@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="stylesheet" href="/vendor/maplibre-gl/maplibre-gl.css" />
+<style>
+  @font-face { font-family: "Oswald"; font-weight: 500; src: url("/fonts/oswald-500.woff2") format("woff2"); }
+  @font-face { font-family: "Oswald"; font-weight: 600; src: url("/fonts/oswald-600.woff2") format("woff2"); }
+  @font-face { font-family: "Inter Tight"; font-weight: 500; src: url("/fonts/inter-tight-500.woff2") format("woff2"); }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #05080c; }
+  #map { position: absolute; inset: 0; }
+  #fx, #ui { position: absolute; inset: 0; pointer-events: none; }
+  #vignette { position: absolute; inset: 0; background: radial-gradient(ellipse 75% 70% at 50% 48%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%); }
+  .plate { position: absolute; transform-origin: 0 50%; white-space: nowrap; font-family: "Oswald", sans-serif; font-weight: 600; font-size: 25px; letter-spacing: 0.06em; text-transform: uppercase; color: #fff; padding: 3px 12px 4px; background: rgba(16,18,22,0.88); box-shadow: 0 2px 10px rgba(0,0,0,0.45); }
+  .plate.big { font-size: 32px; padding: 4px 16px 5px; }
+  .legend { position: absolute; left: 58px; bottom: 56px; padding: 14px 18px; background: rgba(12,14,18,0.82); font-family: "Inter Tight", sans-serif; font-weight: 500; font-size: 17px; color: #e9ecef; display: flex; flex-direction: column; gap: 9px; }
+  .legend .row { display: flex; align-items: center; gap: 12px; }
+  .legend .sw { width: 22px; height: 14px; }
+  .title { position: absolute; left: 58px; top: 52px; font-family: "Oswald", sans-serif; font-weight: 500; font-size: 22px; letter-spacing: 0.14em; color: rgba(255,255,255,0.78); text-transform: uppercase; }
+  .credit { position: absolute; right: 26px; bottom: 18px; font-family: "Inter Tight", sans-serif; font-size: 12px; color: rgba(255,255,255,0.45); }
+  .maplibregl-ctrl-attrib, .maplibregl-ctrl-logo { display: none !important; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<svg id="fx" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+  </defs>
+  <g id="fx-markers"></g><g id="fx-icons"></g>
+</svg>
+<div id="vignette"></div>
+<div id="ui"></div>
+<script type="module" src="/geo/page.js"></script>
+</body>
+</html>

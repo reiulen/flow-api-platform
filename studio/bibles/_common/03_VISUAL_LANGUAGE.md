@@ -56,14 +56,22 @@ REAL: pesawat mendarat di dek
 
 ## 5. MAP — peta informasi sinematik
 
-### Dua jalur render
+### Render
 
-| Jalur | Kapan | Teknologi |
+Peta dirender dengan MapLibre GL (open source) di atas citra satelit, frame per frame di Chrome headless. Setiap frame baru diambil setelah semua tile termuat, dan tile disimpan di cache disk, jadi render ulang selalu identik. Kode: `studio/core/geo.js` dan `studio/motion/geo/`.
+
+Look peta dikunci di `styles/*.json` bagian `geo`: kemiringan kamera, drift (rotasi dan zoom pelan sepanjang shot), grading citra, warna laut, garis batas, dan grain.
+
+Elemen yang tersedia: label pelat negara, penanda chokepoint (menyala, cincin berdenyut, cincin putus-putus berputar), wilayah berwarna, rute bercahaya dengan panah dan pulsa cahaya yang mengalir, pipeline putus-putus yang bergerak, cincin jangkauan, ikon kapal/pesawat/rudal yang bergerak di jalurnya, legenda, dan judul.
+
+Sumber citra (`STUDIO_MAP_PROVIDER`):
+
+| Provider | Detail maksimum | Lisensi |
 |---|---|---|
-| Vector (default, ±90%) | Batas negara, rute, zona, jangkauan | HyperFrames + D3/TopoJSON (Natural Earth) |
-| Basemap | Butuh citra satelit atau terrain nyata | MapLibre di-bake per frame → MP4 → overlay HyperFrames |
-
-Detail teknis di `.agents/skills/motion-graphics/categories/maps/module.md`.
+| `maptiler` | Sangat tinggi | Berbayar/terbatas. Atribusi "© MapTiler © OpenStreetMap contributors" wajib tampil di layar dan dibakar otomatis ke frame. Cek syarat paket sebelum monetisasi |
+| `gibs` | Zoom 8 (regional) | NASA Blue Marble, bebas dipakai dengan kredit NASA |
+| `s2cloudless` | Zoom 15 | Sentinel-2 cloudless 2016 oleh EOX, CC BY 4.0, atribusi wajib |
+| `local` | Sesuai tile | Tile milik sendiri |
 
 ### Peta berlapis
 

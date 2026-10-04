@@ -110,6 +110,15 @@
     "mono": "IBM Plex Mono"
   },
 
+  "geo": {
+    "pitch": 32,
+    "drift": { "bearing": 5, "zoom": 0.12, "pan": [0, 0] },
+    "grade": { "saturation": 0.05, "contrast": 0.12, "brightness_min": 0.0, "brightness_max": 0.92, "hue": 0 },
+    "ocean": "#060b12",
+    "borders": { "color": "#ffffff", "opacity": 0.55 },
+    "grain": true
+  },
+
   "labels": {
     "reconstruction": "RECONSTRUCTION",
     "illustrative": "ILLUSTRATIVE"

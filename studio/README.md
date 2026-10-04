@@ -9,7 +9,8 @@ Generator dokumenter otomatis di samping Flow API. Satu pipeline untuk semua gen
 | Topik, riset, narasi, apa yang tampil per kalimat | LLM, dengan instruksi yang sudah dirakit lengkap (tanpa membaca skill atau kode) | `core/prompts.js` |
 | Durasi shot, cut, transisi, jeda, black beat, kartu angka | Editor engine deterministik | `core/engine/editor.js` |
 | Semua angka selera (ASL, rasio, loudness, warna, font, transisi) | Style profile | `styles/base.json` + `styles/<genre>.json` |
-| Grafis (peta, diagram, kartu angka, label, judul) | Template HyperFrames yang dikunci, hanya diisi data | `motion/templates/` |
+| Grafis (diagram, kartu angka, label, judul) | Template HyperFrames yang dikunci, hanya diisi data | `motion/templates/` |
+| Peta | MapLibre di atas citra satelit yang di-grade, kamera 3D yang hidup, dirender frame per frame | `motion/geo/`, `core/geo.js` |
 | Prompt Flow | Dirakit dari spesifikasi shot + style, tidak pernah ditulis bebas | `core/stages/flow.js` |
 | Grading, grain, mixing, loudness | Renderer ffmpeg deterministik | `core/render.js` |
 | Lolos atau tidak | QC otomatis + gate | `core/stages/qc.js`, `core/pipeline.js` |
@@ -49,6 +50,8 @@ npm run test:studio
 | `STUDIO_FLOW_MODE` | `direct` | `direct` (Flow API di mesin yang sama), `queue` (cloud menulis antrean, `flow-runner` di Mac yang mengeksekusi), `off` |
 | `FLOW_API_KEY`, `STUDIO_FLOW_BASE_URL` | | akses ke Flow API |
 | `DVIDS_API_KEY`, `NARA_API_KEY`, `PEXELS_API_KEY`, `PIXABAY_API_KEY` | | sumber footage (NASA dan Wikimedia tanpa key) |
+| `STUDIO_MAP_PROVIDER`, `MAPTILER_KEY` | `maptiler` kalau key ada, selain itu `gibs` | citra satelit untuk peta: `maptiler`, `gibs` (NASA Blue Marble, sampai zoom 8), `s2cloudless` (Sentinel-2 2016, CC BY), `local` (folder tile sendiri) |
+| `CHROME_EXECUTABLE_PATH` | Chrome di Mac | browser untuk render peta |
 | `STUDIO_GATE_G2/G3/G4` | `auto/auto/manual` | `auto` lolos kalau cek otomatis lolos, `manual` selalu menunggu manusia |
 
 Musik dan ambience berlisensi ditaruh di `library/` (lihat `library/README.md`).

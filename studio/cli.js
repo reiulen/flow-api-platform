@@ -10,6 +10,7 @@ import { loadStyle } from './core/style.js';
 import { adapters } from './core/sources.js';
 import { pickTopic, scoutTopics } from './core/stages/editorial.js';
 import { runFlowQueue } from './core/stages/flow.js';
+import { chromePath } from './core/geo.js';
 import { listProjects, markTopicUsed, newBrief, projectStatus, runProject, setGate, topicsFile, usedTopicsFile } from './core/pipeline.js';
 import { readJson, run, sleep, writeJson } from './core/util.js';
 
@@ -79,6 +80,8 @@ const commands = {
     } catch (err) { ok('hyperframes', false, err.message.slice(0, 120)); }
     ok('LLM provider', config.llm.provider !== 'anthropic' || Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN), `${config.llm.provider} ${config.llm.model}`);
     ok('voice', true, `${config.voice.provider} ${config.voice.voice}`);
+    ok('map imagery', config.map.provider !== 'maptiler' || Boolean(config.map.maptilerKey), `${config.map.provider}${config.map.provider === 'gibs' ? ' (regional detail only; set MAPTILER_KEY or STUDIO_MAP_PROVIDER=s2cloudless for close zooms)' : ''}`);
+    ok('map browser', Boolean(chromePath(config)), chromePath(config) || 'set CHROME_EXECUTABLE_PATH');
     for (const k of ['dvids', 'nara', 'pexels', 'pixabay']) ok(`source ${k}`, Boolean(config.sources[k]), config.sources[k] ? 'key set' : 'no key (source skipped)');
     const lib = (k) => fs.existsSync(path.join(config.libraryDir, k, 'index.json'));
     ok('music library', lib('music'), lib('music') ? '' : `add tracks + ${path.join(config.libraryDir, 'music', 'index.json')}`);

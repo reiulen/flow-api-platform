@@ -42,6 +42,15 @@ export function loadConfig(overrides = {}) {
       timeoutMs: Number(env.STUDIO_FLOW_TIMEOUT_MS || 30 * 60 * 1000),
     },
 
+    map: {
+      provider: env.STUDIO_MAP_PROVIDER || (env.MAPTILER_KEY ? 'maptiler' : 'gibs'),
+      maptilerKey: env.MAPTILER_KEY || '',
+      localTiles: env.STUDIO_MAP_LOCAL_TILES || '',
+      localMaxzoom: env.STUDIO_MAP_LOCAL_MAXZOOM || '',
+      localCredit: env.STUDIO_MAP_LOCAL_CREDIT || '',
+      standin: null,
+    },
+
     sources: {
       dvids: env.DVIDS_API_KEY || '',
       nara: env.NARA_API_KEY || '',
@@ -53,6 +62,7 @@ export function loadConfig(overrides = {}) {
       hyperframes: env.STUDIO_HYPERFRAMES_BIN || path.join(REPO_ROOT, 'node_modules', '.bin', 'hyperframes'),
       motionQuality: env.STUDIO_MOTION_QUALITY || 'looks',
       motionStub: env.STUDIO_MOTION_STUB === '1',
+      chrome: env.CHROME_EXECUTABLE_PATH || '',
       threads: Number(env.STUDIO_FFMPEG_THREADS || 0),
       preset: env.STUDIO_FFMPEG_PRESET || 'medium',
       crf: Number(env.STUDIO_FFMPEG_CRF || 18),
