@@ -8,3 +8,11 @@ scratch/
 dist/
 *.mp4
 
+# studio: generated media and downloaded assets stay local
+studio/projects/*/vo/
+studio/projects/*/flow/
+studio/projects/*/motion/renders/
+studio/projects/*/renders/
+studio/assets/files/
+*.wav
+*.m4a
