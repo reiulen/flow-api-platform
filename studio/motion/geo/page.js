@@ -77,8 +77,11 @@ const multiline = (parts) => ({ type: 'Feature', properties: {}, geometry: { typ
 const fc = (features) => ({ type: 'FeatureCollection', features });
 
 // ---- plates (flat labels that stay upright whatever the camera does) ----
+const plates = [];
 function makePlate(text, role, big = false) {
   const el = document.createElement('div');
+  el.dataset.nudge = '0';
+  plates.push(el);
   el.className = `plate${big ? ' big' : ''}`;
   el.textContent = text;
   if (role && role !== 'info' && role !== 'neutral') el.style.background = color(role);
@@ -91,7 +94,7 @@ function placePlate(el, lngLat, p, offset = [0, 0], anchor = 'left') {
   const w = el.offsetWidth;
   const x = anchor === 'center' ? pt.x - w / 2 : pt.x;
   el.style.left = `${Math.round(x + offset[0])}px`;
-  el.style.top = `${Math.round(pt.y + offset[1] - el.offsetHeight / 2)}px`;
+  el.style.top = `${Math.round(pt.y + offset[1] + Number(el.dataset.nudge) - el.offsetHeight / 2)}px`;
   const k = easeOut(clamp01(p / 0.35));
   el.style.opacity = p > 0 ? '1' : '0';
   el.style.clipPath = `inset(0 ${Math.round((1 - k) * 100)}% 0 0)`;
@@ -154,8 +157,8 @@ const builders = {
     const c = color(e.role || 'sensor');
     map.addSource(`${id}-g`, { type: 'geojson', data: line([coords[0], coords[0]]) });
     map.addSource(id, { type: 'geojson', data: multiline([]) });
-    map.addLayer({ id: `${id}-g`, type: 'line', source: `${id}-g`, layout: { 'line-cap': 'round' }, paint: { 'line-color': c, 'line-width': 12, 'line-blur': 8, 'line-opacity': 0.4 } });
-    map.addLayer({ id: `${id}-d`, type: 'line', source: id, layout: { 'line-cap': 'butt' }, paint: { 'line-color': lighten(c, 0.4), 'line-width': 4.5 } });
+    map.addLayer({ id: `${id}-g`, type: 'line', source: `${id}-g`, layout: { 'line-cap': 'round' }, paint: { 'line-color': c, 'line-width': 16, 'line-blur': 9, 'line-opacity': 0.55 } });
+    map.addLayer({ id: `${id}-d`, type: 'line', source: id, layout: { 'line-cap': 'butt' }, paint: { 'line-color': lighten(c, 0.45), 'line-width': 6 } });
     const plate = e.label ? makePlate(e.label, e.role || 'sensor') : null;
     const dash = 0.022;
     return (t) => {
@@ -324,8 +327,28 @@ window.geoInit = async (s) => {
     els.push((t) => { d.style.opacity = String(clamp01((t - 0.5) / 0.6)); });
   }
   if (spec.credit) { const d = document.createElement('div'); d.className = 'credit'; d.textContent = spec.credit; ui.appendChild(d); }
+  resolvePlateCollisions();
   return true;
 };
+
+// Plates are laid out once at the final camera; overlapping ones get a fixed vertical nudge,
+// so labels never collide and never jump during the shot.
+function resolvePlateCollisions() {
+  map.jumpTo(cameraAt(spec.duration));
+  for (const fn of els) fn(spec.duration);
+  const placed = [];
+  for (const el of plates) {
+    if (el.style.opacity === '0') continue;
+    const base = el.getBoundingClientRect();
+    let nudge = 0;
+    for (const step of [0, 44, -44, 88, -88, 132, -132]) {
+      const r = { left: base.left, right: base.right, top: base.top + step, bottom: base.bottom + step };
+      if (!placed.some((p) => r.left < p.right + 6 && r.right > p.left - 6 && r.top < p.bottom + 4 && r.bottom > p.top - 4)) { nudge = step; break; }
+    }
+    el.dataset.nudge = String(nudge);
+    placed.push({ left: base.left, right: base.right, top: base.top + nudge, bottom: base.bottom + nudge });
+  }
+}
 
 window.geoRender = async (t) => {
   map.jumpTo(cameraAt(t));
