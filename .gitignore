@@ -1,6 +1,6 @@
 node_modules/
 .env
-data/
+/data/
 profiles/
 *.log
 .DS_Store
@@ -16,8 +16,7 @@ studio/projects/*/renders/
 studio/assets/files/
 *.wav
 *.m4a
+!studio/library/**/*.wav
 studio/projects/
 studio/assets/
-studio/data/
-studio/library/**/*
-!studio/library/README.md
+studio/data/used_topics.json

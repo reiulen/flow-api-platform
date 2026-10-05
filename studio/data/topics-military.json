@@ -1,0 +1,79 @@
+{
+  "generated_at": "2026-10-05T03:11:54.213Z",
+  "genre": "military",
+  "candidates": [
+    {
+      "topic_id": "T-002",
+      "title": "Why America's Oldest Bomber Will Outlive Its Replacements",
+      "central_question": "Why is the B-52, first flown in the 1950s, planned to fly into the 2050s while the newer B-1B and B-2 are scheduled to retire first?",
+      "angle": "Explain the paradox through engineering and economics. The B-52's large, unpressurized bomb bay and wing pylons accept new weapons without redesign, and its airframes have accumulated relatively low fatigue. The Commercial Engine Replacement Program (Rolls-Royce F130) and the Radar Modernization Program turn the aircraft into the B-52J. Contrast this with the maintenance burden of the B-1B and the stealth upkeep of the B-2. Act 7 should cover the limitations: non-stealth vulnerability, reliance on standoff weapons, and documented cost and schedule growth in the modernization programs.",
+      "scores": {
+        "contradiction": 5,
+        "mechanism": 5,
+        "footage": 5,
+        "sources": 5,
+        "relevance": 5,
+        "visualization": 5,
+        "risk": 1
+      },
+      "footage_evidence": [
+        "archive probe \"B-52 Stratofortress\": 50 results",
+        "DVIDS: \"B-52 Stratofortress\"",
+        "DVIDS: \"B-52 Bomber Task Force\"",
+        "DVIDS: \"B-52 maintenance Barksdale\"",
+        "NARA catalog: \"B-52 Stratofortress Boeing 1950s\"",
+        "DVIDS: \"Commercial Engine Replacement Program\""
+      ],
+      "key_sources": [
+        "U.S. Air Force fact sheet: B-52H Stratofortress",
+        "GAO Weapon Systems Annual Assessment entries for B-52 Commercial Engine Replacement Program and B-52 Radar Modernization Program",
+        "Department of the Air Force budget justification documents (RDT&E) for B-52 CERP and RMP",
+        "Air Force announcement of the Rolls-Royce F130 selection for B-52 CERP (2021)",
+        "Congressional Research Service reports on the U.S. bomber force and B-21 Raider transition"
+      ],
+      "risks": [
+        "Nuclear-mission material must stay at the level of public fact sheets. No speculation on targeting or posture.",
+        "Service-life and retirement dates for the B-1B and B-2 depend on B-21 progress. Present them as planned, with attribution.",
+        "Program cost and schedule figures need tier-1 GAO or budget sources and must carry their report year.",
+        "Platform continuity: archival footage of earlier B-52 variants must be labeled and not used where the narration refers to the B-52H or B-52J."
+      ],
+      "total": 43.5
+    },
+    {
+      "topic_id": "T-001",
+      "title": "Why the Air Force Keeps Trying to Retire a Jet Congress Won't Let Die",
+      "central_question": "Why has the A-10 Thunderbolt II outlived repeated Air Force attempts to retire it, even though the service argues it would not survive a modern air-defense environment?",
+      "angle": "Contrast the Air Force's budget and survivability case for retirement with the aircraft's purpose-built close air support design: the titanium armor tub around the cockpit, redundant flight controls, and the GAU-8 cannon built around the airframe. Trace how Congress used successive NDAAs to block or slow divestment, how the GAO questioned the data behind the decisions, and how the retirement timeline is now playing out. Act 7 should cover the real limits: survivability against modern integrated air defenses and the cost of keeping a single-mission fleet.",
+      "scores": {
+        "contradiction": 5,
+        "mechanism": 4,
+        "footage": 5,
+        "sources": 4,
+        "relevance": 4,
+        "visualization": 4,
+        "risk": 2
+      },
+      "footage_evidence": [
+        "archive probe \"A-10 Thunderbolt II\": 50 results",
+        "DVIDS: \"A-10 Thunderbolt II\"",
+        "DVIDS: \"A-10 GAU-8 strafing run\"",
+        "DVIDS: \"A-10 maintenance titanium\"",
+        "National Archives (NARA) catalog: \"A-10 Fairchild Republic\""
+      ],
+      "key_sources": [
+        "GAO-16-816, \"Force Structure: Better Information Needed to Support Air Force A-10 and Other Future Divestment Decisions\" (2016)",
+        "U.S. Air Force fact sheet: A-10C Thunderbolt II",
+        "National Defense Authorization Act provisions restricting A-10 retirement (FY2015-FY2017) and the FY2023 NDAA provision permitting retirement of 21 A-10s",
+        "Department of the Air Force budget request justification books covering A-10 divestment",
+        "Congressional Research Service reports on Air Force force structure and A-10 retirement"
+      ],
+      "risks": [
+        "Politically charged topic. Present Air Force and congressional positions as attributed claims and avoid advocacy.",
+        "Survivability against specific modern air defenses must stay conceptual: no named-system vulnerabilities or gaps.",
+        "Combat strafing footage should explain the close air support role, not serve as spectacle.",
+        "Retirement dates and fleet numbers change by budget year. Verify the latest figures against tier-1 budget documents."
+      ],
+      "total": 37
+    }
+  ]
+}

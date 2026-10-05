@@ -1,0 +1,44 @@
+[
+  {
+    "file": "time_travels.mp3",
+    "function": "investigation",
+    "duration_s": 501,
+    "license": "Public Domain (US Government Work)",
+    "credit": "United States Air Force Band"
+  },
+  {
+    "file": "centennial_prelude.mp3",
+    "function": "scale",
+    "duration_s": 103,
+    "license": "Public Domain (US Government Work)",
+    "credit": "United States Air Force Band of the Golden West"
+  },
+  {
+    "file": "breaking_barriers.mp3",
+    "function": "engineering",
+    "duration_s": 92,
+    "license": "Public Domain (US Government Work)",
+    "credit": "United States Air Force Band"
+  },
+  {
+    "file": "bombasto.mp3",
+    "function": "threat",
+    "duration_s": 155,
+    "license": "Public Domain (US Government Work)",
+    "credit": "United States Air Force Band of the Rockies"
+  },
+  {
+    "file": "in_pursuit.mp3",
+    "function": "action",
+    "duration_s": 472,
+    "license": "Public Domain (US Government Work)",
+    "credit": "United States Air Force Band"
+  },
+  {
+    "file": "air_force_hymn.mp3",
+    "function": "ending",
+    "duration_s": 744,
+    "license": "Public Domain (US Government Work)",
+    "credit": "United States Air Force Heartland of America Band"
+  }
+]

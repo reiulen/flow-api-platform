@@ -1,0 +1,49 @@
+[
+  {
+    "file": "room_tone.wav",
+    "tags": [
+      "room",
+      "interior",
+      "cabin",
+      "silence",
+      "office"
+    ],
+    "license": "Public Domain",
+    "credit": "Acoustic ambient room tone"
+  },
+  {
+    "file": "sea_waves.wav",
+    "tags": [
+      "ocean",
+      "sea",
+      "water",
+      "carrier",
+      "ship"
+    ],
+    "license": "Public Domain",
+    "credit": "Wikimedia Commons"
+  },
+  {
+    "file": "wind.mp3",
+    "tags": [
+      "wind",
+      "storm",
+      "desert",
+      "air"
+    ],
+    "license": "Creative Commons 0",
+    "credit": "Gravity Sound"
+  },
+  {
+    "file": "jet_overhead.wav",
+    "tags": [
+      "jet",
+      "engine",
+      "airfield",
+      "hangar",
+      "flightline"
+    ],
+    "license": "Creative Commons 0",
+    "credit": "Wikimedia Commons"
+  }
+]
