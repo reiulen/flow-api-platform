@@ -93,8 +93,18 @@ const providers = {
     const key = process.env.NINE_ROUTER_API_KEY;
     if (!key) throw new Error('voice: set NINE_ROUTER_API_KEY');
     const text = pieces.map((p) => (p.boundary ? '\n\n' : p.pause ? '... ' : applyPron(p.text, segment.pron))).join(' ');
-    const voiceName = voice.voice || 'Puck';
-    const model = voiceName.startsWith('gemini/') ? voiceName : `gemini/${voiceName}`;
+    const isVoiceInworld = voice.provider === 'inworld' || (voice.voice && voice.voice.startsWith('inworld/'));
+    const defaultVoice = isVoiceInworld ? 'Harold' : 'Puck';
+    const voiceName = voice.voice || defaultVoice;
+    let model;
+    if (isVoiceInworld) {
+      const v = voiceName.replace(/^inworld\//, '');
+      model = v.includes('/') ? `inworld/${v}` : `inworld/inworld-tts-1.5-max/${v}`;
+    } else if (voiceName.includes('/')) {
+      model = voiceName;
+    } else {
+      model = `gemini/${voiceName}`;
+    }
     const res = await fetch(`${baseUrl}/v1/audio/speech`, {
       method: 'POST',
       headers: {
@@ -104,7 +114,7 @@ const providers = {
       body: JSON.stringify({
         model,
         input: text,
-        voice: voiceName.replace(/^gemini\//, ''),
+        voice: voiceName.split('/').pop(),
         lang: process.env.STUDIO_VOICE_LANG || 'en-US',
       }),
     });
@@ -113,6 +123,10 @@ const providers = {
     const raw = `${outBase}.raw.wav`;
     fs.writeFileSync(raw, Buffer.from(buf));
     return { src: raw, words: null };
+  },
+
+  async inworld(args) {
+    return providers.nine_router(args);
   },
 
   async gemini(args) {
@@ -200,7 +214,7 @@ function wordsFromCharAlignment(al) {
 
 // Engines with tight rate limits get one request per ~90 s of narration instead of one per
 // sentence: consecutive segments of an act are voiced together, then cut apart at the pauses.
-const BATCHED = new Set(['nine_router', 'gemini']);
+const BATCHED = new Set(['nine_router', 'gemini', 'inworld']);
 
 function makeLimiter(rpm) {
   let next = 0;
