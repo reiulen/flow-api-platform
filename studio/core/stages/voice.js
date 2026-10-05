@@ -183,28 +183,51 @@ export async function runVoice({ project, script, voice, style, concurrency = 3 
   const dir = project.subdir('vo');
   const provider = providers[voice.provider];
   if (!provider) throw new Error(`voice: unknown provider ${voice.provider}`);
-  const results = await mapLimit(script.segments, concurrency, async (segment) => {
+  const isRateLimitedProvider = voice.provider === 'gemini' || voice.provider === 'nine_router';
+  const actualConcurrency = isRateLimitedProvider ? 1 : concurrency;
+
+  const results = await mapLimit(script.segments, actualConcurrency, async (segment) => {
     const outBase = path.join(dir, segment.seg_id);
     const wav = `${outBase}.wav`;
     const pieces = tokenize(segment.text, style);
-    let words;
-    for (let attempt = 1; ; attempt++) {
-      try {
-        const res = await provider({ segment, pieces, outBase, voice, style });
-        await toWav(res.src, wav);
-        words = res.words;
-        break;
-      } catch (err) {
-        if (attempt >= 3) throw err;
+    let words = null;
+    let duration = 0;
+
+    if (fs.existsSync(wav) && fs.statSync(wav).size > 5000) {
+      const info = await ffprobe(wav);
+      duration = info.duration;
+    } else {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          const res = await provider({ segment, pieces, outBase, voice, style });
+          await toWav(res.src, wav);
+          words = res.words;
+          break;
+        } catch (err) {
+          if (attempt >= 8) throw err;
+          const resetMatch = err.message.match(/reset after (?:(\d+)m\s*)?(\d+)s/i);
+          let waitSec = 3 * attempt;
+          if (resetMatch) {
+            const mins = resetMatch[1] ? Number(resetMatch[1]) : 0;
+            const secs = Number(resetMatch[2]);
+            waitSec = mins * 60 + secs + 2;
+          }
+          console.log(`[voice] rate limit hit for ${segment.seg_id}, waiting ${waitSec}s before retry ${attempt + 1}...`);
+          await new Promise((r) => setTimeout(r, waitSec * 1000));
+        }
+      }
+      // Trim trailing silence (leading silence is kept so engine word offsets stay valid), keep a short tail.
+      const trimmed = `${outBase}.t.wav`;
+      await run('ffmpeg', ['-y', '-v', 'error', '-i', wav, '-af', 'areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse,apad=pad_dur=0.15', trimmed]);
+      const info = await ffprobe(trimmed);
+      duration = info.duration > 0.3 ? info.duration : (await ffprobe(wav)).duration;
+      fs.renameSync(info.duration > 0.3 ? trimmed : wav, wav);
+      fs.rmSync(trimmed, { force: true });
+      if (isRateLimitedProvider) {
+        await new Promise((r) => setTimeout(r, 800));
       }
     }
-    // Trim trailing silence (leading silence is kept so engine word offsets stay valid), keep a short tail.
-    const trimmed = `${outBase}.t.wav`;
-    await run('ffmpeg', ['-y', '-v', 'error', '-i', wav, '-af', 'areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse,apad=pad_dur=0.15', trimmed]);
-    const info = await ffprobe(trimmed);
-    const duration = info.duration > 0.3 ? info.duration : (await ffprobe(wav)).duration;
-    fs.renameSync(info.duration > 0.3 ? trimmed : wav, wav);
-    fs.rmSync(trimmed, { force: true });
+
     const expected = spokenWords(segment.text);
     if (!words || words.length < expected.length * 0.8) words = estimateWords(pieces, duration);
     return { seg_id: segment.seg_id, file: path.relative(project.dir, wav), duration_s: round(duration), words };
