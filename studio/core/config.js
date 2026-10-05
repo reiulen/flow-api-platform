@@ -39,6 +39,14 @@ export function loadConfig(overrides = {}) {
       provider: env.STUDIO_VOICE_PROVIDER || 'edge',
       voice: env.STUDIO_VOICE || 'en-US-AndrewMultilingualNeural',
       rate: env.STUDIO_VOICE_RATE || '-4%',
+      // Word timings for engines that return none: 9router speech-to-text when a model is set,
+      // otherwise alignment against the pauses measured in the audio.
+      align: {
+        model: env.STUDIO_ALIGN_MODEL || '',
+        url: env.NINE_ROUTER_BASE_URL?.replace(/\/v1\/?$/, '') || env.ANTHROPIC_BASE_URL?.replace(/\/v1\/?$/, '') || '',
+        key: env.NINE_ROUTER_API_KEY || env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN || '',
+        required: env.STUDIO_ALIGN_REQUIRED === '1',
+      },
     },
 
     flow: {

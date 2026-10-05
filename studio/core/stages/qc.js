@@ -3,6 +3,7 @@ import { QcReport } from '../contracts.js';
 import { pacingMetrics } from '../engine/editor.js';
 import { houseRules, reviewPrompt } from '../prompts.js';
 import { measureLoudness } from '../render.js';
+import { compare, measureRender } from '../calibrate.js';
 import { ffprobe, round } from '../util.js';
 
 const ReviewOut = z.object({
@@ -11,7 +12,7 @@ const ReviewOut = z.object({
 
 // S12. Automated passes are exact rules from the style profile; passes 3/5/6 get an LLM review;
 // passes 6 and 8 are always listed for a human.
-export async function runQc({ project, shotList, edl, audioPlan, script, outline, research, style, llm, render, extras }) {
+export async function runQc({ project, shotList, edl, audioPlan, script, outline, research, style, llm, render, voTiming, extras }) {
   const findings = [];
   const add = (pass, level, rule, detail, at = null, fix = null) => findings.push({ pass, level, rule, detail, at_s: at, fix_stage: fix });
   const m = pacingMetrics(shotList, style);
@@ -52,6 +53,18 @@ export async function runQc({ project, shotList, edl, audioPlan, script, outline
   const musicShare = audioPlan.music.reduce((n, x) => n + (x.end_s - x.start_s), 0) / audioPlan.duration_s;
   if (musicShare > style.audio.music_max_share + 0.02) add(7, 'minor', '06.3 music coverage', `${round(musicShare * 100, 1)}%`);
 
+  // Calibration: the render measured like the reference videos, against the style's target bands.
+  let calibration = null;
+  if (voTiming) {
+    const measured = await measureRender({ render, shotList, voTiming, style });
+    calibration = { measured, rows: compare(measured, style) };
+    const covered = new Set(['asl_s', 'short_time_pct', 'lufs', 'true_peak']); // already checked above
+    for (const r of calibration.rows.filter((x) => x.status !== 'ok' && x.status !== 'n/a' && !covered.has(x.metric))) {
+      const level = ['bed_rel_db', 'speech_pct', 'lra'].includes(r.metric) ? 'major' : 'minor';
+      add(r.metric.startsWith('bed') || ['lra', 'speech_pct', 'pauses_ge1s_per_min', 'breathing_per_4min', 'vo_run_p90_s'].includes(r.metric) ? 7 : 4, level, `calibration ${r.metric}`, `${r.value} is ${r.status} (target ${r.target.join('..')}; saudi ${r.saudi ?? '-'}, finland ${r.finland ?? '-'})`);
+    }
+  }
+
   // Passes 3, 5, 6 — LLM editorial review
   const shotSummary = shotList.shots.map((s) => `${fmt(s.start_s)} ${s.visual_type.padEnd(8)} ${s.duration_s.toFixed(1)}s ${s.need?.subject || s.motion?.template || ''}`).join('\n');
   try {
@@ -62,7 +75,7 @@ export async function runQc({ project, shotList, edl, audioPlan, script, outline
   }
 
   const passed = !findings.some((f) => f.level === 'blocker');
-  return QcReport.parse({ render: project ? render.replace(`${project.dir}/`, '') : render, metrics: { ...m, ...loud, music_share: round(musicShare, 3), render_duration_s: round(info.duration, 2) }, findings, passed, human_required: [6, 8] });
+  return QcReport.parse({ render: project ? render.replace(`${project.dir}/`, '') : render, metrics: { ...m, ...loud, music_share: round(musicShare, 3), render_duration_s: round(info.duration, 2), calibration }, findings, passed, human_required: [6, 8] });
 }
 
 const fmt = (t) => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;

@@ -200,7 +200,7 @@ const STAGE_RUNNERS = {
 
   async voice({ project, style, config }) {
     const script = project.read('script.json', Script);
-    const vo = await runVoice({ project, script, voice: config.voice, style, concurrency: config.testMode ? 4 : 3 });
+    const vo = await runVoice({ project, script, voice: config.voice, style, config, concurrency: config.testMode ? 4 : 3 });
     project.write('vo_timing.json', vo, VoTiming);
     return { seconds: round(vo.segments.reduce((n, s) => n + s.duration_s, 0), 1) };
   },
@@ -268,9 +268,11 @@ const STAGE_RUNNERS = {
       render: project.file(project.read('render.json').file),
       shotList: project.read('shotlist.final.json', ShotList), edl: project.read('edl.json'), audioPlan: project.read('audio_plan.json'),
       script: project.read('script.json', Script), outline: project.read('outline.json', Outline), research: project.read('research.json', Research),
+      voTiming: project.read('vo_timing.json', VoTiming),
       extras: { assetReport: project.read('asset_report.json'), repairs: project.read('edit_report.json').repairs, motionFailures: project.read('motion_report.json').failures },
     });
     project.write('qc_report.json', report);
+    project.write('calibration.json', report.metrics.calibration);
     const count = (l) => report.findings.filter((f) => f.level === l).length;
     return { passed: report.passed, blocker: count('blocker'), major: count('major'), minor: count('minor') };
   },

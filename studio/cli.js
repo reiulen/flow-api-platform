@@ -12,6 +12,7 @@ import { pickTopic, scoutTopics } from './core/stages/editorial.js';
 import { runFlowQueue } from './core/stages/flow.js';
 import { chromePath, renderGeo } from './core/geo.js';
 import { searchConfigured } from './core/search.js';
+import { compare, formatTable, measureRender } from './core/calibrate.js';
 import { MotionData } from './core/stages/visual.js';
 import { listProjects, markTopicUsed, newBrief, projectStatus, runProject, setGate, topicsFile, usedTopicsFile } from './core/pipeline.js';
 import { readJson, run, sleep, writeJson } from './core/util.js';
@@ -30,6 +31,7 @@ const HELP = `studio <command> [options]
   gate    <project> <G2|G3|G4> <approve|revise|reject> [--note "..."]
   status  [project]
   flow-runner [--watch]                    (Flow machine) process queued Flow requests
+  calibrate <project_id>                   measure the render like the reference videos and compare
   map-preview [--file map.json] [--seconds 15] [--out preview.mp4]
                                            render one map shot with the configured imagery
 `;
@@ -88,6 +90,9 @@ const commands = {
       ok('research search', searchConfigured(config), searchConfigured(config) ? `9router ${config.search.model} @ ${config.search.url}` : 'set STUDIO_SEARCH_MODEL to a search provider enabled in 9router (research refuses to run from model memory)');
     }
     ok('voice', true, `${config.voice.provider} ${config.voice.voice}`);
+    if (!['edge', 'elevenlabs', 'synthetic'].includes(config.voice.provider)) {
+      ok('voice sync', true, config.voice.align.model ? `speech-to-text ${config.voice.align.model} via 9router, pause alignment as fallback` : 'pause alignment (set STUDIO_ALIGN_MODEL to a 9router Whisper model for word-exact timings)');
+    }
     ok('map imagery', config.map.provider !== 'maptiler' || Boolean(config.map.maptilerKey), `${config.map.provider}${config.map.provider === 'gibs' ? ' (regional detail only; set MAPTILER_KEY or STUDIO_MAP_PROVIDER=s2cloudless for close zooms)' : ''}`);
     ok('map browser', Boolean(chromePath(config)), chromePath(config) || 'set CHROME_EXECUTABLE_PATH');
     for (const k of ['dvids', 'nara', 'pexels', 'pixabay']) ok(`source ${k}`, Boolean(config.sources[k]), config.sources[k] ? 'key set' : 'no key (source skipped)');
@@ -164,6 +169,18 @@ const commands = {
     const s = projectStatus(config, pos[0]);
     console.log(`${s.project}: ${s.status}`);
     for (const st of s.stages) console.log(`  ${st.label.padEnd(24)} ${String(st.status).padEnd(9)} ${st.seconds ? `${st.seconds}s ` : ''}${st.summary ? JSON.stringify(st.summary) : ''}${st.error ? ` ERROR ${st.error}` : ''}`);
+  },
+
+  async calibrate() {
+    const id = pos[0];
+    if (!id) throw new Error('usage: studio calibrate <project_id>');
+    const project = Project.open(config, id);
+    const render = project.file(project.read('render.json').file);
+    const measured = await measureRender({ render, shotList: project.read('shotlist.final.json'), voTiming: project.read('vo_timing.json'), style: project.style() });
+    const rows = compare(measured, project.style());
+    project.write('calibration.json', { measured, rows });
+    console.log(formatTable(rows));
+    console.log(`\n${rows.filter((r) => r.status !== 'ok').length} metrics outside target. Saved ${project.file('calibration.json')}`);
   },
 
   async 'map-preview'() {

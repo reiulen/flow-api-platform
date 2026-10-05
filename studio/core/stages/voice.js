@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import { VoTiming } from '../contracts.js';
-import { ffprobe, mapLimit, round, run, stripMarkup } from '../util.js';
+import { alignSegment } from '../align.js';
+import { ffprobe, hash, mapLimit, round, run, stripMarkup } from '../util.js';
 
 // Converts script markup into timed pieces: text runs and pauses.
 export function tokenize(text, style) {
@@ -81,7 +82,8 @@ const providers = {
     const baseUrl = process.env.NINE_ROUTER_BASE_URL
       ? process.env.NINE_ROUTER_BASE_URL.replace(/\/v1$/, '')
       : 'http://localhost:20128';
-    const key = process.env.NINE_ROUTER_API_KEY || 'sk-796da471a1d8a1ba-gfjwjl-a7570adc';
+    const key = process.env.NINE_ROUTER_API_KEY;
+    if (!key) throw new Error('voice: set NINE_ROUTER_API_KEY');
     const text = pieces.map((p) => (p.pause ? '... ' : applyPron(p.text, segment.pron))).join(' ');
     const voiceName = voice.voice || 'Puck';
     const model = voiceName.startsWith('gemini/') ? voiceName : `gemini/${voiceName}`;
@@ -141,11 +143,14 @@ const providers = {
 
   // Silent stand-in with realistic duration, for tests and dry runs.
   async synthetic({ pieces, outBase, style }) {
-    const words = pieces.reduce((n, p) => n + (p.text ? p.text.trim().split(/\s+/).length : 0), 0);
-    const duration = (words / style.narration.wpm) * 60 + pieces.reduce((n, p) => n + (p.pause || 0), 0);
+    const count = pieces.reduce((n, p) => n + (p.text ? p.text.trim().split(/\s+/).length : 0), 0);
+    const duration = (count / style.narration.wpm) * 60 + pieces.reduce((n, p) => n + (p.pause || 0), 0);
     const src = `${outBase}.syn.wav`;
-    await run('ffmpeg', ['-y', '-v', 'error', '-f', 'lavfi', '-i', `sine=frequency=220:sample_rate=48000:duration=${duration.toFixed(3)}`, '-af', 'volume=0.05', '-ac', '1', src]);
-    return { src, words: null };
+    const words = estimateWords(pieces, duration);
+    // Tone only while words are spoken, so pauses are real silence (like a voice).
+    const on = words.map((w) => `between(t,${w.s},${w.e})`).join('+') || '0';
+    await run('ffmpeg', ['-y', '-v', 'error', '-f', 'lavfi', '-i', `aevalsrc=0.2*sin(2*PI*220*t)*gt(${on}\\,0):s=48000:d=${duration.toFixed(3)}`, '-ac', '1', src]);
+    return { src, words };
   },
 };
 
@@ -179,7 +184,7 @@ function wordsFromCharAlignment(al) {
   return words.filter((w) => !w.w.startsWith('<')).map((w) => ({ w: w.w, s: round(w.s), e: round(w.e) }));
 }
 
-export async function runVoice({ project, script, voice, style, concurrency = 3 }) {
+export async function runVoice({ project, script, voice, style, config, concurrency = 3 }) {
   const dir = project.subdir('vo');
   const provider = providers[voice.provider];
   if (!provider) throw new Error(`voice: unknown provider ${voice.provider}`);
@@ -189,13 +194,17 @@ export async function runVoice({ project, script, voice, style, concurrency = 3 
   const results = await mapLimit(script.segments, actualConcurrency, async (segment) => {
     const outBase = path.join(dir, segment.seg_id);
     const wav = `${outBase}.wav`;
+    const meta = `${outBase}.json`;
     const pieces = tokenize(segment.text, style);
+    // Audio is reused only while the text, pronunciations and voice are unchanged.
+    const key = hash({ text: segment.text, pron: segment.pron || [], tone: segment.tone || '', provider: voice.provider, voice: voice.voice || '', rate: voice.rate || '' });
+    const cached = fs.existsSync(wav) && fs.existsSync(meta) ? JSON.parse(fs.readFileSync(meta, 'utf8')) : null;
     let words = null;
     let duration = 0;
+    let method = 'engine';
 
-    if (fs.existsSync(wav) && fs.statSync(wav).size > 5000) {
-      const info = await ffprobe(wav);
-      duration = info.duration;
+    if (cached?.key === key) {
+      ({ words, duration, method } = cached);
     } else {
       for (let attempt = 1; ; attempt++) {
         try {
@@ -223,13 +232,15 @@ export async function runVoice({ project, script, voice, style, concurrency = 3 
       duration = info.duration > 0.3 ? info.duration : (await ffprobe(wav)).duration;
       fs.renameSync(info.duration > 0.3 ? trimmed : wav, wav);
       fs.rmSync(trimmed, { force: true });
-      if (isRateLimitedProvider) {
-        await new Promise((r) => setTimeout(r, 800));
-      }
-    }
 
-    const expected = spokenWords(segment.text);
-    if (!words || words.length < expected.length * 0.8) words = estimateWords(pieces, duration);
+      // Engines without word timings (or with too few) are aligned against the audio itself.
+      const expected = spokenWords(segment.text);
+      if (!words || words.length < expected.length * 0.8) {
+        ({ words, method } = config ? await alignSegment({ config, wav, pieces, duration }) : { words: estimateWords(pieces, duration), method: 'estimate' });
+      }
+      fs.writeFileSync(meta, JSON.stringify({ key, duration, words, method }));
+      if (isRateLimitedProvider) await new Promise((r) => setTimeout(r, 800));
+    }
     return { seg_id: segment.seg_id, file: path.relative(project.dir, wav), duration_s: round(duration), words };
   });
   return VoTiming.parse({ voice: { provider: voice.provider, id: voice.voice || voice.provider }, segments: results });

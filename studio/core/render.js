@@ -103,8 +103,37 @@ function duckExpression(regions, from, to, bedDb, breathDb, attack, release) {
   return `${Hh}-(${Hh - B})*${d}`;
 }
 
+// Integrated loudness of a file (LUFS), cached by content. Silent files report null.
+const loudnessCache = new Map();
+export async function fileLoudness(file) {
+  const st = fs.statSync(file);
+  const key = `${file}:${st.size}:${st.mtimeMs}`;
+  if (!loudnessCache.has(key)) {
+    const { stderr } = await run('ffmpeg', ['-nostats', '-v', 'info', '-i', file, '-af', 'ebur128', '-f', 'null', '-']);
+    const v = Number((stderr.slice(stderr.lastIndexOf('Summary:')).match(/I:\s+(-?[\d.]+) LUFS/) || [])[1]);
+    loudnessCache.set(key, Number.isFinite(v) && v > -70 ? v : null);
+  }
+  return loudnessCache.get(key);
+}
+
+// Every source is first brought to a common reference level, so the style's relative levels
+// (bed under VO, ambience) mean the same thing whatever the TTS engine or music track.
+const REF_LUFS = -20;
+async function levelGains(plan) {
+  const gain = async (file, rel, clampDb) => {
+    const l = await fileLoudness(file);
+    if (l === null) return rel;
+    return round(Math.max(-clampDb, Math.min(clampDb, REF_LUFS - l)) + rel, 2);
+  };
+  const files = [...new Set([...plan.vo.map((v) => v.file), ...plan.music.map((m) => m.file), ...plan.ambience.map((m) => m.file)])];
+  const g = new Map();
+  await mapLimit(files, 4, async (f) => { g.set(f, await gain(f, 0, 24)); });
+  return (file) => g.get(file) ?? 0;
+}
+
 async function renderAudio(plan, style, workDir) {
   const a = style.audio;
+  const gainOf = await levelGains(plan);
   const out = path.join(workDir, 'mix.wav');
   const args = ['-y', '-v', 'error'];
   const chain = [];
@@ -115,7 +144,7 @@ async function renderAudio(plan, style, workDir) {
   for (const v of plan.vo) {
     args.push('-i', v.file);
     const ms = Math.round(v.start_s * 1000);
-    chain.push(`[${n}:a]aresample=48000,aformat=channel_layouts=mono,adelay=${ms}|${ms},apad=whole_dur=${plan.duration_s}[vo${n}]`);
+    chain.push(`[${n}:a]aresample=48000,aformat=channel_layouts=mono,volume=${gainOf(v.file)}dB,adelay=${ms}|${ms},apad=whole_dur=${plan.duration_s}[vo${n}]`);
     voLabels.push(`[vo${n}]`);
     n += 1;
   }
@@ -128,7 +157,8 @@ async function renderAudio(plan, style, workDir) {
   for (const m of plan.music) {
     const len = round(m.end_s - m.start_s, 3);
     args.push('-ss', String(m.src_in), '-t', String(len + 0.1), '-stream_loop', '-1', '-i', m.file);
-    const expr = duckExpression(plan.vo_regions, m.start_s, m.end_s, bedDb, breathDb, a.duck_attack_s, a.duck_release_s);
+    const lvl = gainOf(m.file);
+    const expr = duckExpression(plan.vo_regions, m.start_s, m.end_s, bedDb + lvl, breathDb + lvl, a.duck_attack_s, a.duck_release_s);
     const ms = Math.round(m.start_s * 1000);
     const fade = Math.min(a.music_fade_s, len / 3);
     chain.push(`[${n}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=duration=${len},asetpts=PTS-STARTPTS,afade=t=in:d=${fade},afade=t=out:st=${round(len - fade, 3)}:d=${fade},volume='${expr}':eval=frame,adelay=${ms}|${ms},apad=whole_dur=${plan.duration_s}[mu${n}]`);
@@ -145,7 +175,7 @@ async function renderAudio(plan, style, workDir) {
     const len = round(m.end_s - m.start_s, 3);
     args.push('-stream_loop', '-1', '-t', String(len + 0.1), '-i', m.file);
     const ms = Math.round(m.start_s * 1000);
-    chain.push(`[${n}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=duration=${len},asetpts=PTS-STARTPTS,afade=t=in:d=0.8,afade=t=out:st=${round(Math.max(0, len - 0.8), 3)}:d=0.8,volume=${m.gain_db}dB,adelay=${ms}|${ms},apad=whole_dur=${plan.duration_s}[am${n}]`);
+    chain.push(`[${n}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=duration=${len},asetpts=PTS-STARTPTS,afade=t=in:d=0.8,afade=t=out:st=${round(Math.max(0, len - 0.8), 3)}:d=0.8,volume=${round(m.gain_db + gainOf(m.file), 2)}dB,adelay=${ms}|${ms},apad=whole_dur=${plan.duration_s}[am${n}]`);
     ambLabels.push(`[am${n}]`);
     n += 1;
   }

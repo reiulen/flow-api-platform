@@ -1,0 +1,108 @@
+{
+ "duration_min": 25.34,
+ "transitions": 185,
+ "transition_kinds": {
+  "dissolve": 125,
+  "slow_dissolve": 9,
+  "cut": 48,
+  "fade_black": 3
+ },
+ "shots": 184,
+ "asl_s": 8.2,
+ "median_shot_s": 5.2,
+ "shot_pct": {
+  "10": 2.2,
+  "25": 3.6,
+  "75": 9.1,
+  "90": 17.4
+ },
+ "shot_len_hist": {
+  "<3s": {
+   "n": 31,
+   "pct_time": 4.2
+  },
+  "3-7s": {
+   "n": 89,
+   "pct_time": 27.7
+  },
+  "7-15s": {
+   "n": 43,
+   "pct_time": 28.1
+  },
+  "15-25s": {
+   "n": 13,
+   "pct_time": 17.8
+  },
+  "25-60s": {
+   "n": 8,
+   "pct_time": 22.2
+  },
+  ">60s": {
+   "n": 0,
+   "pct_time": 0.0
+  }
+ },
+ "black_beats": {
+  "n": 2,
+  "avg_s": 4.5
+ },
+ "cuts_per_min": 7.3,
+ "transitions_per_5min": [
+  23,
+  43,
+  37,
+  39,
+  40,
+  3
+ ],
+ "speech_pct": 95.2,
+ "pause_hist": {
+  "<0.5s": 112,
+  "0.5-1s": 61,
+  "1-2s": 1,
+  "2-4s": 0,
+  ">4s": 0
+ },
+ "pauses_ge1s_per_min": 0.04,
+ "voice_level_db": -18.7,
+ "bed_under_vo_rel_db_median": -24.2,
+ "pauses_near_silent_pct": 1.6,
+ "breathing_rooms": {
+  "n": 0,
+  "total_s": 0,
+  "list": []
+ },
+ "vo_run_s": {
+  "median": 759.2,
+  "p90": 1364.2,
+  "max": 1515.4
+ },
+ "per_min_median_rel_db": [
+  -0.5,
+  -0.6,
+  -1.0,
+  0.0,
+  -0.1,
+  -0.7,
+  -0.2,
+  -0.2,
+  -0.4,
+  -0.2,
+  -0.4,
+  -0.5,
+  -0.5,
+  -0.2,
+  -0.3,
+  -0.2,
+  -0.5,
+  -0.3,
+  -0.2,
+  -0.7,
+  -0.3,
+  0.1,
+  -0.7,
+  -0.7,
+  0.0,
+  -1.2
+ ]
+}
