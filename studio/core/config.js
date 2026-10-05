@@ -39,6 +39,9 @@ export function loadConfig(overrides = {}) {
       provider: env.STUDIO_VOICE_PROVIDER || 'edge',
       voice: env.STUDIO_VOICE || 'en-US-AndrewMultilingualNeural',
       rate: env.STUDIO_VOICE_RATE || '-4%',
+      // Rate-limited engines (9router/Gemini): seconds of narration per request, and requests per minute.
+      chunkSeconds: Number(env.STUDIO_VOICE_CHUNK_S ?? 90),
+      rpm: Number(env.STUDIO_VOICE_RPM || 0),
       // Word timings for engines that return none: 9router speech-to-text when a model is set,
       // otherwise alignment against the pauses measured in the audio.
       align: {

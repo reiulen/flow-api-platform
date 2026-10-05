@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import { VoTiming } from '../contracts.js';
-import { alignSegment } from '../align.js';
-import { ffprobe, hash, mapLimit, round, run, stripMarkup } from '../util.js';
+import { alignSegment, detectSilences } from '../align.js';
+import { ensureDir, ffprobe, hash, mapLimit, round, run, stripMarkup } from '../util.js';
 
 // Converts script markup into timed pieces: text runs and pauses.
 export function tokenize(text, style) {
@@ -92,7 +92,7 @@ const providers = {
       : 'http://localhost:20128';
     const key = process.env.NINE_ROUTER_API_KEY;
     if (!key) throw new Error('voice: set NINE_ROUTER_API_KEY');
-    const text = pieces.map((p) => (p.pause ? '... ' : applyPron(p.text, segment.pron))).join(' ');
+    const text = pieces.map((p) => (p.boundary ? '\n\n' : p.pause ? '... ' : applyPron(p.text, segment.pron))).join(' ');
     const voiceName = voice.voice || 'Puck';
     const model = voiceName.startsWith('gemini/') ? voiceName : `gemini/${voiceName}`;
     const res = await fetch(`${baseUrl}/v1/audio/speech`, {
@@ -108,7 +108,7 @@ const providers = {
         lang: process.env.STUDIO_VOICE_LANG || 'en-US',
       }),
     });
-    if (!res.ok) throw new Error(`voice: 9router ${res.status} ${await res.text()}`);
+    if (!res.ok) throw new Error(`voice: 9router ${res.status} retry-after=${res.headers.get('retry-after') || ''} ${await res.text()}`);
     const buf = await res.arrayBuffer();
     const raw = `${outBase}.raw.wav`;
     fs.writeFileSync(raw, Buffer.from(buf));
@@ -198,64 +198,156 @@ function wordsFromCharAlignment(al) {
   return words.filter((w) => !w.w.startsWith('<')).map((w) => ({ w: w.w, s: round(w.s), e: round(w.e) }));
 }
 
+// Engines with tight rate limits get one request per ~90 s of narration instead of one per
+// sentence: consecutive segments of an act are voiced together, then cut apart at the pauses.
+const BATCHED = new Set(['nine_router', 'gemini']);
+
+function makeLimiter(rpm) {
+  let next = 0;
+  return async (fn) => {
+    if (rpm > 0) {
+      const wait = next - Date.now();
+      next = Math.max(Date.now(), next) + 60000 / rpm;
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    }
+    return fn();
+  };
+}
+
+// Retries with the wait the server asks for (Retry-After, "reset after 1m 5s"), else backoff.
+async function withRetries(fn, label, attempts = 8) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= attempts) throw err;
+      const after = err.message.match(/retry-after=(\d+)/i);
+      const reset = err.message.match(/reset after (?:(\d+)m\s*)?(\d+)s/i);
+      const waitSec = after ? Number(after[1]) + 1
+        : reset ? (reset[1] ? Number(reset[1]) * 60 : 0) + Number(reset[2]) + 2
+          : Math.min(60, 4 * 2 ** (attempt - 1));
+      console.log(`[voice] ${label}: ${err.message.slice(0, 120)} — retry ${attempt + 1} in ${waitSec}s`);
+      await new Promise((r) => setTimeout(r, waitSec * 1000));
+    }
+  }
+}
+
+const estSeconds = (segment, style) => (spokenWords(segment.text).length / style.narration.wpm) * 60 + tokenize(segment.text, style).reduce((n, p) => n + (p.pause || 0), 0);
+const actOf = (segId) => segId.split('-')[1];
+
 export async function runVoice({ project, script, voice, style, config, concurrency = 3 }) {
   const dir = project.subdir('vo');
   const provider = providers[voice.provider];
   if (!provider) throw new Error(`voice: unknown provider ${voice.provider}`);
-  const isRateLimitedProvider = voice.provider === 'gemini' || voice.provider === 'nine_router';
-  const actualConcurrency = isRateLimitedProvider ? 1 : concurrency;
+  const batched = BATCHED.has(voice.provider) && config && config.voice.chunkSeconds > 0;
+  const limit = makeLimiter(config?.voice.rpm ?? 0);
+  const call = (args, label) => withRetries(() => limit(() => provider(args)), label);
+  // Audio is reused only while the text, pronunciations and voice are unchanged.
+  const keyOf = (segment) => hash({ text: segment.text, pron: segment.pron || [], tone: segment.tone || '', provider: voice.provider, voice: voice.voice || '', rate: voice.rate || '' });
+  const paths = (segment) => { const b = path.join(dir, segment.seg_id); return { base: b, wav: `${b}.wav`, meta: `${b}.json` }; };
+  const cachedMeta = (segment) => {
+    const { wav, meta } = paths(segment);
+    if (!fs.existsSync(wav) || !fs.existsSync(meta)) return null;
+    const m = JSON.parse(fs.readFileSync(meta, 'utf8'));
+    return m.key === keyOf(segment) ? m : null;
+  };
 
-  const results = await mapLimit(script.segments, actualConcurrency, async (segment) => {
-    const outBase = path.join(dir, segment.seg_id);
-    const wav = `${outBase}.wav`;
-    const meta = `${outBase}.json`;
-    const pieces = tokenize(segment.text, style);
-    // Audio is reused only while the text, pronunciations and voice are unchanged.
-    const key = hash({ text: segment.text, pron: segment.pron || [], tone: segment.tone || '', provider: voice.provider, voice: voice.voice || '', rate: voice.rate || '' });
-    const cached = fs.existsSync(wav) && fs.existsSync(meta) ? JSON.parse(fs.readFileSync(meta, 'utf8')) : null;
-    let words = null;
-    let duration = 0;
-    let method = 'engine';
-
-    if (cached?.key === key) {
-      ({ words, duration, method } = cached);
-    } else {
-      for (let attempt = 1; ; attempt++) {
-        try {
-          const res = await provider({ segment, pieces, outBase, voice, style });
-          await toWav(res.src, wav);
-          words = res.words;
-          break;
-        } catch (err) {
-          if (attempt >= 8) throw err;
-          const resetMatch = err.message.match(/reset after (?:(\d+)m\s*)?(\d+)s/i);
-          let waitSec = 3 * attempt;
-          if (resetMatch) {
-            const mins = resetMatch[1] ? Number(resetMatch[1]) : 0;
-            const secs = Number(resetMatch[2]);
-            waitSec = mins * 60 + secs + 2;
-          }
-          console.log(`[voice] rate limit hit for ${segment.seg_id}, waiting ${waitSec}s before retry ${attempt + 1}...`);
-          await new Promise((r) => setTimeout(r, waitSec * 1000));
-        }
-      }
-      // Trim trailing silence (leading silence is kept so engine word offsets stay valid), keep a short tail.
-      const trimmed = `${outBase}.t.wav`;
-      await run('ffmpeg', ['-y', '-v', 'error', '-i', wav, '-af', 'areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse,apad=pad_dur=0.15', trimmed]);
-      const info = await ffprobe(trimmed);
-      duration = info.duration > 0.3 ? info.duration : (await ffprobe(wav)).duration;
-      fs.renameSync(info.duration > 0.3 ? trimmed : wav, wav);
-      fs.rmSync(trimmed, { force: true });
-
-      // Engines without word timings (or with too few) are aligned against the audio itself.
-      const expected = spokenWords(segment.text);
-      if (!words || words.length < expected.length * 0.8) {
-        ({ words, method } = config ? await alignSegment({ config, wav, pieces, duration }) : { words: estimateWords(pieces, duration), method: 'estimate' });
-      }
-      fs.writeFileSync(meta, JSON.stringify({ key, duration, words, method }));
-      if (isRateLimitedProvider) await new Promise((r) => setTimeout(r, 800));
+  if (batched) {
+    const todo = script.segments.filter((s) => !cachedMeta(s));
+    const chunks = [];
+    for (const seg of todo) {
+      const cur = chunks.at(-1);
+      const prevIdx = cur ? script.segments.indexOf(cur.at(-1)) : -2;
+      const fits = cur && actOf(cur[0].seg_id) === actOf(seg.seg_id) && script.segments.indexOf(seg) === prevIdx + 1
+        && cur.reduce((n, s) => n + estSeconds(s, style), 0) + estSeconds(seg, style) <= config.voice.chunkSeconds;
+      if (fits) cur.push(seg); else chunks.push([seg]);
     }
+    for (const chunk of chunks.filter((c) => c.length > 1)) {
+      const ok = await voiceChunk({ chunk, dir, call, keyOf, paths, voice, style, config });
+      if (!ok) console.log(`[voice] ${chunk[0].seg_id}..${chunk.at(-1).seg_id}: could not split cleanly, voicing those segments one by one`);
+    }
+  }
+
+  const results = await mapLimit(script.segments, batched ? 1 : concurrency, async (segment) => {
+    const { base, wav, meta } = paths(segment);
+    const cached = cachedMeta(segment);
+    if (cached) return { seg_id: segment.seg_id, file: path.relative(project.dir, wav), duration_s: round(cached.duration), words: cached.words };
+
+    const pieces = tokenize(segment.text, style);
+    const res = await call({ segment, pieces, outBase: base, voice, style }, segment.seg_id);
+    await toWav(res.src, wav);
+    let words = res.words;
+    let method = 'engine';
+    // Trim trailing silence (leading silence is kept so engine word offsets stay valid), keep a short tail.
+    const trimmed = `${base}.t.wav`;
+    await run('ffmpeg', ['-y', '-v', 'error', '-i', wav, '-af', 'areverse,silenceremove=start_periods=1:start_threshold=-50dB,areverse,apad=pad_dur=0.15', trimmed]);
+    const info = await ffprobe(trimmed);
+    const duration = info.duration > 0.3 ? info.duration : (await ffprobe(wav)).duration;
+    fs.renameSync(info.duration > 0.3 ? trimmed : wav, wav);
+    fs.rmSync(trimmed, { force: true });
+    // Engines without word timings (or with too few) are aligned against the audio itself.
+    if (!words || words.length < spokenWords(segment.text).length * 0.8) {
+      ({ words, method } = config ? await alignSegment({ config, wav, pieces, duration }) : { words: estimateWords(pieces, duration), method: 'estimate' });
+    }
+    fs.writeFileSync(meta, JSON.stringify({ key: keyOf(segment), duration, words, method }));
     return { seg_id: segment.seg_id, file: path.relative(project.dir, wav), duration_s: round(duration), words };
   });
   return VoTiming.parse({ voice: { provider: voice.provider, id: voice.voice || voice.provider }, segments: results });
+}
+
+// Voices several segments in one request and cuts them apart at the measured pauses between
+// them. Returns false (nothing written) when a boundary does not fall on a real pause.
+async function voiceChunk({ chunk, dir, call, keyOf, paths, voice, style, config }) {
+  const chunkDir = ensureDir(path.join(dir, 'chunks'));
+  const pieces = [];
+  const counts = [];
+  chunk.forEach((seg, i) => {
+    const p = tokenize(seg.text, style);
+    counts.push(p.reduce((n, x) => n + (x.text ? x.text.trim().split(/\s+/).filter(Boolean).length : 0), 0));
+    pieces.push(...p);
+    if (i < chunk.length - 1) pieces.push({ pause: 0.8, boundary: true });
+  });
+  const segment = { seg_id: `${chunk[0].seg_id}_${chunk.at(-1).seg_id}`, text: chunk.map((s) => s.text).join(' '), pron: chunk.flatMap((s) => s.pron || []), tone: chunk[0].tone };
+  const base = path.join(chunkDir, hash(chunk.map(keyOf)));
+  const wav = `${base}.wav`;
+  if (!fs.existsSync(wav)) {
+    const res = await call({ segment, pieces, outBase: base, voice, style }, segment.seg_id);
+    await toWav(res.src, wav);
+  }
+  const duration = (await ffprobe(wav)).duration;
+  const { words } = await alignSegment({ config, wav, pieces, duration });
+  const silences = await detectSilences(wav, { minS: 0.12 });
+  if (words.length !== counts.reduce((a, b) => a + b, 0)) return false;
+
+  // Cut points: the longest real silence between the last word of one segment and the first of the next.
+  const spans = [];
+  let w = 0;
+  let start = Math.max(0, (words[0]?.s ?? 0) - 0.08);
+  for (let i = 0; i < chunk.length; i++) {
+    const last = words[w + counts[i] - 1];
+    // The chunk's trailing silence is dropped, like a single-segment voice's.
+    const tail = silences.find((x) => x.e >= duration - 0.05 && x.s > last.s);
+    let end = tail ? Math.min(duration, tail.s + 0.15) : duration;
+    let nextStart = duration;
+    if (i < chunk.length - 1) {
+      const first = words[w + counts[i]];
+      const gap = silences.filter((x) => x.e > last.e - 0.35 && x.s < first.s + 0.35).sort((a, b) => (b.e - b.s) - (a.e - a.s))[0];
+      if (!gap) return false;
+      end = Math.min(gap.e, gap.s + 0.15);
+      nextStart = Math.max(gap.s, gap.e - 0.08);
+    }
+    spans.push({ seg: chunk[i], start, end, words: words.slice(w, w + counts[i]) });
+    w += counts[i];
+    start = nextStart;
+  }
+
+  for (const sp of spans) {
+    const { wav: out, meta } = paths(sp.seg);
+    const len = Math.max(0.2, sp.end - sp.start);
+    await run('ffmpeg', ['-y', '-v', 'error', '-ss', sp.start.toFixed(3), '-t', len.toFixed(3), '-i', wav, '-af', 'apad=pad_dur=0.15', '-ac', '1', '-ar', '48000', '-c:a', 'pcm_s16le', out]);
+    const d = (await ffprobe(out)).duration;
+    const segWords = sp.words.map((x) => ({ w: x.w, s: round(Math.max(0, x.s - sp.start)), e: round(Math.min(d, Math.max(0, x.e - sp.start))) }));
+    fs.writeFileSync(meta, JSON.stringify({ key: keyOf(sp.seg), duration: d, words: segWords, method: 'chunk' }));
+  }
+  return true;
 }

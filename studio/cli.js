@@ -91,6 +91,7 @@ const commands = {
     }
     ok('voice', true, `${config.voice.provider} ${config.voice.voice}`);
     if (!['edge', 'elevenlabs', 'synthetic'].includes(config.voice.provider)) {
+      ok('voice batching', true, config.voice.chunkSeconds > 0 ? `~${config.voice.chunkSeconds}s of narration per request${config.voice.rpm ? `, max ${config.voice.rpm}/min` : ''}` : 'one request per segment (STUDIO_VOICE_CHUNK_S=0)');
       ok('voice sync', true, config.voice.align.model ? `speech-to-text ${config.voice.align.model} via 9router, pause alignment as fallback` : 'pause alignment (set STUDIO_ALIGN_MODEL to a 9router Whisper model for word-exact timings)');
     }
     ok('map imagery', config.map.provider !== 'maptiler' || Boolean(config.map.maptilerKey), `${config.map.provider}${config.map.provider === 'gibs' ? ' (regional detail only; set MAPTILER_KEY or STUDIO_MAP_PROVIDER=s2cloudless for close zooms)' : ''}`);
