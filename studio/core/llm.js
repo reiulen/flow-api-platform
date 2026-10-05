@@ -32,45 +32,72 @@ function createAnthropicLlm(config) {
     name: `anthropic:${model}`,
 
     async json({ stage, system: sys, prompt, schema, images = [], maxTokens = 32000 }) {
-      // Streamed so long outputs never hit HTTP timeouts; the format constrains the JSON and zod re-validates it.
-      const stream = client.beta.messages.stream({
+      const format = betaZodOutputFormat(schema);
+      const isProxy = Boolean(process.env.ANTHROPIC_BASE_URL);
+      const finalPrompt = isProxy
+        ? `${prompt}\n\nIMPORTANT: You MUST return ONLY a valid JSON object strictly matching this schema:\n${JSON.stringify(format.schema, null, 2)}\nOutput pure JSON without any markdown formatting, preamble, or conversational commentary.`
+        : prompt;
+
+      const opts = {
         model,
         max_tokens: maxTokens,
-        betas: ['server-side-fallback-2026-07-01'],
-        fallbacks: 'default',
         system: system(sys),
-        output_config: { effort: effortFor(stage), format: betaZodOutputFormat(schema) },
-        messages: [{ role: 'user', content: content(prompt, images) }],
-      });
+        output_config: { effort: effortFor(stage), format },
+        messages: [{ role: 'user', content: content(finalPrompt, images) }],
+      };
+      if (!isProxy) {
+        opts.betas = ['server-side-fallback-2026-07-01'];
+        opts.fallbacks = 'default';
+      }
+      const stream = client.beta.messages.stream(opts);
       const response = await stream.finalMessage();
       if (response.stop_reason === 'refusal') throw new RefusalError(`${stage}: model declined (${response.stop_details?.category || 'unknown'})`);
       if (response.stop_reason === 'max_tokens') throw new Error(`${stage}: output hit max_tokens`);
       const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
       let data;
-      try { data = JSON.parse(text); } catch { throw new Error(`${stage}: response is not valid JSON`); }
+      try {
+        data = JSON.parse(text);
+      } catch {
+        const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (fence) {
+          try { data = JSON.parse(fence[1].trim()); } catch {}
+        }
+        if (!data) {
+          const first = text.indexOf('{');
+          const last = text.lastIndexOf('}');
+          if (first !== -1 && last !== -1) {
+            try { data = JSON.parse(text.slice(first, last + 1)); } catch {}
+          }
+        }
+        if (!data) throw new Error(`${stage}: response is not valid JSON (${text.slice(0, 100)})`);
+      }
       const parsed = schema.safeParse(data);
       if (!parsed.success) throw new Error(`${stage}: response failed validation: ${parsed.error.issues.slice(0, 5).map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
       return parsed.data;
     },
 
     async research({ stage, system: sys, prompt, maxSearches = 30 }) {
-      const tools = [
+      const isProxy = Boolean(process.env.ANTHROPIC_BASE_URL);
+      const tools = isProxy ? [] : [
         { type: 'web_search_20260209', name: 'web_search', max_uses: maxSearches },
         { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: Math.ceil(maxSearches / 2) },
       ];
       const messages = [{ role: 'user', content: prompt }];
       let final;
       for (let turn = 0; turn < 8; turn++) {
-        const stream = client.beta.messages.stream({
+        const opts = {
           model,
           max_tokens: 64000,
-          betas: ['server-side-fallback-2026-07-01'],
-          fallbacks: 'default',
           system: system(sys),
           output_config: { effort: effortFor(stage) },
-          tools,
           messages,
-        });
+        };
+        if (tools.length) opts.tools = tools;
+        if (!isProxy) {
+          opts.betas = ['server-side-fallback-2026-07-01'];
+          opts.fallbacks = 'default';
+        }
+        const stream = client.beta.messages.stream(opts);
         final = await stream.finalMessage();
         if (final.stop_reason !== 'pause_turn') break;
         messages.push({ role: 'assistant', content: final.content });

@@ -77,6 +77,38 @@ const providers = {
     return { src: mp3, words };
   },
 
+  async nine_router({ segment, pieces, outBase, voice }) {
+    const baseUrl = process.env.NINE_ROUTER_BASE_URL
+      ? process.env.NINE_ROUTER_BASE_URL.replace(/\/v1$/, '')
+      : 'http://localhost:20128';
+    const key = process.env.NINE_ROUTER_API_KEY || 'sk-796da471a1d8a1ba-gfjwjl-a7570adc';
+    const text = pieces.map((p) => (p.pause ? '... ' : applyPron(p.text, segment.pron))).join(' ');
+    const voiceName = voice.voice || 'Puck';
+    const model = voiceName.startsWith('gemini/') ? voiceName : `gemini/${voiceName}`;
+    const res = await fetch(`${baseUrl}/v1/audio/speech`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        input: text,
+        voice: voiceName.replace(/^gemini\//, ''),
+        lang: process.env.STUDIO_VOICE_LANG || 'en-US',
+      }),
+    });
+    if (!res.ok) throw new Error(`voice: 9router ${res.status} ${await res.text()}`);
+    const buf = await res.arrayBuffer();
+    const raw = `${outBase}.raw.wav`;
+    fs.writeFileSync(raw, Buffer.from(buf));
+    return { src: raw, words: null };
+  },
+
+  async gemini(args) {
+    return providers.nine_router(args);
+  },
+
   async elevenlabs({ segment, pieces, outBase }) {
     const key = process.env.ELEVENLABS_API_KEY;
     const voiceId = process.env.ELEVENLABS_VOICE_ID;
