@@ -58,14 +58,14 @@ export class AssetDb {
     const ext = c.kind === 'image' ? (path.extname(new URL(resolved.url || 'file:///x.jpg').pathname) || '.jpg') : '.mp4';
     const rel = path.join('files', c.source, `${hash(`${c.source}:${c.source_id}`)}${ext}`);
     const dest = path.join(this.config.assetsDir, rel);
-    if (!fs.existsSync(dest)) await download(c, resolved, dest);
+    if (!fs.existsSync(dest)) await download(c, resolved, dest, this.config);
     const info = await ffprobe(dest);
     const asset = {
       asset_id: `A-${hash(`${c.source}:${c.source_id}`, 12)}`,
       kind: c.kind, source: c.source, source_url: c.source_url, source_id: c.source_id, license: c.license, credit: c.credit,
       title: c.title, description: c.description, visual_type: 'REAL', platform: '', country: c.country || '', year: c.year || null,
       tags: c.tags || [], file: rel, width: info.width, height: info.height, duration_s: round(c.kind === 'image' ? 0 : info.duration),
-      segments: c.kind === 'image' ? [] : await detectSegments(dest, info.duration),
+      segments: c.kind === 'image' ? [] : await detectSegments(dest, info.duration, this.config),
       quality: info.height >= 1080 ? 'A' : info.height >= 720 ? 'B' : 'C', factual_confidence: c.source === 'library' ? 'confirmed' : 'likely',
     };
     return this.put(asset);
@@ -73,10 +73,12 @@ export class AssetDb {
 }
 
 // Internal cut points of a source clip, so a 5 s window never straddles a cut inside the source.
-export async function detectSegments(file, duration) {
+export async function detectSegments(file, duration, config = {}) {
   let cuts = [];
+  const maxScan = config?.assets?.sceneScanMaxSeconds || 180;
+  const scanDuration = Math.min(Number(duration) || maxScan, maxScan);
   try {
-    const { stderr } = await run('ffmpeg', ['-v', 'info', '-i', file, '-an', '-vf', "scale=160:-2,select='gt(scene,0.32)',showinfo", '-f', 'null', '-'], { timeoutMs: 10 * 60 * 1000 });
+    const { stderr } = await run('ffmpeg', ['-v', 'info', '-t', String(scanDuration), '-i', file, '-an', '-vf', "scale=160:-2,select='gt(scene,0.32)',showinfo", '-f', 'null', '-'], { timeoutMs: 60 * 1000 });
     cuts = [...stderr.matchAll(/pts_time:([\d.]+)/g)].map((m) => Number(m[1]));
   } catch { /* treat as one segment */ }
   const bounds = [0, ...cuts, duration];
@@ -113,18 +115,20 @@ function queriesFor(need) {
 }
 
 async function findCandidates({ db, config, style, need, kind }) {
-  const all = [];
   const generic = !need.platform;
+  const queries = queriesFor(need);
+  const tasks = [];
   for (const source of style.assets.source_priority) {
     const adapter = adapters[source];
     if (!adapter || !adapter.enabled(config) || config.disabledSources.includes(source)) continue;
     if (adapter.stock && !generic) continue;
-    for (const q of queriesFor(need)) {
+    for (const q of queries) {
       const key = `${source}|${kind}|${q.toLowerCase()}`;
-      const results = await db.cachedSearch(key, () => adapter.search(q, config, { kind })).catch(() => []);
-      all.push(...results);
+      tasks.push(db.cachedSearch(key, () => adapter.search(q, config, { kind })).catch(() => []));
     }
   }
+  const results = await Promise.all(tasks);
+  const all = results.flat();
   if (config.testMode) all.push(...(await adapters.synthetic.search(`${need.platform} ${need.subject}`.trim(), config)));
   const seen = new Set();
   return all

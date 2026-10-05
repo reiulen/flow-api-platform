@@ -77,6 +77,15 @@ export function loadConfig(overrides = {}) {
       pixabay: env.PIXABAY_API_KEY || '',
     },
 
+    assets: {
+      maxDurationSeconds: Number(env.STUDIO_ASSET_MAX_DURATION_S || 900),
+      maxDownloadBytes: Number(env.STUDIO_ASSET_MAX_DOWNLOAD_MB || 300) * 1024 * 1024,
+      downloadTimeoutMs: Number(env.STUDIO_ASSET_DOWNLOAD_TIMEOUT_MS || 90000),
+      sceneScanMaxSeconds: Number(env.STUDIO_ASSET_SCENE_SCAN_S || 180),
+      preferredHeight: Number(env.STUDIO_ASSET_PREFERRED_HEIGHT || 1080),
+      minHeight: Number(env.STUDIO_ASSET_MIN_HEIGHT || 720),
+    },
+
     render: {
       hyperframes: env.STUDIO_HYPERFRAMES_BIN || path.join(REPO_ROOT, 'node_modules', '.bin', 'hyperframes'),
       motionQuality: env.STUDIO_MOTION_QUALITY || 'looks',

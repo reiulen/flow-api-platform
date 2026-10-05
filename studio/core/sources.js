@@ -34,23 +34,40 @@ export const adapters = {
     async search(q, cfg, { kind = 'video', limit = 25 } = {}) {
       const url = `https://api.dvidshub.net/search?api_key=${cfg.sources.dvids}&q=${encodeURIComponent(q)}&type[]=${kind}&max_results=${limit}&sort=score`;
       const data = await getJson(url);
-      return (data.results || []).map((r) => candidate({
-        source: 'dvids', source_id: String(r.id), kind,
-        source_url: r.url || `https://www.dvidshub.net/${kind}/${String(r.id).split(':').pop()}`,
-        title: r.title || '', description: r.short_description || r.description || '',
-        year: r.date ? Number(String(r.date).slice(0, 4)) : null, country: 'USA',
-        license: 'public_domain', credit: [r.credit, r.unit_name, r.branch].filter(Boolean).join(' / ') || 'U.S. Department of Defense (DVIDS)',
-        tags: String(r.keywords || '').split(/[,;]/).map((t) => t.trim()).filter(Boolean),
-      }));
+      const maxDur = cfg?.assets?.maxDurationSeconds || 900;
+      return (data.results || [])
+        .filter((r) => kind !== 'video' || !r.duration || Number(r.duration) <= maxDur)
+        .map((r) => candidate({
+          source: 'dvids', source_id: String(r.id), kind,
+          duration_s: Number(r.duration || 0),
+          source_url: r.url || `https://www.dvidshub.net/${kind}/${String(r.id).split(':').pop()}`,
+          title: r.title || '', description: r.short_description || r.description || '',
+          year: r.date ? Number(String(r.date).slice(0, 4)) : null, country: 'USA',
+          license: 'public_domain', credit: [r.credit, r.unit_name, r.branch].filter(Boolean).join(' / ') || 'U.S. Department of Defense (DVIDS)',
+          tags: String(r.keywords || '').split(/[,;]/).map((t) => t.trim()).filter(Boolean),
+        }));
     },
     async resolve(c, cfg) {
       const data = await getJson(`https://api.dvidshub.net/asset?api_key=${cfg.sources.dvids}&id=${encodeURIComponent(c.source_id)}`);
       const r = data.results || data;
       if (c.kind === 'image') return { url: r.image || r.url, width: r.dimensions?.width || 0, height: r.dimensions?.height || 0 };
+      const maxDur = cfg?.assets?.maxDurationSeconds || 900;
+      if (Number(r.duration || 0) > maxDur) throw new Error(`dvids: video exceeds max duration (${r.duration}s > ${maxDur}s)`);
       const files = (r.files || []).filter((f) => /mp4/.test(f.type || f.src || ''));
-      files.sort((a, b) => (b.height || 0) - (a.height || 0));
-      const best = files.find((f) => (f.height || 0) <= 1080) || files[0];
-      if (!best) throw new Error('dvids: no mp4 file');
+      const maxBytes = cfg?.assets?.maxDownloadBytes || 300 * 1024 * 1024;
+      const sensible = files.filter((f) => !f.size || f.size <= maxBytes);
+      const targetHeight = cfg?.assets?.preferredHeight || 1080;
+      const minH = cfg?.assets?.minHeight || 720;
+      sensible.sort((a, b) => {
+        const aPref = (a.height === targetHeight);
+        const bPref = (b.height === targetHeight);
+        if (aPref !== bPref) return bPref ? 1 : -1;
+        return (b.height || 0) - (a.height || 0);
+      });
+      const best = sensible.find((f) => (f.height || 0) <= targetHeight && (f.height || 0) >= minH)
+        || sensible[0]
+        || files.find((f) => !f.size || f.size <= maxBytes);
+      if (!best) throw new Error(`dvids: no suitable mp4 file under ${Math.round(maxBytes / 1024 / 1024)}MB`);
       return { url: best.src, width: best.width || 0, height: best.height || 0, duration_s: Number(r.duration || 0) };
     },
   },
@@ -199,7 +216,7 @@ function* walk(dir) {
   }
 }
 
-export async function download(c, resolved, dest) {
+export async function download(c, resolved, dest, config = {}) {
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   if (resolved.file) { fs.copyFileSync(resolved.file, dest); return dest; }
   if (resolved.synthetic) {
@@ -208,10 +225,20 @@ export async function download(c, resolved, dest) {
       '-filter_complex', '[0][1][2]concat=n=3:v=1:a=0,format=yuv420p', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', dest]);
     return dest;
   }
-  const res = await fetch(resolved.url, { headers: { 'user-agent': UA } });
-  if (!res.ok || !res.body) throw new Error(`download ${res.status} ${resolved.url}`);
+  const timeoutMs = config?.assets?.downloadTimeoutMs || 90000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const tmp = `${dest}.part`;
-  await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(tmp));
-  fs.renameSync(tmp, dest);
-  return dest;
+  try {
+    const res = await fetch(resolved.url, { headers: { 'user-agent': UA }, signal: controller.signal });
+    if (!res.ok || !res.body) throw new Error(`download ${res.status} ${resolved.url}`);
+    await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(tmp));
+    fs.renameSync(tmp, dest);
+    return dest;
+  } catch (err) {
+    if (fs.existsSync(tmp)) try { fs.unlinkSync(tmp); } catch {}
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
