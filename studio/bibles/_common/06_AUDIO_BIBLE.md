@@ -55,7 +55,7 @@ Musik dirancang per act sebagai daftar cue, bukan satu lagu panjang.
 |---|---|
 | Cakupan musik | Maks 75% durasi |
 | Bagian tanpa musik (VO + ambience saja) | Minimal 1 per 5 menit, 20–60 dtk |
-| Level bed di bawah VO | −20 sampai −26 dB relatif ke VO (referensi: −23/−24) |
+| Level bed di bawah VO | −20 sampai −26 dB relatif ke VO, diukur seperti referensi: median RMS di jeda pendek (0,3–1,5 dtk) yang ada musiknya (referensi: −23/−24). Semua sumber disamakan dulu ke −20 LUFS; setelan `bed_db_rel_vo` −16 LU menghasilkan sekitar −25 dB dengan ukuran ini. Cek dengan `studio calibrate <project>` |
 | Bed saat breathing room tanpa VO | Naik 6–10 dB dari level bed |
 | Pergantian cue | Di pergantian scene atau beat, bukan di tengah kalimat |
 | Lagu dengan vokal | Tidak dipakai di bawah VO |

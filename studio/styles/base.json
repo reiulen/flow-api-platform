@@ -78,7 +78,7 @@
     "true_peak": -1.0,
     "lra": [4, 7],
     "vo_gain_db": 0,
-    "bed_db_rel_vo": -23,
+    "bed_db_rel_vo": -16,
     "bed_breath_boost_db": 8,
     "music_max_share": 0.75,
     "no_music_every_s": 300,
