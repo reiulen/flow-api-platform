@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<script src="vendor/gsap.min.js"></script>
+<link rel="stylesheet" href="common.css" />
+<style>
+  #card { position: absolute; left: 132px; bottom: 150px; display: flex; flex-direction: column; gap: 14px; }
+  #rule { width: 64px; height: 3px; background: var(--accent); transform-origin: left center; }
+  #value { font-family: "Inter Tight", sans-serif; font-weight: 600; font-size: 92px; line-height: 1; letter-spacing: -0.01em; color: var(--info); text-shadow: 0 2px 24px rgba(0,0,0,0.55); }
+  #label { font-weight: 500; font-size: 24px; color: var(--info); opacity: 0.82; text-shadow: 0 1px 12px rgba(0,0,0,0.6); }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="__DURATION__">
+  <section id="scene" class="clip" data-start="0" data-duration="__DURATION__">
+    <div id="card">
+      <div id="rule"></div>
+      <div id="value"></div>
+      <div id="label" class="caps"></div>
+    </div>
+  </section>
+</div>
+<script>
+  const P = __PAYLOAD__;
+  const root = document.getElementById('root');
+  for (const [k, v] of Object.entries(P.colors)) root.style.setProperty(`--${k}`, v);
+  root.style.setProperty('--accent', P.colors[P.data.role || 'info'] || P.colors.info);
+  document.getElementById('value').textContent = P.data.value;
+  document.getElementById('label').textContent = P.data.label;
+  const D = P.duration;
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo('#rule', { scaleX: 0 }, { scaleX: 1, duration: 0.45, ease: 'power2.out' }, 0.05)
+    .fromTo('#value', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.15)
+    .fromTo('#label', { opacity: 0 }, { opacity: 0.82, duration: 0.4, ease: 'power1.out' }, 0.35)
+    .to('#card', { opacity: 0, duration: 0.4, ease: 'power1.in' }, D - 0.45);
+  window.__timelines['main'] = tl;
+</script>
+</body>
+</html>

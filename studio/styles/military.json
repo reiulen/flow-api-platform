@@ -1,0 +1,46 @@
+{
+  "genre": "military",
+  "style_name": "Cinematic Military Engineering Documentary",
+
+  "visual_mix": {
+    "footage": [0.5, 0.6],
+    "flow": [0.05, 0.12]
+  },
+
+  "colors": {
+    "friendly": "#7FA7C9",
+    "threat": "#E5484D",
+    "sensor": "#3CCFCF",
+    "warning": "#F2A93B"
+  },
+
+  "labels": {
+    "reconstruction": "RECONSTRUCTION",
+    "illustrative": "ILLUSTRATIVE"
+  },
+
+  "flow": {
+    "look": "Natural military documentary cinematography, as if filmed from an escort ship, helicopter or tripod. Photorealistic, restrained, serious. Overcast or soft natural light, light atmospheric haze, realistic scale.",
+    "avoid_extra": ["weapons firing unless specified", "Hollywood battle effects", "fake HUD", "made-up insignia", "random hull numbers"]
+  },
+
+  "assets": {
+    "source_priority": ["library", "dvids", "nasa", "nara", "wikimedia", "pexels", "pixabay"]
+  },
+
+  "audio": {
+    "music_functions": ["investigation", "engineering", "scale", "threat", "action", "ending"]
+  },
+
+  "editorial": {
+    "voice": "Calm, intelligent, confident documentary narrator. Never a salesman, never hype.",
+    "rules": [
+      "Explain concepts and principles. Never write operational instructions for defeating a real, named system, never list exploitable gaps or coordinates.",
+      "Classified or uncertain specifications are always phrased as estimates with attribution.",
+      "Claims by parties to a conflict are attributed as claims.",
+      "No glorification of violence. Combat footage is used to explain, not as spectacle.",
+      "Platform continuity: when the narration names a class or variant, the visuals must show that class or variant."
+    ],
+    "hardware_qc": "studio/bibles/military/HARDWARE_QC.md"
+  }
+}

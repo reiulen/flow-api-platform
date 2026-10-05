@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<script src="vendor/gsap.min.js"></script>
+<link rel="stylesheet" href="common.css" />
+<style>
+  #bg { position: absolute; inset: 0; background: var(--bg); }
+  #wrap { position: absolute; inset: 0 240px; display: flex; flex-direction: column; justify-content: center; gap: 56px; }
+  #title { font-weight: 500; font-size: 22px; color: var(--muted); }
+  #bars { display: flex; flex-direction: column; gap: 46px; }
+  .bar { display: grid; grid-template-columns: 360px 1fr 220px; align-items: center; gap: 28px; }
+  .bar .name { font-weight: 600; font-size: 26px; color: var(--info); letter-spacing: 0.08em; }
+  .bar .track { position: relative; height: 18px; }
+  .bar .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; transform-origin: left center; }
+  .bar .val { font-size: 32px; color: var(--info); text-align: right; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="__DURATION__">
+  <section id="scene" class="clip" data-start="0" data-duration="__DURATION__">
+    <div id="bg"></div>
+    <div id="wrap"><div id="title" class="caps"></div><div id="bars"></div></div>
+  </section>
+</div>
+<script>
+  const P = __PAYLOAD__;
+  const D = P.duration;
+  const root = document.getElementById('root');
+  for (const [k, v] of Object.entries(P.colors)) root.style.setProperty(`--${k}`, v);
+  document.getElementById('title').textContent = P.data.title || '';
+  const items = P.data.items;
+  const max = Math.max(...items.map((i) => Math.abs(i.value))) || 1;
+  const fmt = (v) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString('en-US') : (Math.round(v * 10) / 10).toString());
+  const unit = P.data.unit ? ` ${P.data.unit}` : '';
+  const counters = [];
+  const fills = [];
+  const holder = document.getElementById('bars');
+  items.forEach((it) => {
+    const b = document.createElement('div');
+    b.className = 'bar';
+    b.innerHTML = '<div class="name caps"></div><div class="track"><div class="fill"></div></div><div class="val mono"></div>';
+    b.querySelector('.name').textContent = it.label;
+    const fill = b.querySelector('.fill');
+    fill.style.background = P.colors[it.role] || P.colors.info;
+    fill.style.width = `${(Math.abs(it.value) / max) * 100}%`;
+    holder.appendChild(b);
+    fills.push(fill);
+    counters.push({ node: b.querySelector('.val'), v: 0, target: it.value });
+  });
+  const tl = gsap.timeline({ paused: true, onUpdate: () => counters.forEach((c) => { c.node.textContent = fmt(c.v) + unit; }) });
+  tl.fromTo('#title', { opacity: 0 }, { opacity: 1, duration: 0.5 }, 0.2);
+  const gap = Math.min(1.2, (D - 2.5) / items.length);
+  items.forEach((it, i) => {
+    const at = 0.6 + i * gap;
+    tl.fromTo(fills[i], { scaleX: 0 }, { scaleX: 1, duration: 1.2, ease: 'power2.out' }, at)
+      .to(counters[i], { v: it.value, duration: 1.2, ease: 'power2.out' }, at);
+  });
+  tl.to({}, { duration: 0 }, D);
+  document.fonts.ready.then(() => { counters.forEach((c) => { c.node.textContent = fmt(0) + unit; }); window.__timelines['main'] = tl; });
+</script>
+</body>
+</html>

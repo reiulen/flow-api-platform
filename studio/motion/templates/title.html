@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<script src="vendor/gsap.min.js"></script>
+<link rel="stylesheet" href="common.css" />
+<style>
+  #bg { position: absolute; inset: 0; background: #000; }
+  #wrap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
+  #title { max-width: 1400px; text-align: center; font-weight: 600; font-size: 64px; line-height: 1.12; letter-spacing: 0.02em; color: var(--info); }
+  #rule { width: 80px; height: 2px; background: var(--info); opacity: 0.6; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="__DURATION__">
+  <section id="scene" class="clip" data-start="0" data-duration="__DURATION__">
+    <div id="bg"></div>
+    <div id="wrap"><div id="title"></div><div id="rule"></div></div>
+  </section>
+</div>
+<script>
+  const P = __PAYLOAD__;
+  const root = document.getElementById('root');
+  for (const [k, v] of Object.entries(P.colors)) root.style.setProperty(`--${k}`, v);
+  document.getElementById('title').textContent = P.data.title;
+  const D = P.duration;
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo('#title', { opacity: 0 }, { opacity: 1, duration: 0.9, ease: 'power1.out' }, 0.3)
+    .fromTo('#rule', { scaleX: 0, opacity: 0 }, { scaleX: 1, opacity: 0.6, duration: 0.7, ease: 'power2.out' }, 0.6)
+    .to('#wrap', { opacity: 0, duration: 0.7, ease: 'power1.in' }, D - 0.8);
+  window.__timelines['main'] = tl;
+</script>
+</body>
+</html>
