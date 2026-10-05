@@ -64,16 +64,35 @@ export async function runResearch({ llm, style, brief, config }) {
   const system = houseRules(style);
   const { text, sources } = await llm.research({ stage: 'research', system, prompt: researchPrompt({ brief }), maxSearches: config.llm.researchMaxSearches });
   const out = await llm.json({ stage: 'research', schema: ResearchOut, system, prompt: researchExtractPrompt({ brief, notes: text, sources }) });
-  const research = Research.parse({ ...out, sources: out.sources.map((s) => ({ ...s, accessed: nowIso().slice(0, 10) })) });
+  // Only URLs the search actually returned count; anything else was written from memory.
+  const found = new Set(sources.map((s) => normalizeUrl(s.url)));
+  const research = Research.parse({
+    ...out,
+    sources: out.sources.map((s) => ({
+      ...s,
+      accessed: nowIso().slice(0, 10),
+      notes: isUrl(s.url) && !found.has(normalizeUrl(s.url)) ? `not found by search; ${s.notes || ''}`.trim() : s.notes,
+    })),
+  });
   return { research: lintResearch(research), notes: text };
 }
 
+const isUrl = (url) => /^https?:\/\/[^\s/]+\.[^\s]+/.test(url || '');
+const normalizeUrl = (url) => (url || '').trim().replace(/^https?:\/\/(www\.)?/, '').replace(/[#?].*$/, '').replace(/\/+$/, '').toLowerCase();
+
+// A claim is usable only when it cites at least one tier 1-3 source that has a real URL and was not
+// flagged as unverified. Research written from memory (empty URLs, invented URLs) fails here.
 export function lintResearch(research) {
-  const tierOf = new Map(research.sources.map((s) => [s.source_id, s.tier]));
+  const usable = new Map(research.sources
+    .filter((s) => isUrl(s.url) && !/^not found by search/.test(s.notes || ''))
+    .map((s) => [s.source_id, s.tier]));
   const claims = research.claims
-    .map((c) => ({ ...c, sources: c.sources.filter((id) => tierOf.has(id)) }))
-    .filter((c) => c.sources.length && c.sources.some((id) => tierOf.get(id) <= 3));
-  if (claims.length < 15) throw new Error(`research: only ${claims.length} usable claims (need >= 15)`);
+    .map((c) => ({ ...c, sources: c.sources.filter((id) => usable.has(id)) }))
+    .filter((c) => c.sources.length && c.sources.some((id) => usable.get(id) <= 3));
+  if (claims.length < 15) {
+    const unverified = research.sources.length - usable.size;
+    throw new Error(`research: only ${claims.length} claims backed by verified sources (need >= 15); ${unverified} of ${research.sources.length} sources have no URL or were not found by web search. Is web search working?`);
+  }
   return { ...research, claims };
 }
 

@@ -33,7 +33,11 @@ function prepareVendor(dir) {
 
 // Renders one template. Results are cached by content hash, so identical graphics are never re-rendered.
 export async function renderMotion({ config, style, template, data, duration }) {
-  if (template === 'map' && !config.render.motionStub) return renderMapShot({ config, style, data, duration });
+  if (template === 'map') {
+    if (!config.render.motionStub) return renderMapShot({ config, style, data, duration });
+    const out = path.join(ensureDir(path.join(config.assetsDir, 'motion-cache')), `map-stub-${hash({ data, duration: round(duration, 3) })}.mp4`);
+    return fs.existsSync(out) ? out : stubMotion(out, false, round(duration, 3), template);
+  }
   const templatesDir = path.join(config.motionDir, 'templates');
   const html = fs.readFileSync(path.join(templatesDir, `${template}.html`), 'utf8');
   const css = fs.readFileSync(path.join(templatesDir, 'common.css'), 'utf8');
