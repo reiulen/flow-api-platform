@@ -38,6 +38,7 @@ export function loadConfig(overrides = {}) {
     voice: {
       provider: env.STUDIO_VOICE_PROVIDER || 'edge',
       voice: env.STUDIO_VOICE || 'en-US-AndrewMultilingualNeural',
+      model: env.STUDIO_VOICE_MODEL || (env.STUDIO_VOICE_PROVIDER === 'inworld' ? 'inworld-tts-2' : ''),
       rate: env.STUDIO_VOICE_RATE || '-4%',
       // Rate-limited engines (9router/Gemini): seconds of narration per request, and requests per minute.
       chunkSeconds: Number(env.STUDIO_VOICE_CHUNK_S ?? 90),

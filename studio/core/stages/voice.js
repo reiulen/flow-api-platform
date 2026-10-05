@@ -94,12 +94,13 @@ const providers = {
     if (!key) throw new Error('voice: set NINE_ROUTER_API_KEY');
     const text = pieces.map((p) => (p.boundary ? '\n\n' : p.pause ? '... ' : applyPron(p.text, segment.pron))).join(' ');
     const isVoiceInworld = voice.provider === 'inworld' || (voice.voice && voice.voice.startsWith('inworld/'));
-    const defaultVoice = isVoiceInworld ? 'Harold' : 'Puck';
+    const defaultVoice = isVoiceInworld ? 'Tristan' : 'Puck';
     const voiceName = voice.voice || defaultVoice;
     let model;
     if (isVoiceInworld) {
       const v = voiceName.replace(/^inworld\//, '');
-      model = v.includes('/') ? `inworld/${v}` : `inworld/inworld-tts-1.5-max/${v}`;
+      const ttsModel = voice.model || process.env.STUDIO_VOICE_MODEL || 'inworld-tts-2';
+      model = v.includes('/') ? `inworld/${v}` : `inworld/${ttsModel}/${v}`;
     } else if (voiceName.includes('/')) {
       model = voiceName;
     } else {
@@ -257,7 +258,7 @@ export async function runVoice({ project, script, voice, style, config, concurre
   const limit = makeLimiter(config?.voice.rpm ?? 0);
   const call = (args, label) => withRetries(() => limit(() => provider(args)), label);
   // Audio is reused only while the text, pronunciations and voice are unchanged.
-  const keyOf = (segment) => hash({ text: segment.text, pron: segment.pron || [], tone: segment.tone || '', provider: voice.provider, voice: voice.voice || '', rate: voice.rate || '' });
+  const keyOf = (segment) => hash({ text: segment.text, pron: segment.pron || [], tone: segment.tone || '', provider: voice.provider, voice: voice.voice || '', rate: voice.rate || '', model: voice.model || process.env.STUDIO_VOICE_MODEL || '' });
   const paths = (segment) => { const b = path.join(dir, segment.seg_id); return { base: b, wav: `${b}.wav`, meta: `${b}.json` }; };
   const cachedMeta = (segment) => {
     const { wav, meta } = paths(segment);
