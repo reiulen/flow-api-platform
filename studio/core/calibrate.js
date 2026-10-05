@@ -74,7 +74,7 @@ export function speechSegments(shotList, voTiming) {
   return segs;
 }
 
-export async function measureRender({ render, shotList, voTiming, style }) {
+export async function measureRender({ render, shotList, voTiming, audioPlan, style }) {
   const dur = shotList.duration_s;
   const shots = shotList.shots.filter((s) => s.shot_class !== 'black');
   const durs = shots.map((s) => s.duration_s);
@@ -88,7 +88,10 @@ export async function measureRender({ render, shotList, voTiming, style }) {
   const db = await rmsLevels(render);
   const lvl = (s, e) => median(Array.from(db.slice(Math.floor(s * 10), Math.floor(e * 10))));
   const voiceLvl = median(segs.map(([s, e]) => lvl(s, e)).filter(Number.isFinite));
-  const bed = gaps.filter(([a, b]) => b - a >= 0.3 && b - a <= 1.5).map(([a, b]) => lvl(a + 0.08, b - 0.08)).filter(Number.isFinite);
+  // Bed level is measured where music plays (the references run music almost wall to wall; our
+  // style leaves deliberate music-free stretches, which would otherwise drag the median down).
+  const inMusic = (t) => !audioPlan || audioPlan.music.some((m) => t >= m.start_s + 2 && t <= m.end_s - 2);
+  const bed = gaps.filter(([a, b]) => b - a >= 0.3 && b - a <= 1.5 && inMusic((a + b) / 2)).map(([a, b]) => lvl(a + 0.08, b - 0.08)).filter(Number.isFinite);
   const runs = [];
   for (const [s, e] of segs) {
     if (runs.length && s - runs.at(-1)[1] < 1) runs.at(-1)[1] = e;

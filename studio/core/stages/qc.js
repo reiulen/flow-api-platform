@@ -56,7 +56,7 @@ export async function runQc({ project, shotList, edl, audioPlan, script, outline
   // Calibration: the render measured like the reference videos, against the style's target bands.
   let calibration = null;
   if (voTiming) {
-    const measured = await measureRender({ render, shotList, voTiming, style });
+    const measured = await measureRender({ render, shotList, voTiming, audioPlan, style });
     calibration = { measured, rows: compare(measured, style) };
     const covered = new Set(['asl_s', 'short_time_pct', 'lufs', 'true_peak']); // already checked above
     for (const r of calibration.rows.filter((x) => x.status !== 'ok' && x.status !== 'n/a' && !covered.has(x.metric))) {

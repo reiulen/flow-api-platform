@@ -176,7 +176,7 @@ const commands = {
     if (!id) throw new Error('usage: studio calibrate <project_id>');
     const project = Project.open(config, id);
     const render = project.file(project.read('render.json').file);
-    const measured = await measureRender({ render, shotList: project.read('shotlist.final.json'), voTiming: project.read('vo_timing.json'), style: project.style() });
+    const measured = await measureRender({ render, shotList: project.read('shotlist.final.json'), voTiming: project.read('vo_timing.json'), audioPlan: project.read('audio_plan.json'), style: project.style() });
     const rows = compare(measured, project.style());
     project.write('calibration.json', { measured, rows });
     console.log(formatTable(rows));
