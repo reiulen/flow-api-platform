@@ -56,6 +56,14 @@ export function estimateWords(pieces, totalDuration) {
   return out;
 }
 
+function wavHeader(bytes, rate) {
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0); h.writeUInt32LE(36 + bytes, 4); h.write('WAVE', 8); h.write('fmt ', 12);
+  h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(rate, 24);
+  h.writeUInt32LE(rate * 2, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(bytes, 40);
+  return h;
+}
+
 async function toWav(input, output) {
   await run('ffmpeg', ['-y', '-v', 'error', '-i', input, '-ac', '1', '-ar', '48000', '-c:a', 'pcm_s16le', output]);
 }
@@ -148,8 +156,14 @@ const providers = {
     const src = `${outBase}.syn.wav`;
     const words = estimateWords(pieces, duration);
     // Tone only while words are spoken, so pauses are real silence (like a voice).
-    const on = words.map((w) => `between(t,${w.s},${w.e})`).join('+') || '0';
-    await run('ffmpeg', ['-y', '-v', 'error', '-f', 'lavfi', '-i', `aevalsrc=0.2*sin(2*PI*220*t)*gt(${on}\\,0):s=48000:d=${duration.toFixed(3)}`, '-ac', '1', src]);
+    const rate = 48000;
+    const pcm = Buffer.alloc(Math.round(duration * rate) * 2);
+    for (const w of words) {
+      for (let i = Math.round(w.s * rate); i < Math.min(pcm.length / 2, Math.round(w.e * rate)); i++) {
+        pcm.writeInt16LE(Math.round(6500 * Math.sin((2 * Math.PI * 220 * i) / rate)), i * 2);
+      }
+    }
+    fs.writeFileSync(src, Buffer.concat([wavHeader(pcm.length, rate), pcm]));
     return { src, words };
   },
 };
