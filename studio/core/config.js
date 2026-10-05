@@ -28,6 +28,13 @@ export function loadConfig(overrides = {}) {
       researchMaxSearches: Number(env.STUDIO_RESEARCH_MAX_SEARCHES || 30),
     },
 
+    // Web search used when the LLM sits behind a proxy (9router /v1/search). model = a search provider enabled in 9router.
+    search: {
+      url: env.NINE_ROUTER_BASE_URL?.replace(/\/v1\/?$/, '') || env.ANTHROPIC_BASE_URL?.replace(/\/v1\/?$/, '') || '',
+      key: env.NINE_ROUTER_API_KEY || env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN || '',
+      model: env.STUDIO_SEARCH_MODEL || '',
+    },
+
     voice: {
       provider: env.STUDIO_VOICE_PROVIDER || 'edge',
       voice: env.STUDIO_VOICE || 'en-US-AndrewMultilingualNeural',

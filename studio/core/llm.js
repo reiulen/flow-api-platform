@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
+import { searchConfigured, searchResearch } from './search.js';
 
 // One interface for every stage:
 //   json({ stage, system, prompt, schema, images })  -> parsed object (validated by the stage's zod schema)
@@ -28,7 +29,7 @@ function createAnthropicLlm(config) {
     return [...blocks, { type: 'text', text: prompt }];
   }
 
-  return {
+  const llm = {
     name: `anthropic:${model}`,
 
     async json({ stage, system: sys, prompt, schema, images = [], maxTokens = 32000 }) {
@@ -78,6 +79,12 @@ function createAnthropicLlm(config) {
 
     async research({ stage, system: sys, prompt, maxSearches = 30 }) {
       const isProxy = Boolean(process.env.ANTHROPIC_BASE_URL);
+      // Behind a proxy there are no server-side search tools: search through 9router instead.
+      // Never research from model memory alone; the documentary's facts must trace to real sources.
+      if (isProxy) {
+        if (!searchConfigured(config)) throw new Error(`${stage}: web search is not configured for the proxy; set STUDIO_SEARCH_MODEL (a search provider enabled in 9router)`);
+        return searchResearch({ config, json: llm.json, write: (s, p) => writeText(s, p, stage), stage, system: sys, prompt, maxPages: maxSearches });
+      }
       const tools = isProxy ? [] : [
         { type: 'web_search_20260209', name: 'web_search', max_uses: maxSearches },
         { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: Math.ceil(maxSearches / 2) },
@@ -116,6 +123,16 @@ function createAnthropicLlm(config) {
       return { text, sources };
     },
   };
+
+  // Plain text completion through the proxy (no tools, no proxy-incompatible options).
+  async function writeText(sys, prompt, stage) {
+    const stream = client.messages.stream({ model, max_tokens: 32000, system: system(sys), messages: [{ role: 'user', content: prompt }] });
+    const final = await stream.finalMessage();
+    if (final.stop_reason === 'refusal') throw new RefusalError(`${stage}: model declined`);
+    return final.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  }
+
+  return llm;
 }
 
 // Deterministic provider for tests and dry runs. `responders[stage](args)` returns the object.

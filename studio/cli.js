@@ -11,6 +11,7 @@ import { adapters } from './core/sources.js';
 import { pickTopic, scoutTopics } from './core/stages/editorial.js';
 import { runFlowQueue } from './core/stages/flow.js';
 import { chromePath, renderGeo } from './core/geo.js';
+import { searchConfigured } from './core/search.js';
 import { MotionData } from './core/stages/visual.js';
 import { listProjects, markTopicUsed, newBrief, projectStatus, runProject, setGate, topicsFile, usedTopicsFile } from './core/pipeline.js';
 import { readJson, run, sleep, writeJson } from './core/util.js';
@@ -83,6 +84,9 @@ const commands = {
       ok('hyperframes', !bad.length, bad.map((c) => `${c.name}: ${c.hint || c.detail}`).join('; '));
     } catch (err) { ok('hyperframes', false, err.message.slice(0, 120)); }
     ok('LLM provider', config.llm.provider !== 'anthropic' || Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN), `${config.llm.provider} ${config.llm.model}`);
+    if (process.env.ANTHROPIC_BASE_URL) {
+      ok('research search', searchConfigured(config), searchConfigured(config) ? `9router ${config.search.model} @ ${config.search.url}` : 'set STUDIO_SEARCH_MODEL to a search provider enabled in 9router (research refuses to run from model memory)');
+    }
     ok('voice', true, `${config.voice.provider} ${config.voice.voice}`);
     ok('map imagery', config.map.provider !== 'maptiler' || Boolean(config.map.maptilerKey), `${config.map.provider}${config.map.provider === 'gibs' ? ' (regional detail only; set MAPTILER_KEY or STUDIO_MAP_PROVIDER=s2cloudless for close zooms)' : ''}`);
     ok('map browser', Boolean(chromePath(config)), chromePath(config) || 'set CHROME_EXECUTABLE_PATH');
