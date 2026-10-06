@@ -83,6 +83,14 @@ export function mockResponders() {
         })),
       };
     },
+    // Footage planner: the first candidates of every group, as many as the prompt allows.
+    asset_plan: ({ prompt }) => ({
+      groups: prompt.split('\n### ').slice(1).map((block) => ({
+        group: block.match(/^(G\d+)/)[1],
+        picks: [...block.matchAll(/^(c\d+) \|/gm)].slice(0, Number(block.match(/pick up to (\d+)/)[1])).map((m) => ({ id: m[1], look_for: 'wide shot' })),
+        better_query: '',
+      })),
+    }),
     review: () => ({ findings: [{ pass: 3, level: 'minor', ref: 'S-03-02', detail: 'slightly repetitive', fix: 'vary the sentence' }] }),
   };
 }

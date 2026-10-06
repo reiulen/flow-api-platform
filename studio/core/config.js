@@ -84,6 +84,12 @@ export function loadConfig(overrides = {}) {
       sceneScanMaxSeconds: Number(env.STUDIO_ASSET_SCENE_SCAN_S || 300),
       preferredHeight: Number(env.STUDIO_ASSET_PREFERRED_HEIGHT || 1080),
       minHeight: Number(env.STUDIO_ASSET_MIN_HEIGHT || 720),
+      // Planning: clips downloaded per video (0 = 1.5x the clips the footage shots need, at least 6), candidates the
+      // planner reads per need, clips planned per need, and shots one clip is expected to give.
+      maxDownloads: Number(env.STUDIO_ASSET_MAX_DOWNLOADS || 0),
+      candidatesPerNeed: Number(env.STUDIO_ASSET_CANDIDATES || 10),
+      clipsPerNeed: Number(env.STUDIO_ASSET_CLIPS_PER_NEED || 4),
+      shotsPerClip: Number(env.STUDIO_ASSET_SHOTS_PER_CLIP || 3),
     },
 
     render: {

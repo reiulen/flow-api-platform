@@ -104,15 +104,20 @@ File:       assets/<genre>/<subjek>/<asset_id>.<ext>
 
 ## 6. Proses sourcing per video
 
-1. Tahap Visual Director menulis **kebutuhan visual** per shot di `shotlist.json`: subjek, platform, aksi, dan mood.
-2. Asset Researcher mencari di **database lokal** dulu, lalu di sumber eksternal sesuai prioritas di `SOURCES.md`.
-3. Kandidat ditulis ke `asset_candidates.json` dengan skor relevansi. Aset baru masuk database dengan metadata lengkap.
-4. **Review visual.** Metadata teks hanya bilang klip itu tentang apa, bukan isi setiap shot di dalamnya. Setiap shot (hasil deteksi cut) dari aset yang akan dipakai dilihat sekali oleh model vision per kebutuhan visual, lalu disimpan di tabel `reviews`:
+Prinsipnya: **rencanakan dulu, baru unduh.** Setiap download makan waktu dan setiap klip yang diunduh harus di-review, jadi yang diunduh hanya klip yang sudah jelas gunanya.
+
+1. **Kelompokkan kebutuhan.** Tahap Visual Director menulis kebutuhan visual per shot: subjek, platform, aksi, era. Shot dengan kebutuhan yang sama (lintas sequence) jadi satu kelompok, lengkap dengan kalimat narasinya, jumlah shot, dan durasinya.
+2. **Cari metadata saja.** Setiap kelompok dicari sekali (maksimal 3 query per sumber, hasil di-cache). Belum ada yang diunduh. Kandidat dengan platform yang salah, lisensi yang tidak diizinkan, atau durasi di atas batas langsung dibuang. Yang tersisa maksimal 10 per kelompok, diurutkan dengan skor teks.
+3. **Rencana aset (`asset_plan.json`).** Satu panggilan LLM teks per 8 kelompok membaca judul, deskripsi, tag, durasi, dan tahun setiap kandidat, lalu memilih klip yang memang memuat momen yang dibutuhkan, dengan urutan prioritas dan catatan `look_for` (apa yang diambil dari klip itu). Briefing, wawancara, upacara, paket berita, dan kompilasi tidak dipilih. Kalau tidak ada yang cocok, perencana tidak memilih apa pun dan mengusulkan satu query yang lebih tepat. Query itu dicari sekali, lalu direncanakan sekali lagi. Tanpa LLM, rencana diambil dari skor teks tertinggi.
+4. **Download hanya yang direncanakan.** Klip utama setiap kelompok diunduh paralel (jumlahnya mengikuti kebutuhan shot, kira-kira 1 klip per 3 shot). Klip cadangan dari rencana baru diunduh kalau klip yang sudah ada tidak bisa mengisi sebuah shot. Ada batas download per video (`STUDIO_ASSET_MAX_DOWNLOADS`, default 1,5 kali jumlah klip yang dibutuhkan semua shot footage, minimal 6). Batas ini hanya pengaman: klip cadangan tetap baru diunduh kalau dibutuhkan.
+5. **Review visual, satu gambar per klip.** Metadata hanya bilang klip itu tentang apa, bukan isi setiap shot di dalamnya. Shot (hasil deteksi cut) yang cukup panjang untuk mengisi shot terpendek kelompoknya disusun jadi satu contact sheet (maksimal 12 frame), lalu dinilai sekali oleh model vision bersama tujuan pemakaiannya. Klip yang tidak punya shot cukup panjang ditolak tanpa panggilan model. Hasilnya disimpan di tabel `reviews`:
    - `relevance` 0–3: 3 = persis platform dan aksinya, 2 = platform benar dengan aksi atau sudut lain, 1 = konteks yang tidak menyesatkan, 0 = tidak relevan atau platform/varian lain.
    - `defects`: `slate`, `text` (caption, lower third, watermark), `talking_head`, `blank`, `poor`, `people`. Shot dengan defect tidak dipakai.
    - `taste` 0–2: kualitas sinematik frame, untuk memilih di antara shot yang sama relevannya.
-   Pemilihan mengambil shot `relevance` ≥ 2 dari seluruh pool dulu, baru ≥ 1. Kalau review gagal, keputusan kembali ke pencocokan teks.
-5. Shot tanpa kandidat `A`/`B` yang sah ditandai `needs_flow` atau `needs_tech`, lalu ditinjau di human gate G3.
+   Pemilihan mengambil shot `relevance` ≥ 2 dulu, baru ≥ 1. Kalau review gagal, keputusan kembali ke pencocokan teks.
+6. Shot yang tetap tidak terisi jadi Flow (rekonstruksi, berlabel) selama kuota Flow masih ada, atau ditandai `none` dan ditinjau di human gate G3.
+
+`asset_plan.json` mencatat untuk setiap kelompok: kandidat yang dibaca, klip yang dipilih beserta `look_for`, apakah diunduh, dan apakah terpakai. Bagian `totals` merangkum berapa kandidat dibaca, direncanakan, diunduh, di-review, dan terpakai.
 
 ## 7. Kredit
 

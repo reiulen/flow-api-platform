@@ -231,9 +231,42 @@ Check, strictly:
 Verdict approved only if nothing would make a knowledgeable viewer doubt the shot. Use approved_with_trim when only the start or end is bad and give the usable fraction range.`;
 }
 
-export function footageReviewPrompt({ need, asset, frames }) {
-  return `You are the footage researcher of a documentary. Before archive footage is cut into the film, you check every shot of the source clip.
-The images above are ${frames} frames, one from the middle of each shot of the source clip, in order: image 1 = shot 1, image 2 = shot 2, ...
+// S6a: plan the footage before anything is downloaded. Text metadata only.
+export function assetPlanPrompt({ groups }) {
+  const fmtDur = (d) => (d ? `${Math.floor(d / 60)}:${String(Math.round(d % 60)).padStart(2, '0')}` : '?');
+  const blocks = groups.map((g) => {
+    const lens = g.shots.map((s) => s.duration_s);
+    const cands = g.candidates.map((x) => {
+      const c = x.c;
+      const meta = [`${c.source.toUpperCase()} ${c.kind}`, c.kind === 'video' ? fmtDur(c.duration_s) : '', c.year || '', c.height ? `${c.height}p` : ''].filter(Boolean).join(' · ');
+      const desc = String(c.description || '').replace(/\s+/g, ' ').slice(0, 220);
+      const tags = (c.tags || []).slice(0, 8).join(', ');
+      return `${x.cid} | ${meta} | "${c.title}"${desc ? ` — ${desc}` : ''}${tags ? ` [tags: ${tags}]` : ''}`;
+    }).join('\n');
+    return `### ${g.id} — act ${g.act} · ${g.shots.length} shot(s) of ${Math.min(...lens).toFixed(1)}-${Math.max(...lens).toFixed(1)} s · pick up to ${g.wanted + 1} clip(s), best first
+Narration here: "${g.narration}"
+Visual need: subject "${g.need.subject}"; platform "${g.need.platform || 'any'}"; action "${g.need.action || '-'}"; era "${g.need.era || 'any'}"
+Candidates:
+${cands || '(none found by the first search)'}`;
+  }).join('\n\n');
+  return `You are the footage planner of a documentary. Nothing has been downloaded yet. Every download costs minutes and every clip you pick is later checked frame by frame, so pick only clips whose metadata shows they contain what each moment of the film needs. A wrong pick wastes time; an empty pick is better than a wrong one.
+
+For each group below, choose the candidate clips to download, best first:
+- Hardware accuracy first: the named platform (aircraft type, ship class, variant) must be stated in the title, description or tags. A different type, class or variant is never acceptable, even if it looks similar. With platform "any", the subject and action decide.
+- Prefer raw B-roll of the actual activity (takeoff, launch, underway, refuelling, loading, maintenance, firing, flyover). Short clips (under about 5 minutes) usually hold the cleanest shots. Prefer HD and the right era when one is given.
+- Avoid press briefings, interviews, speeches, ceremonies, award or promotion events, news packages and reports, highlight reels and compilations with titles and music, slideshows, animations and graphics (unless the need asks for them), and clips about something else that only mention the platform.
+- One clip can hold several usable shots, so pick only as many as needed (up to the number shown). The same clip may be picked for several groups when it fits all of them.
+- look_for: in a few words, which moment to cut from that clip for this narration (for example "wide takeoff, gear retracting").
+- If no candidate fits, return picks [] and better_query: one precise archive search query of at most 6 words that would find the right footage (DVIDS, NASA, National Archives). Otherwise better_query "".
+
+${blocks}
+
+Return {"groups":[{"group":"G1","picks":[{"id":"c3","look_for":"..."}],"better_query":""}, ...]} with one entry per group.`;
+}
+
+export function footageReviewPrompt({ need, asset, frames, cols = frames, purpose = '' }) {
+  return `You are the footage researcher of a documentary. Before archive footage is cut into the film, you check every usable shot of the source clip.
+The image above is a contact sheet of ${frames} frames in a grid of ${cols} column(s), read left to right, top to bottom: frame 1 is top-left, frame ${Math.min(cols, frames)} ends the first row. Each frame is the middle of one shot of the source clip, in time order.
 
 Source: ${asset.source.toUpperCase()} — "${asset.title}"${asset.description ? `\nSource caption: ${asset.description.slice(0, 500)}` : ''}
 
@@ -241,9 +274,9 @@ The narration at this point needs:
 - subject: ${need.subject || '-'}
 - platform: ${need.platform || '(any, generic)'}
 - action: ${need.action || '-'}
-- era: ${need.era || '-'}
+- era: ${need.era || '-'}${purpose ? `\n- planned use: ${purpose}` : ''}
 
-For every image return index (1-based), relevance and defects.
+For every frame return index (1-based), relevance and defects.
 relevance:
   3 = shows exactly this platform/subject doing this action (or something that clearly proves the narration)
   2 = the right platform/subject, different action or angle, still a good fit
