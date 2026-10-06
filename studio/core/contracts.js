@@ -36,7 +36,7 @@ export const TopicCandidate = z.object({
   angle: z.string(),
   scores: z.object({
     contradiction: z.number(), mechanism: z.number(), footage: z.number(), sources: z.number(),
-    relevance: z.number(), visualization: z.number(), risk: z.number(),
+    relevance: z.number(), visualization: z.number(), risk: z.number(), hype: z.number().default(3),
   }),
   footage_evidence: z.array(z.string()).default([]),
   key_sources: z.array(z.string()).default([]),
@@ -174,7 +174,7 @@ export const EdlClip = z.object({
   clip_id: id, shot_id: z.string(), kind: z.enum(['video', 'image', 'motion', 'black']),
   src: z.string().nullable(), src_in: z.number().default(0), speed: z.number().default(1), start_s: z.number(), duration_s: z.number(),
   transition_in: z.object({ type: z.enum(TRANSITIONS), dur_s: z.number() }),
-  look: z.boolean().default(true), overlays: z.array(z.object({ src: z.string(), at_s: z.number(), duration_s: z.number() })).default([]),
+  look: z.boolean().default(true), nat: z.boolean().default(false), overlays: z.array(z.object({ src: z.string(), at_s: z.number(), duration_s: z.number() })).default([]),
 });
 export const Edl = z.object({ fps: z.number(), width: z.number(), height: z.number(), duration_s: z.number(), clips: z.array(EdlClip).min(1) });
 

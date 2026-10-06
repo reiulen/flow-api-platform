@@ -1,0 +1,12 @@
+{
+  "legend": [{ "label": "Houthi control", "role": "warning" }],
+  "view": { "center": [46, 20], "scale_from": 4.6, "scale_to": 5.4, "pitch": 30 },
+  "steps": [
+    { "type": "label", "lon": 45, "lat": 24, "text": "Saudi Arabia", "role": "info" },
+    { "type": "highlight", "countries": ["Yemen"], "role": "warning" },
+    { "type": "icons", "lon": 55.5, "lat": 25.2, "icon": "person", "count": 20, "total": 35, "label": "Saudi population ~35M", "value": "19.6M citizens", "role": "success" },
+    { "type": "icons", "lon": 57, "lat": 14.5, "icon": "person", "count": 34, "total": 43, "label": "Yemen population ~43M", "value": "34.4M under Houthis", "role": "warning" },
+    { "type": "pie", "lon": 36.5, "lat": 16, "percent": 95, "value": "-95%", "label": "Red Sea exports", "role": "threat" },
+    { "type": "inset", "center": [-79.5, 22], "scale": 18, "position": "tr", "highlight": ["Cuba"], "label": "Second carrier group", "role": "threat" }
+  ]
+}

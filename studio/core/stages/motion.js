@@ -16,6 +16,8 @@ const VENDOR = {
   'inter-tight-700.woff2': 'node_modules/@fontsource/inter-tight/files/inter-tight-latin-700-normal.woff2',
   'plex-mono-400.woff2': 'node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2',
   'plex-mono-500.woff2': 'node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2',
+  'oswald-500.woff2': 'node_modules/@fontsource/oswald/files/oswald-latin-500-normal.woff2',
+  'oswald-600.woff2': 'node_modules/@fontsource/oswald/files/oswald-latin-600-normal.woff2',
 };
 
 function prepareVendor(dir) {

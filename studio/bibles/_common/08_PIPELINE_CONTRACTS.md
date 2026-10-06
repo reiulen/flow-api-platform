@@ -317,11 +317,16 @@ Timeline final yang bisa langsung dirender:
     "start_s": 312.4,
     "transition_in": { "type": "dissolve_short", "dur_s": 0.5 },
     "reframe": { "scale": 1.0, "x": 0, "y": 0, "move": null },
+    "nat": true,
     "label": null
   }],
   "overlays": [{ "motion_id": "TYPE-COST-01", "start_s": 330.0, "dur_s": 2.5 }]
 }
 ```
+
+`nat`: audio asli klip ikut di-mix sebagai natural sound (hanya footage REAL/ARCHIVAL/NEWS). Shot tanpa media ditutup oleh klip tetangganya: pertama dengan sisa waktu bersih di shot sumber yang sama (tidak pernah melewati cut di sumber), lalu dengan perlambatan maks sampai 0,7×. Durasi dissolve dibatasi oleh sisa waktu bersih klip sebelumnya.
+
+`asset_report.json` per shot: `status`, `asset_id`, `source`, `score` (teks), `relevance` (0–3 dari review visual), `reviewed`, `license`. `credits.json` berisi `footage`, `audio` (musik dan ambience dari library), dan `sources`.
 
 ### audio_plan.json (S10)
 

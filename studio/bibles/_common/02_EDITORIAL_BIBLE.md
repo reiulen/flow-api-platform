@@ -54,19 +54,31 @@ Aturan:
 
 ### Nada
 
-Tenang, cerdas, dan yakin. Narator dokumenter, bukan salesman.
+Penjelas yang cerdas, yakin, dan conversational, dengan sudut pandang yang jelas. Rujukannya narasi RealLifeLore (lihat `references/00_REFERENCE_ANALYSIS.md` §Narasi): seperti teman pintar yang sudah membaca semua laporan dan memahami petanya. Bukan salesman, bukan hype, tidak mengglorifikasi.
 
 - ❌ "THIS IS THE MOST POWERFUL WEAPON EVER CREATED!"
 - ✅ "At first glance, an aircraft carrier seems almost absurdly vulnerable."
+- ✅ "Geopolitically, this is all utterly disastrous for them." (opini yang didukung bukti, diucapkan lugas)
+
+### Hook (act 1)
+
+1. Kalimat pertama: taruhannya, saat ini, sekuat yang diizinkan klaim.
+2. Eskalasi: pukulan kedua ("As if X wasn't enough, … now …").
+3. Skenario terburuk dibuat konkret dengan satu gambaran fisik ("it would almost landlock them").
+4. Baru kemudian kontradiksi, pertanyaan inti, dan janji mekanisme yang akan dijelaskan film.
 
 ### Pola kalimat
 
 - **Pertanyaan → kontradiksi → penjelasan.**
 - Variasikan panjang kalimat. Kalimat pendek dipakai untuk penekanan:
   > "It is enormous. Its position can be tracked. And yet, for decades, navies have kept building them."
-- Satu ide per kalimat.
-- Angka dibulatkan untuk narasi ("almost 1,100 feet"). Angka presisi ditaruh di kartu teks kalau perlu.
-- Hindari superlatif tanpa sumber, misalnya "most advanced" atau "unstoppable".
+- Kalimat panjang membangun rantai sebab-akibat, kalimat pendek mendaratkannya.
+- **Setiap angka kunci diberi pembanding** supaya skalanya terasa: "more than 30 times over", "about 4% of the entire world's supply", "nearly double", "five times larger than Yemen's whole economy".
+- Logika dibawa oleh penyambung lisan: "Now,", "But", "And then,", "Meanwhile,", "Indeed,", "Unfortunately for them, however,".
+- Humor kering boleh sekitar sekali per act, tidak pernah soal korban. Orang pertama hanya untuk menuntun ("like I mentioned earlier").
+- Angka dibulatkan kalau presisinya tidak menambah apa-apa ("almost 1,100 feet"). Angka presisi tetap dipakai kalau presisinya justru poinnya, dan ditaruh juga di kartu teks.
+- Hindari superlatif tanpa sumber, misalnya "most advanced" atau "unstoppable". Superlatif harus punya klaim di belakangnya.
+- Act 7: jabarkan opsi yang tersisa dan harga masing-masing, lalu tutup dengan satu kalimat lugas yang akan diulang penonton.
 - Hindari klise AI: "In a world where…", "Let's dive in", "game-changer", "delve", dan "It's not just X, it's Y".
 
 ### Kepadatan [v0.1]
@@ -116,9 +128,15 @@ Script ditulis dengan penanda yang dibaca tahap VO dan editing:
 | Level | Arti | Cara di narasi |
 |---|---|---|
 | `confirmed` | Sumber tier 1, atau beberapa tier 2 yang sepakat | Kalimat langsung |
-| `reported` | Satu sumber tier 2 | "according to…", "reportedly" |
-| `estimated` | Analisis atau perkiraan tier 3 | "estimated", "analysts believe" |
-| `disputed` | Sumber bertentangan | Sebutkan keduanya |
+| `reported` | Satu sumber tier 2 | Kalimat langsung (sumber ada di deskripsi) |
+| `estimated` | Analisis atau perkiraan tier 3 | Kata angka lunak: "around", "roughly", "nearly", "an estimated" |
+| `disputed` | Sumber bertentangan | Angka dengan sumber terbaik + "around"; sebutkan siapa mengklaim apa hanya kalau perbedaannya penting bagi cerita |
+
+Tingkat keyakinan menentukan **apa yang boleh diklaim**, bukan berapa banyak kata pelindung yang diucapkan. Run pertama (B-52) memakai "reportedly" 29 kali dan total 61 kata pelindung dalam 3.204 kata; narasinya jadi terdengar seperti catatan kaki. Aturan sekarang:
+
+- Atribusi menyebut nama, sekali, hanya untuk klaim pihak berkonflik/lembaga ("the Pentagon says"), rencana atau prakiraan yang bisa batal, dan kutipan. Tidak pernah "analysts say", "according to analysts", "figures vary by source".
+- Kuota: maksimal satu frasa pelindung/atribusi per ±200 kata, tidak pernah dua dalam satu kalimat. Lint script menolak act yang melewati kuota.
+- Tidak membacakan daftar. Maksimal tiga item per kalimat; kategori diganti satu contoh hidup atau dua hal yang dikontraskan. Lint menandai kalimat berbentuk daftar.
 
 ## 6. Hal sensitif
 

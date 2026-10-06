@@ -86,7 +86,13 @@
     "ambience_db": -26,
     "duck_attack_s": 0.25,
     "duck_release_s": 0.6,
-    "music_fade_s": 2.0
+    "music_fade_s": 2.0,
+    "vo_chain": "highpass=f=70,acompressor=threshold=-22dB:ratio=2:attack=15:release=200:makeup=1.4",
+    "music_eq": "highpass=f=40,equalizer=f=2800:t=q:w=1.2:g=-4,equalizer=f=250:t=q:w=1:g=-1.5",
+    "nat_sound": true,
+    "nat_db_rel_vo": -24,
+    "nat_gap_db": -9,
+    "nat_filter": "highpass=f=60,lowpass=f=12000"
   },
 
   "colors": {
@@ -98,24 +104,28 @@
     "grid": "#20262D",
     "info": "#EDEFF2",
     "muted": "#8A939E",
-    "threat": "#E5484D",
-    "warning": "#F2A93B",
-    "sensor": "#3CCFCF",
-    "friendly": "#7FA7C9",
-    "success": "#5BB98C"
+    "threat": "#FF2E63",
+    "warning": "#FFC400",
+    "sensor": "#2EE6B6",
+    "friendly": "#39B8FF",
+    "success": "#36D46B"
   },
 
   "fonts": {
     "sans": "Inter Tight",
+    "display": "Oswald",
     "mono": "IBM Plex Mono"
   },
 
   "geo": {
     "pitch": 32,
     "drift": { "bearing": 5, "zoom": 0.12, "pan": [0, 0] },
-    "grade": { "saturation": 0.05, "contrast": 0.12, "brightness_min": 0.0, "brightness_max": 0.92, "hue": 0 },
-    "ocean": "#060b12",
-    "borders": { "color": "#ffffff", "opacity": 0.55 },
+    "grade": { "saturation": 0.18, "contrast": 0.18, "brightness_min": 0.0, "brightness_max": 0.96, "hue": 0 },
+    "ocean": "#050a14",
+    "borders": { "color": "#ffffff", "opacity": 0.85, "width": 1.8 },
+    "fills": { "threat": "#C8102E", "friendly": "#2F80ED", "sensor": "#1FBF95", "warning": "#FFC400", "success": "#36D46B", "info": "#D9D9D9" },
+    "fill_opacity": 0.78,
+    "vignette": 0.7,
     "grain": true
   },
 

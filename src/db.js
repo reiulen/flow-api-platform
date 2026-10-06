@@ -168,8 +168,10 @@ export class Store {
   }
   getProjectBinding(projectKey) {
     const row = this.db.prepare('SELECT * FROM project_bindings WHERE project_key=?').get(projectKey);
-    return row ? { projectKey: row.project_key, accountId: row.account_id, flowProjectId: row.flow_project_id,
-      allowFailover: !!row.allow_failover, createdAt: row.created_at, updatedAt: row.updated_at } : null;
+    return row ? {
+      projectKey: row.project_key, accountId: row.account_id, flowProjectId: row.flow_project_id,
+      allowFailover: !!row.allow_failover, createdAt: row.created_at, updatedAt: row.updated_at
+    } : null;
   }
   listProjectBindings() {
     return this.db.prepare('SELECT * FROM project_bindings ORDER BY created_at').all().map((row) => ({
@@ -187,7 +189,7 @@ export class Store {
     const ts = now();
     this.db.prepare(`INSERT INTO accounts(id,label,email,profile_name,project_id,max_concurrency,secret_blob,priority,created_at,updated_at)
       VALUES(?,?,?,?,?,?,?,?,?,?)`).run(id, input.label, input.email ?? null, input.profileName, input.projectId ?? null,
-        input.maxConcurrency ?? 1, input.secretBlob ?? null, input.priority ?? 100, ts, ts);
+      input.maxConcurrency ?? 1, input.secretBlob ?? null, input.priority ?? 100, ts, ts);
     return this.getAccount(id);
   }
 
@@ -223,7 +225,7 @@ export class Store {
     const ts = now();
     this.db.prepare(`INSERT INTO jobs(id,type,state,account_id,request_json,reply_url,webhook_secret_blob,idempotency_key,max_attempts,available_at,created_at,updated_at)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, input.type, 'queued', input.accountId ?? null, json(input.request),
-        input.replyUrl ?? null, input.webhookSecretBlob ?? null, input.idempotencyKey ?? null, input.maxAttempts ?? 4, ts, ts, ts);
+      input.replyUrl ?? null, input.webhookSecretBlob ?? null, input.idempotencyKey ?? null, input.maxAttempts ?? 4, ts, ts, ts);
     this.addEvent(id, 'queued', { type: input.type });
     return { job: this.getJob(id), reused: false };
   }
@@ -306,18 +308,22 @@ export class Store {
 
 function accountView(row) {
   const { secret_blob, ...safe } = row;
-  return { id: safe.id, label: safe.label, email: safe.email, profileName: safe.profile_name,
+  return {
+    id: safe.id, label: safe.label, email: safe.email, profileName: safe.profile_name,
     projectId: safe.project_id, status: safe.status, priority: safe.priority,
     consecutiveFailures: safe.consecutive_failures,
     maxConcurrency: safe.max_concurrency, activeJobs: safe.active_jobs, healthScore: safe.health_score,
     circuitOpenUntil: safe.circuit_open_until, createdAt: safe.created_at, updatedAt: safe.updated_at,
     creditsRemaining: safe.credits_remaining, creditsCheckedAt: safe.credits_checked_at,
-    exhaustedAt: safe.exhausted_at, lastUsedAt: safe.last_used_at };
+    exhaustedAt: safe.exhausted_at, lastUsedAt: safe.last_used_at
+  };
 }
 function jobView(row) {
-  return { id: row.id, type: row.type, state: row.state, accountId: row.account_id,
+  return {
+    id: row.id, type: row.type, state: row.state, accountId: row.account_id,
     request: parsed(row.request_json), result: parsed(row.result_json), error: parsed(row.error_json), replyUrl: row.reply_url,
     checkpoint: parsed(row.checkpoint_json),
     attempts: row.attempts, maxAttempts: row.max_attempts, createdAt: row.created_at, updatedAt: row.updated_at,
-    completedAt: row.completed_at };
+    completedAt: row.completed_at
+  };
 }

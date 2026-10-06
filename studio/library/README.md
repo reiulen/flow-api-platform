@@ -1,6 +1,6 @@
 # Library (licensed media you supply)
 
-Nothing in here is committed except this file. Put licensed media on the production machine:
+Licensed media for the studio. Music and ambience currently in here are committed; check the license before adding anything (see `bibles/_common/06_AUDIO_BIBLE.md` §3 for the current music list and how it was chosen).
 
 ```
 studio/library/

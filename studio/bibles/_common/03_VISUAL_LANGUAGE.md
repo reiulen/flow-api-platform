@@ -62,7 +62,14 @@ Peta dirender dengan MapLibre GL (open source) di atas citra satelit, frame per 
 
 Look peta dikunci di `styles/*.json` bagian `geo`: kemiringan kamera, drift (rotasi dan zoom pelan sepanjang shot), grading citra, warna laut, garis batas, dan grain.
 
-Elemen yang tersedia: label pelat negara, penanda chokepoint (menyala, cincin berdenyut, cincin putus-putus berputar), wilayah berwarna, rute bercahaya dengan panah dan pulsa cahaya yang mengalir, pipeline putus-putus yang bergerak, cincin jangkauan, ikon kapal/pesawat/rudal yang bergerak di jalurnya, legenda, dan judul.
+Elemen yang tersedia: label pelat negara, penanda chokepoint (menyala, cincin berdenyut, cincin putus-putus berputar), wilayah berwarna (solid, atau **arsiran** untuk wilayah yang baru direbut/diperebutkan), rute neon dengan panah dan pulsa cahaya yang mengalir, pipeline neon dengan aliran yang bergerak, cincin jangkauan, ikon kapal/pesawat/rudal yang bergerak di jalurnya, **callout angka** yang menempel di lokasinya ("−95%", "$83.2 BILLION"), **grid piktogram** (orang, barel, koin, kapal, pesawat, tank, rudal: sebagian berwarna dari total, misalnya populasi vs warga negara), **pie** yang menyapu masuk, **inset** peta vektor di pojok untuk front atau lokasi kedua, dan legenda. Angka di peta diletakkan di samping negara yang dibandingkan, dan nilainya hanya dari klaim. Peta tidak memakai judul (seperti referensi), kecuali `geo.show_title`.
+
+Look mengikuti peta RealLifeLore (diamati frame per frame di `references/00_REFERENCE_ANALYSIS.md` §Bahasa visual):
+
+- Citra satelit hangat dan kontras (gurun oranye, laut dangkal toska, laut dalam navy gelap), vignette berat, border negara putih tegas.
+- Overlay neon jenuh: rute magenta/merah muda, cyan, mint; inti garis hampir putih dengan glow lebar.
+- Wilayah kekuasaan berwarna pekat (merah tua, hijau, kuning, biru) sekitar 78% opacity, dengan palet terpisah di `geo.fills`.
+- Label pelat kecil (Oswald 21–26 px, huruf kapital berjarak), latar gelap hangat. Label rute dan titik kritis memakai kotak berwarna peran.
 
 Sumber citra (`STUDIO_MAP_PROVIDER`):
 
@@ -99,7 +106,9 @@ Dipakai untuk: cutaway, exploded view, sistem mekanik, arsitektur internal, rada
 
 **Tidak dipakai** untuk "lihat objeknya berputar 360°". Kalau cuma itu, real footage lebih baik.
 
-Pola utamanya diagram alur yang dianimasikan:
+Data berbasis angka memakai bingkai chart gaya referensi: latar hampir hitam dengan grid tipis, judul Oswald kapital besar di kiri atas, subjudul dan satuan di bawahnya, bar atau garis neon, tag seri berwarna di ujung garis, anotasi peristiwa (garis putus-putus dan tag merah), dan baris sumber di kiri bawah. Template: `compare` (perbandingan kategori) dan `trend` (angka berubah dari waktu ke waktu, bar atau garis, 1–3 seri). Nilainya hanya dari klaim riset.
+
+Pola utama untuk sistem adalah diagram alur yang dianimasikan:
 
 ```
 INCOMING THREAT → DETECTION → TRACKING → INTERCEPTOR → KILL / MISS

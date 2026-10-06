@@ -23,7 +23,7 @@ export function loadConfig(overrides = {}) {
       // stage -> effort. Writing/reasoning stages get more effort than mechanical ones.
       effort: {
         topics: 'high', research: 'high', outline: 'high', script: 'xhigh',
-        visual: 'high', flowqc: 'medium', review: 'high', rank: 'low',
+        visual: 'high', flowqc: 'medium', footage: 'medium', review: 'high', rank: 'low',
       },
       researchMaxSearches: Number(env.STUDIO_RESEARCH_MAX_SEARCHES || 30),
     },
@@ -81,7 +81,7 @@ export function loadConfig(overrides = {}) {
       maxDurationSeconds: Number(env.STUDIO_ASSET_MAX_DURATION_S || 900),
       maxDownloadBytes: Number(env.STUDIO_ASSET_MAX_DOWNLOAD_MB || 300) * 1024 * 1024,
       downloadTimeoutMs: Number(env.STUDIO_ASSET_DOWNLOAD_TIMEOUT_MS || 90000),
-      sceneScanMaxSeconds: Number(env.STUDIO_ASSET_SCENE_SCAN_S || 180),
+      sceneScanMaxSeconds: Number(env.STUDIO_ASSET_SCENE_SCAN_S || 300),
       preferredHeight: Number(env.STUDIO_ASSET_PREFERRED_HEIGHT || 1080),
       minHeight: Number(env.STUDIO_ASSET_MIN_HEIGHT || 720),
     },

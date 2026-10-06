@@ -20,3 +20,6 @@ studio/assets/files/
 studio/projects/
 studio/assets/
 studio/data/used_topics.json
+
+# studio library: audio is re-downloadable (studio library-fetch); index.json records the source
+studio/library/music/*.mp3

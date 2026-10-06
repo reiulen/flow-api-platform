@@ -28,7 +28,11 @@ Dinamika datang dari **performa**, bukan dari menurunkan volume:
 - `[TONE: firm]`: lebih tegas untuk pernyataan penting.
 - Jeda (`[PAUSE]`, `[BEAT]`) adalah alat dinamika utama.
 
-Level VO dijaga konsisten dengan kompresi ringan. Penonton tidak boleh harus menaikkan atau menurunkan volume.
+Level VO dijaga konsisten dengan kompresi ringan (`audio.vo_chain`: highpass 70 Hz, kompresor 2:1). Penonton tidak boleh harus menaikkan atau menurunkan volume.
+
+Jeda dari script (`[PAUSE]`, `[BEAT]`) dikirim ke Inworld sebagai tag `<break time="…s" />`, yang benar-benar menghasilkan jeda (diukur: 1,5 dtk → ±2 dtk hening). Teks `...` hanya memberi ±0,7 dtk, jadi tidak dipakai untuk engine yang mendukung tag break.
+
+Narasi dikirim per ±90 dtk (beberapa segmen sekaligus) lalu dipotong lagi per segmen. Di antara segmen dipasang break 3,0 dtk (±3,5 dtk hening), lebih panjang dari jeda mana pun di script, jadi titik potong ditemukan dari audio saja, bukan dari tebakan posisi kata (yang meleset pada kalimat penuh angka seperti "60-0061" atau "APQ-188"). Jeda di akhir segmen dilebur ke break itu lalu dikembalikan ke ujung segmen setelah dipotong, jadi `[BEAT]` penutup tidak hilang. Diuji di run B-52: dengan cara lama 7 dari 17 potongan gagal dipotong; potongan tersulit dengan cara baru terpotong bersih dan ditranskripsi ulang persis sesuai teksnya.
 
 ### Target ritme [v0.1]
 
@@ -49,6 +53,21 @@ Musik dirancang per act sebagai daftar cue, bukan satu lagu panjang.
 | Action | Perkusi terkendali, **bukan** trailer bombastis |
 | Ending | Ambient, piano minimal, atmosferik |
 
+### Library saat ini
+
+12 track Kevin MacLeod (incompetech.com), CC BY 4.0, dua per fungsi, dipilih dari deskripsi komposer lalu diaudisi oleh model audio sebagai music supervisor ("apakah bersaing dengan narasi?"). Semua lolos 4–5/5. Mars dan himne Air Force Band yang dulu ada di library dinilai 1/5 dan dikeluarkan dari `index.json` (file masih ada di disk).
+
+| Fungsi | Track |
+|---|---|
+| Investigation | Echoes of Time v2, Ossuary 6 – Air |
+| Scale | Lost Time, Crusade – Heavy Industry |
+| Engineering | Rising Tide, Half Mystery |
+| Threat | Stay the Course, Drums of the Deep |
+| Action | The Descent, Stormfront |
+| Ending | Floating Cities, Metaphysik |
+
+CC BY mewajibkan kredit. Kredit ditulis otomatis ke `credits.json` dan deskripsi YouTube dari field `credit` dan `license` di `library/music/index.json`. Musik di-highpass 40 Hz karena beberapa drone punya rumble sub-bass.
+
 ### Aturan [v0.1]
 
 | Parameter | Nilai |
@@ -59,6 +78,8 @@ Musik dirancang per act sebagai daftar cue, bukan satu lagu panjang.
 | Bed saat breathing room tanpa VO | Naik 6–10 dB dari level bed |
 | Pergantian cue | Di pergantian scene atau beat, bukan di tengah kalimat |
 | Lagu dengan vokal | Tidak dipakai di bawah VO |
+| Carve untuk VO | Musik diberi EQ dip di sekitar 2,8 kHz (−4 dB) dan 250 Hz (`audio.music_eq`), supaya vokal tidak tertutup tanpa harus menurunkan bed |
+| Pilihan track | Diacak deterministik per proyek di antara track dengan fungsi yang sama, jadi setiap video tidak memakai cue yang sama persis |
 
 Contoh alur musik:
 
@@ -82,6 +103,7 @@ Contoh alur musik:
 
 - Setiap shot `REAL` dan `FLOW` punya ambience, kecuali di momen silence yang disengaja.
 - Ambience dari footage asli dipakai kalau bersih. Kalau tidak, ganti dengan ambience library yang cocok.
+- **Natural sound** (`audio.nat_sound`): audio asli setiap klip REAL/ARCHIVAL diletakkan persis di bawah klipnya, disamakan ke −20 LUFS (dibatasi −18/+9 dB), diberi fade pendek di setiap cut, lalu di-duck: `nat_db_rel_vo` (−24 dB) di bawah VO, `nat_gap_db` (−9 dB) di cold open, breathing room, dan act break. Footage FLOW tidak memakai audionya.
 - Ambience disambung lewat crossfade antar shot di lokasi yang sama, supaya tidak putus setiap cut.
 
 ## 5. SFX

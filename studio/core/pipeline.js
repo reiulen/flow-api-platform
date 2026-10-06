@@ -223,11 +223,12 @@ const STAGE_RUNNERS = {
     return { shots: m.shots, minutes: round(m.duration_s / 60, 1), asl: m.asl_s, explainer: m.explainer_share, flow: m.flow_share };
   },
 
-  async assets({ project, style, config }) {
-    const { shotList, report } = await runAssets({ project, shotList: project.read('shotlist.plan.json', ShotList), style, config, flowAvailable: config.flow.mode !== 'off' });
+  async assets({ project, style, config, llm, log }) {
+    const { shotList, report } = await runAssets({ project, shotList: project.read('shotlist.plan.json', ShotList), style, config, flowAvailable: config.flow.mode !== 'off', llm, log: (m) => log(`[${project.id}] ${m}`) });
     project.write('shotlist.assets.json', shotList, ShotList);
     project.write('asset_report.json', report);
-    return { found: report.shots.filter((s) => s.status === 'found').length, flow_fallback: report.flow_added, missing: report.shots.filter((s) => s.status === 'none').length };
+    const found = report.shots.filter((s) => s.status === 'found');
+    return { found: found.length, strong: found.filter((s) => s.relevance >= 2).length, weak: found.filter((s) => s.relevance < 2).length, flow_fallback: report.flow_added, missing: report.shots.filter((s) => s.status === 'none').length };
   },
 
   async flow({ project, style, config, llm }) {
@@ -308,8 +309,15 @@ function buildUploadPackage({ project, config }) {
   });
   const fmt = (t) => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   const usesFlow = shotList.shots.some((s) => s.visual_type === 'FLOW' && s.flow_file);
+  const audioPlan = project.read('audio_plan.json');
+  const libraryMeta = new Map(['music', 'ambience'].flatMap((kind) => {
+    const index = path.join(config.libraryDir, kind, 'index.json');
+    return fs.existsSync(index) ? readJson(index).map((t) => [path.resolve(path.dirname(index), t.file), { kind, ...t }]) : [];
+  }));
+  const audioFiles = [...new Set([...audioPlan.music, ...audioPlan.ambience].map((m) => m.file))];
   const credits = {
     footage: assets.map((a) => ({ asset_id: a.asset_id, source: a.source, url: a.source_url, credit: a.credit, license: a.license })),
+    audio: audioFiles.map((f) => libraryMeta.get(f)).filter(Boolean).map((t) => ({ kind: t.kind, file: path.basename(t.file), credit: t.credit || '', license: t.license || '' })),
     sources: research.sources.filter((s) => s.tier <= 3).map((s) => ({ title: s.title, publisher: s.publisher, url: s.url })),
   };
   const description = [
@@ -323,6 +331,7 @@ function buildUploadPackage({ project, config }) {
     '',
     'Footage',
     ...[...new Set(credits.footage.map((f) => f.credit))].map((c) => `- ${c}`),
+    ...(credits.audio.length ? ['', 'Music & sound', ...[...new Set(credits.audio.map((t) => `${t.credit}${t.license ? ` (${t.license})` : ''}`))].map((c) => `- ${c}`)] : []),
     usesFlow ? '\nSome scenes are visual reconstructions and are labeled on screen.' : '',
   ].join('\n');
   return { credits, youtube: { title: outline.title, description, chapters, altered_or_synthetic_content: usesFlow, made_for_kids: false } };

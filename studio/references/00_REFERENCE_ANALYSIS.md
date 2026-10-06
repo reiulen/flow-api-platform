@@ -14,7 +14,9 @@ Analisis terukur dua video referensi. Angka di sini jadi dasar parameter di Styl
 - Video diturunkan ke 240p/15 fps, lalu dianalisis di 64×36. Transisi dideteksi dari perubahan histogram warna dengan dua jendela: ±0.27 dtk untuk cut dan dissolve pendek, ±2 dtk untuk dissolve lambat. Semua hasil dicek visual lewat sheet before/after.
 - Audio dari salinan AAC mono 64 kbps. Voice activity detection memakai Silero VAD. Level adalah RMS per 100 ms. Loudness memakai EBU R128.
 - **Akurasi.** Posisi transisi ±1 frame (±0.07 dtk). Di Finland, beberapa pergantian adegan di dalam dissolve yang gelap lolos dari deteksi (sekitar 2 dari 15 di jendela 8–16 menit yang dicek manual), jadi jumlah adegan sebenarnya kira-kira 10% lebih banyak. Angka loudness dari salinan 64 kbps itu perkiraan.
-- **Belum terukur:** jenis dan pergantian musik, SFX, kecepatan bicara (kata per menit), dan isi narasi. Transkripsi butuh model speech-to-text yang belum bisa diunduh dari environment ini (Hugging Face diblokir network policy).
+- **Belum terukur:** jenis dan pergantian musik, dan SFX.
+- **Narasi Saudi (ditambahkan 6 Okt 2026):** ditranskripsi per 5 menit lewat model audio di 9router (`code_rei`), lalu dibaca utuh. Transkrip lengkap tidak disimpan di repo; di sini hanya analisis dan kutipan pendek.
+- **Bahasa visual Saudi (ditambahkan 6 Okt 2026):** contact sheet setiap 15 dtk untuk seluruh video, ditambah crop frame peta di resolusi asli, lalu dibandingkan berdampingan dengan render peta kita dari spesifikasi yang sama.
 - Tools dan data mentah ada di `tools/` dan `data/`, jadi analisis bisa diulang untuk referensi berikutnya.
 
 ## Angka utama
@@ -69,6 +71,37 @@ Analisis terukur dua video referensi. Angka di sini jadi dasar parameter di Styl
 - Dibuka dengan **cold open sekitar 20 dtk tanpa narasi**: lanskap danau, foto korban, dan suasana. Ada juga **title sequence sekitar 23 dtk tanpa narasi** di 2:10.
 - LRA 6.7 LU, tiga kali Saudi. Ada bagian pelan, bagian penuh, dan 7.5% jeda yang benar-benar hening.
 
+## Saudi: bahasa visual (RealLifeLore)
+
+**Peta**
+
+- Citra satelit natural yang hangat dan kontras: gurun oranye, laut dangkal toska, laut dalam navy gelap. Vignette berat di tepi. Border negara garis putih tegas.
+- Overlay neon jenuh di atas citra: rute magenta/merah muda dan cyan, pipeline mint/hijau, inti garis hampir putih dengan glow lebar, panah di ujung rute.
+- Wilayah kekuasaan berwarna pekat (merah tua, hijau, kuning), sekitar 75–85% opacity. Wilayah yang baru direbut diberi **arsiran**.
+- Label negara: pelat gelap hangat, huruf kondensed kapital dengan jarak huruf lebar, ukurannya kecil dibanding frame. Label rute dan titik kritis: kotak berwarna peran dengan teks putih. Kota: teks putih dengan garis bawah berwarna dan garis penunjuk.
+- Chokepoint: cincin merah putus-putus yang berdenyut, kadang tanda X.
+- **Infografik hidup di atas peta:** pie chart "−95%" di samping rute, grid ikon orang untuk populasi, grid barel/koin untuk ekspor dan anggaran ("2025 SAUDI MILITARY SPENDING $83.2 BILLION"), lencana bernomor di sepanjang rute, inset peta dalam kotak.
+- Peta tidak pernah diberi judul. Legenda kecil di kiri bawah.
+
+**Grafik data**
+
+- Latar hampir hitam, grid tipis, judul kondensed kapital putih besar di kiri atas ("SAUDI OIL PRODUCTION", subjudul "2023-PRESENT"), bar magenta atau garis neon, tag nama seri berwarna di ujung garis, anotasi peristiwa dengan kotak merah ("IRAN WAR STARTS / HORMUZ CLOSES"), baris sumber kecil di kiri bawah.
+- Sesekali tangkapan layar tabel (Wikipedia) dengan baris yang disorot.
+
+**Footage**
+
+- Warna natural, tanpa grading berat. Footage berita, drone, militer resmi, foto politisi. Logo sumber pihak ketiga sering terlihat.
+- Dissolve antar sumber sering menghasilkan double exposure peta-di-atas-footage.
+
+## Saudi: narasi
+
+- **Tempo ±170 kata/menit** (±850 kata per 5 menit, stabil sepanjang video). Kalimat panjang dengan banyak anak kalimat, diselingi kalimat pendek penutup.
+- **Hook (0:00–0:50):** taruhan di kalimat pertama ("Saudi Arabia is currently experiencing one of the worst years in its entire national history"), eskalasi ("As if … wasn't enough, … now …"), skenario terburuk yang dibuat fisik ("it would effectively almost landlock them… like the engine of their entire economy grinding down to a halt"), lalu pivot ("Unfortunately for them, however, nightmares like this can sometimes become reality").
+- **Angka selalu diberi skala:** "soaring more than 30 times over", "about 4% of the entire global supply of oil", "a population nearly double", "nearly five times larger than Yemen's entire collective annual economic output", "the eighth-largest military budget in the world".
+- **Punya sudut pandang dan humor kering:** "a crisis almost entirely of Saudi Arabia's own making", "something that would only work out in a Tom and Jerry cartoon, and yet here we are", "responded to with nothing other than thoughts and prayers".
+- **Penyambung lisan** membawa argumen: "Now,", "Meanwhile,", "Indeed,", "And then,", "So,", "Moreover,". Orang pertama sesekali ("like I talked about earlier").
+- **Struktur:** krisis hari ini → geografi dan mekanisme (selat, pipeline) → angka dampak → asal-usul ("born around three decades ago") → perbandingan demografi → kronologi eskalasi → retaknya koalisi → politik AS → semua opsi buruk → penutup ("stuck between a very big rock and a very hard place") → segue sponsor.
+
 ## Yang kita ambil untuk dokumenter militer
 
 Rekomendasi v0.1. Angka final dikunci di `01_STYLE_BIBLE.md` dan `06_AUDIO_BIBLE.md` setelah pilot.
@@ -101,6 +134,15 @@ Pilihannya:
 3. **Campuran per mode.** Mode INFORMATION (peta, teknis, bukti footage) memakai pola Saudi. Mode CINEMATIC memakai hard cut di rangkaian aksi dan dissolve lambat atau lewat hitam di pergantian act.
 
 Rekomendasi: **opsi 3.** Opsi ini sesuai dengan dua mode visual di spec, dan tetap bisa dicek otomatis: rasio transisi dihitung per mode, bukan untuk seluruh video.
+
+### Diterapkan dari analisis visual dan narasi (6 Okt 2026)
+
+| Aspek | Ditiru | Dimodifikasi |
+|---|---|---|
+| Peta | Palet neon, rute tebal bercahaya, wilayah pekat, arsiran, label kecil, tanpa judul, callout angka di lokasi | Fakta dan koordinat tetap dari klaim; atribusi citra tetap dibakar ke frame |
+| Grafik | Bingkai chart hitam, judul kondensed, bar/garis neon, anotasi peristiwa, baris sumber (`compare`, `trend` baru) | Nilai hanya dari klaim riset |
+| Narasi | Formula hook, pembanding untuk setiap angka kunci, penyambung lisan, sudut pandang, humor kering sesekali | Tetap ada jeda napas dan cold open (RLL hampir tanpa jeda); tidak ada glorifikasi atau instruksi operasional; humor tidak pernah soal korban |
+| Tempo | — | Tetap ±150 wpm mengikuti kecepatan TTS, bukan 170 |
 
 ## Yang sengaja tidak kita ambil
 

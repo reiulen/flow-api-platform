@@ -1,14 +1,136 @@
 {
   "title": "Saudi export routes",
-  "legend": [{ "label": "Houthi controlled", "role": "threat" }, { "label": "Saudi pipeline", "role": "sensor" }],
-  "view": { "center": [46, 21.5], "scale_from": 4.4, "scale_to": 5.6, "pitch": 34 },
+  "legend": [
+    {
+      "label": "Saudi pipeline",
+      "role": "sensor"
+    }
+  ],
+  "view": {
+    "center": [
+      46,
+      21.5
+    ],
+    "scale_from": 4.4,
+    "scale_to": 5.6,
+    "pitch": 34
+  },
   "steps": [
-    { "type": "label", "lon": 45, "lat": 24, "text": "Saudi Arabia", "role": "info" },
-    { "type": "point", "lon": 56.4, "lat": 26.6, "label": "Strait of Hormuz", "role": "threat" },
-    { "type": "point", "lon": 43.4, "lat": 12.6, "label": "Bab el-Mandeb", "role": "threat" },
-    { "type": "highlight", "countries": ["Yemen"], "role": "threat" },
-    { "type": "pipeline", "coords": [[50.1, 26.3], [47.5, 25.2], [44.0, 24.6], [40.5, 24.3], [38.1, 24.1]], "label": "East-West Pipeline", "role": "sensor" },
-    { "type": "route", "from": [38.0, 24.0], "via": [[36.5, 26.5], [34.4, 28.4], [32.6, 29.8]], "to": [32.4, 31.2], "label": "To Europe", "role": "threat", "icon": "ship" },
-    { "type": "route", "from": [56.6, 26.2], "via": [[58.5, 24.5], [61, 21]], "to": [63.5, 16], "label": "To Asia", "role": "friendly" }
+    {
+      "type": "label",
+      "lon": 45,
+      "lat": 24,
+      "text": "Saudi Arabia",
+      "role": "info"
+    },
+    {
+      "type": "point",
+      "lon": 56.4,
+      "lat": 26.6,
+      "label": "Strait of Hormuz",
+      "role": "threat"
+    },
+    {
+      "type": "point",
+      "lon": 43.4,
+      "lat": 12.6,
+      "label": "Bab el-Mandeb",
+      "role": "threat"
+    },
+    {
+      "type": "highlight",
+      "countries": [
+        "Yemen"
+      ],
+      "role": "threat",
+      "hatch": true,
+      "legend": "Houthi advances"
+    },
+    {
+      "type": "pipeline",
+      "coords": [
+        [
+          50.1,
+          26.3
+        ],
+        [
+          47.5,
+          25.2
+        ],
+        [
+          44.0,
+          24.6
+        ],
+        [
+          40.5,
+          24.3
+        ],
+        [
+          38.1,
+          24.1
+        ]
+      ],
+      "label": "East-West Pipeline",
+      "role": "sensor"
+    },
+    {
+      "type": "route",
+      "from": [
+        38.0,
+        24.0
+      ],
+      "via": [
+        [
+          36.5,
+          26.5
+        ],
+        [
+          34.4,
+          28.4
+        ],
+        [
+          32.6,
+          29.8
+        ]
+      ],
+      "to": [
+        32.4,
+        31.2
+      ],
+      "label": "To Europe",
+      "role": "threat",
+      "icon": "ship"
+    },
+    {
+      "type": "route",
+      "from": [
+        56.6,
+        26.2
+      ],
+      "via": [
+        [
+          58.5,
+          24.5
+        ],
+        [
+          61,
+          21
+        ]
+      ],
+      "to": [
+        63.5,
+        16
+      ],
+      "label": "To Asia",
+      "role": "friendly"
+    },
+    {
+      "type": "callout",
+      "lon": 38.5,
+      "lat": 17.5,
+      "value": "-95%",
+      "label": "Red Sea exports",
+      "role": "threat"
+    }
   ]
 }

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<script src="vendor/gsap.min.js"></script>
+<link rel="stylesheet" href="common.css" />
+<style>
+  #plot { position: absolute; left: 0; top: 0; }
+  .tick { font-family: "Oswald", sans-serif; font-weight: 500; font-size: 18px; letter-spacing: 0.04em; fill: rgba(255,255,255,0.6); }
+  .tag { font-family: "Oswald", sans-serif; font-weight: 600; font-size: 20px; letter-spacing: 0.08em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="__DURATION__">
+  <section id="scene" class="clip" data-start="0" data-duration="__DURATION__">
+    <div class="chart-bg"></div><div class="chart-grid"></div>
+    <div id="title" class="chart-title"></div><div id="sub" class="chart-sub"></div>
+    <svg id="plot" width="1920" height="1080" viewBox="0 0 1920 1080"></svg>
+    <div id="source" class="chart-source"></div>
+  </section>
+</div>
+<script>
+  const P = __PAYLOAD__;
+  const D = P.duration;
+  const d = P.data;
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.getElementById('plot');
+  const el = (tag, attrs, parent = svg) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); parent.appendChild(e); return e; };
+  const colorOf = (role) => P.colors[role] || P.colors.threat;
+  document.getElementById('title').textContent = d.title;
+  document.getElementById('sub').textContent = [d.subtitle, d.unit].filter(Boolean).join(' · ');
+  document.getElementById('source').textContent = d.source ? `Source: ${d.source}` : '';
+
+  // Built after fonts load: tag widths are measured from the rendered text.
+  document.fonts.ready.then(() => {
+  // Plot area and scales.
+  const L = 160, R = 1640, T = 280, B = 900;
+  const all = d.series.flatMap((s) => s.values);
+  // Round axis steps (1, 2, 2.5, 5 x 10^n) so tick labels read like a designed chart.
+  const nice = (span) => { const p = 10 ** Math.floor(Math.log10(span)) / 10; return [1, 2, 2.5, 5, 10, 20, 25, 50, 100].map((m) => m * p).find((s) => span / s <= 5); };
+  const tickStep = nice((Math.max(...all) - Math.min(0, ...all)) * 1.08 || 1);
+  const lo = Math.floor(Math.min(0, ...all) / tickStep) * tickStep;
+  const hi = Math.ceil((Math.max(...all) * 1.08) / tickStep) * tickStep || tickStep;
+  const n = d.x.length;
+  const step = (R - L) / n;
+  const xAt = (i) => L + step * (i + 0.5);
+  const yAt = (v) => B - ((v - lo) / (hi - lo)) * (B - T);
+  const fmt = (v) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString('en-US') : (Math.round(v * 10) / 10).toString());
+
+  // Axis: baseline, right-hand value ticks, sparse x labels.
+  el('line', { x1: L, x2: R, y1: B, y2: B, stroke: 'rgba(255,255,255,0.55)', 'stroke-width': 2 });
+  for (let v = lo; v <= hi + tickStep / 2; v += tickStep) {
+    const y = yAt(v);
+    if (v !== lo) el('line', { x1: L, x2: R, y1: y, y2: y, stroke: 'rgba(255,255,255,0.08)', 'stroke-width': 1 });
+    el('text', { x: R + 18, y: y + 6, class: 'tick' }).textContent = fmt(v);
+  }
+  const every = Math.ceil(n / 12);
+  d.x.forEach((x, i) => { if (i % every === 0 || i === n - 1) el('text', { x: xAt(i), y: B + 36, class: 'tick', 'text-anchor': 'middle' }).textContent = x; });
+
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo('#title', { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.15)
+    .fromTo('#sub', { opacity: 0 }, { opacity: 1, duration: 0.5 }, 0.35)
+    .fromTo('#source', { opacity: 0 }, { opacity: 1, duration: 0.5 }, 0.6);
+  const grow = Math.max(1.6, Math.min(4.5, D * 0.45));
+  const start = 0.8;
+
+  d.series.forEach((s, si) => {
+    const c = colorOf(s.role);
+    if (d.kind === 'bar') {
+      const w = (step * 0.72) / d.series.length;
+      s.values.forEach((v, i) => {
+        const x = xAt(i) - (step * 0.72) / 2 + w * si;
+        const y = yAt(Math.max(v, 0));
+        const h = Math.abs(yAt(v) - yAt(0));
+        const r = el('rect', { x, y: yAt(0), width: Math.max(2, w - 3), height: 0, fill: c });
+        tl.to(r, { attr: { y, height: h }, duration: 0.5, ease: 'power2.out' }, start + (grow * i) / n);
+      });
+    } else {
+      const pts = s.values.map((v, i) => `${xAt(i)},${yAt(v)}`).join(' ');
+      const glow = el('polyline', { points: pts, fill: 'none', stroke: c, 'stroke-width': 12, 'stroke-opacity': 0.3, 'stroke-linejoin': 'round', style: 'filter: blur(6px)' });
+      const line = el('polyline', { points: pts, fill: 'none', stroke: c, 'stroke-width': 5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+      const len = line.getTotalLength();
+      for (const p of [line, glow]) { p.style.strokeDasharray = len; p.style.strokeDashoffset = len; }
+      tl.to([line, glow], { strokeDashoffset: 0, duration: grow, ease: 'power1.inOut' }, start);
+    }
+    // Series name in a coloured tag: at the end of a line, or as a legend row for several bar series.
+    // A single bar series is already named by the title.
+    if (d.kind === 'bar' && d.series.length === 1) return;
+    const lastY = yAt(s.values.at(-1));
+    const g = el('g', { opacity: 0 });
+    const label = el('text', { x: 0, y: 0, class: 'tag', fill: '#fff' }, g);
+    label.textContent = s.label;
+    const bw = label.getComputedTextLength() + 22;
+    const tx = d.kind === 'bar' ? L : Math.min(R - bw, xAt(n - 1) - bw + 10);
+    const ty = d.kind === 'bar' ? T - 60 + si * 40 - (d.series.length - 1) * 40 : lastY - 46;
+    g.insertBefore(el('rect', { x: tx, y: ty, width: bw, height: 32, fill: c }, g), label);
+    label.setAttribute('x', tx + 11); label.setAttribute('y', ty + 24);
+    tl.to(g, { opacity: 1, duration: 0.4 }, start + grow);
+  });
+
+  // Event annotation: a dashed marker and a red tag, e.g. "HORMUZ CLOSES".
+  if (d.annotation) {
+    const i = Math.max(0, d.x.indexOf(d.annotation.at));
+    const x = xAt(i);
+    const g = el('g', { opacity: 0 });
+    el('line', { x1: x, x2: x, y1: T + 40, y2: B, stroke: '#fff', 'stroke-width': 2, 'stroke-dasharray': '6 6', opacity: 0.7 }, g);
+    const t = el('text', { x: 0, y: 0, class: 'tag', fill: '#fff' }, g);
+    t.textContent = d.annotation.text;
+    const bw = t.getComputedTextLength() + 22;
+    const bx = Math.min(R - bw, Math.max(L, x - bw / 2));
+    g.insertBefore(el('rect', { x: bx, y: T, width: bw, height: 32, fill: P.colors.threat }, g), t);
+    t.setAttribute('x', bx + 11); t.setAttribute('y', T + 24);
+    tl.to(g, { opacity: 1, duration: 0.4 }, start + (grow * (i + 1)) / n);
+  }
+  tl.to({}, { duration: 0 }, D);
+  window.__timelines['main'] = tl;
+  });
+</script>
+</body>
+</html>

@@ -1,44 +1,110 @@
 [
   {
-    "file": "time_travels.mp3",
+    "file": "echoes_of_time_v2.mp3",
     "function": "investigation",
-    "duration_s": 501,
-    "license": "Public Domain (US Government Work)",
-    "credit": "United States Air Force Band"
+    "duration_s": 285,
+    "title": "Echoes of Time v2",
+    "license": "CC BY 4.0 (creativecommons.org/licenses/by/4.0/)",
+    "credit": "\"Echoes of Time v2\" Kevin MacLeod (incompetech.com)",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Echoes%20of%20Time%20v2.mp3"
   },
   {
-    "file": "centennial_prelude.mp3",
+    "file": "ossuary_6_-_air.mp3",
+    "function": "investigation",
+    "duration_s": 250,
+    "title": "Ossuary 6 - Air",
+    "license": "CC BY 4.0 (creativecommons.org/licenses/by/4.0/)",
+    "credit": "\"Ossuary 6 - Air\" Kevin MacLeod (incompetech.com)",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Ossuary%206%20-%20Air.mp3"
+  },
+  {
+    "file": "lost_time.mp3",
     "function": "scale",
-    "duration_s": 103,
-    "license": "Public Domain (US Government Work)",
-    "credit": "United States Air Force Band of the Golden West"
+    "duration_s": 227,
+    "title": "Lost Time",
+    "license": "CC BY 4.0 (creativecommons.org/licenses/by/4.0/)",
+    "credit": "\"Lost Time\" Kevin MacLeod (incompetech.com)",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Lost%20Time.mp3"
   },
   {
-    "file": "breaking_barriers.mp3",
+    "file": "crusade_-_heavy_industry.mp3",
+    "function": "scale",
+    "duration_s": 557,
+    "title": "Crusade - Heavy Industry",
+    "license": "CC BY 4.0 (creativecommons.org/licenses/by/4.0/)",
+    "credit": "\"Crusade - Heavy Industry\" Kevin MacLeod (incompetech.com)",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Crusade%20-%20Heavy%20Industry.mp3"
+  },
+  {
+    "file": "rising_tide.mp3",
     "function": "engineering",
-    "duration_s": 92,
-    "license": "Public Domain (US Government Work)",
-    "credit": "United States Air Force Band"
+    "duration_s": 277,
+    "title": "Rising Tide",
+    "license": "CC BY 4.0 (creativecommons.org/licenses/by/4.0/)",
+    "credit": "\"Rising Tide\" Kevin MacLeod (incompetech.com)",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Rising%20Tide.mp3"
   },
   {
-    "file": "bombasto.mp3",
+    "file": "half_mystery.mp3",
+    "function": "engineering",
+    "duration_s": 429,
+    "title": "Half Mystery",
+    "license": "CC BY 4.0 (creativecommons.org/licenses/by/4.0/)",
+    "credit": "\"Half Mystery\" Kevin MacLeod (incompetech.com)",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Half%20Mystery.mp3"
+  },
+  {
+    "file": "stay_the_course.mp3",
     "function": "threat",
-    "duration_s": 155,
-    "license": "Public Domain (US Government Work)",
-    "credit": "United States Air Force Band of the Rockies"
+    "duration_s": 272,
+    "title": "Stay the Course",
+    "license": "CC BY 4.0 (creativecommons.org/licenses/by/4.0/)",
+    "credit": "\"Stay the Course\" Kevin MacLeod (incompetech.com)",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Stay%20the%20Course.mp3"
   },
   {
-    "file": "in_pursuit.mp3",
+    "file": "drums_of_the_deep.mp3",
+    "function": "threat",
+    "duration_s": 174,
+    "title": "Drums of the Deep",
+    "license": "CC BY 4.0 (creativecommons.org/licenses/by/4.0/)",
+    "credit": "\"Drums of the Deep\" Kevin MacLeod (incompetech.com)",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Drums%20of%20the%20Deep.mp3"
+  },
+  {
+    "file": "the_descent.mp3",
     "function": "action",
-    "duration_s": 472,
-    "license": "Public Domain (US Government Work)",
-    "credit": "United States Air Force Band"
+    "duration_s": 192,
+    "title": "The Descent",
+    "license": "CC BY 4.0 (creativecommons.org/licenses/by/4.0/)",
+    "credit": "\"The Descent\" Kevin MacLeod (incompetech.com)",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/The%20Descent.mp3"
   },
   {
-    "file": "air_force_hymn.mp3",
+    "file": "stormfront.mp3",
+    "function": "action",
+    "duration_s": 334,
+    "title": "Stormfront",
+    "license": "CC BY 4.0 (creativecommons.org/licenses/by/4.0/)",
+    "credit": "\"Stormfront\" Kevin MacLeod (incompetech.com)",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Stormfront.mp3"
+  },
+  {
+    "file": "floating_cities.mp3",
     "function": "ending",
-    "duration_s": 744,
-    "license": "Public Domain (US Government Work)",
-    "credit": "United States Air Force Heartland of America Band"
+    "duration_s": 184,
+    "title": "Floating Cities",
+    "license": "CC BY 4.0 (creativecommons.org/licenses/by/4.0/)",
+    "credit": "\"Floating Cities\" Kevin MacLeod (incompetech.com)",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Floating%20Cities.mp3"
+  },
+  {
+    "file": "metaphysik.mp3",
+    "function": "ending",
+    "duration_s": 278,
+    "title": "Metaphysik",
+    "license": "CC BY 4.0 (creativecommons.org/licenses/by/4.0/)",
+    "credit": "\"Metaphysik\" Kevin MacLeod (incompetech.com)",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Metaphysik.mp3"
   }
 ]

@@ -25,6 +25,29 @@ const lighten = (hex, k) => {
   return `rgb(${c.join(',')})`;
 };
 
+// 24x24 pictograms for icon grids.
+const PICTOS = {
+  person: 'M12 2.5a4 4 0 1 1 0 8a4 4 0 0 1 0-8zM4.5 22v-3.5a6 6 0 0 1 6-6h3a6 6 0 0 1 6 6V22z',
+  barrel: 'M6 2.5h12v2.2H6zM5 5.6h14v12.8H5zM6 19.3h12v2.2H6zM5 9.6h14v1.2H5zM5 13.2h14v1.2H5z',
+  coin: 'M12 2a10 10 0 1 1 0 20a10 10 0 0 1 0-20zM12 5.5a6.5 6.5 0 1 0 0 13a6.5 6.5 0 0 0 0-13z',
+  ship: 'M2.5 15h19l-3.2 5.5H5.7zM6.5 10h11v4h-11zM10.5 5.5h3V10h-3z',
+  plane: 'M12 1.5l1.8 7.2 8.2 4.3v2.2l-8.2-2.4-.8 6 3 2.2v1.5L12 21.4l-4 1.1V21l3-2.2-.8-6-8.2 2.4V13l8.2-4.3z',
+  tank: 'M2.5 14h19v5.5h-19zM6 9.5h10v4.5H6zM16 11h6.5v1.6H16z',
+  missile: 'M12 1.5l3 5v11.5l2.5 3.5h-11L9 18V6.5z',
+};
+
+// Diagonal stripes in a role colour over a light wash of it, as a MapLibre pattern image.
+function hatchImage(hex) {
+  const n = 24;
+  const cv = document.createElement('canvas');
+  cv.width = n; cv.height = n;
+  const g = cv.getContext('2d');
+  g.fillStyle = hex; g.globalAlpha = 0.28; g.fillRect(0, 0, n, n);
+  g.globalAlpha = 0.95; g.strokeStyle = hex; g.lineWidth = 5;
+  for (const o of [-n, 0, n]) { g.beginPath(); g.moveTo(o, n); g.lineTo(o + n, 0); g.stroke(); }
+  return g.getImageData(0, 0, n, n);
+}
+
 // ---- geometry helpers (lon/lat) ----
 const toRad = (d) => (d * Math.PI) / 180;
 function haversine(a, b) {
@@ -104,13 +127,17 @@ function placePlate(el, lngLat, p, offset = [0, 0], anchor = 'left') {
 const builders = {
   region(e, i) {
     const id = `region-${i}`;
+    const fill = spec.fills[e.role] || color(e.role);
     map.addSource(id, { type: 'geojson', data: fc(e.features) });
-    map.addLayer({ id: `${id}-fill`, type: 'fill', source: id, paint: { 'fill-color': color(e.role), 'fill-opacity': 0 } });
-    map.addLayer({ id: `${id}-line`, type: 'line', source: id, paint: { 'line-color': lighten(color(e.role), 0.25), 'line-width': 2, 'line-opacity': 0 } });
+    // Hatched regions mark recent gains or contested ground: stripes over a lighter wash.
+    if (e.hatch) map.addImage(`${id}-hatch`, hatchImage(fill), { pixelRatio: 1 });
+    map.addLayer({ id: `${id}-fill`, type: 'fill', source: id, paint: e.hatch ? { 'fill-pattern': `${id}-hatch`, 'fill-opacity': 0 } : { 'fill-color': fill, 'fill-opacity': 0 } });
+    map.addLayer({ id: `${id}-line`, type: 'line', source: id, paint: { 'line-color': lighten(fill, 0.3), 'line-width': 2.2, 'line-opacity': 0 } });
     const plate = e.label ? makePlate(e.label, 'info', true) : null;
+    const target = e.hatch ? 0.95 : spec.fill_opacity;
     return (t) => {
       const p = easeOut(prog(t, e.at, 0.9));
-      map.setPaintProperty(`${id}-fill`, 'fill-opacity', 0.62 * p);
+      map.setPaintProperty(`${id}-fill`, 'fill-opacity', target * p);
       map.setPaintProperty(`${id}-line`, 'line-opacity', p);
       if (plate) placePlate(plate, e.label_at, prog(t, e.at + 0.4, 1), [0, 0], 'center');
     };
@@ -122,10 +149,11 @@ const builders = {
     const cum = cumulative(coords);
     const c = color(e.role);
     map.addSource(id, { type: 'geojson', data: line([coords[0], coords[0]]) });
-    map.addLayer({ id: `${id}-o`, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': c, 'line-width': 16, 'line-blur': 12, 'line-opacity': 0.35 } });
-    map.addLayer({ id: `${id}-m`, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': c, 'line-width': 7, 'line-blur': 3, 'line-opacity': 0.75 } });
-    map.addLayer({ id: `${id}-c`, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': lighten(c, 0.35), 'line-width': 3 } });
-    const head = svg('path', fxMarkers, { fill: lighten(c, 0.35), filter: 'url(#glow)' });
+    // Neon: wide soft glow, saturated body, near-white core.
+    map.addLayer({ id: `${id}-o`, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': c, 'line-width': 34, 'line-blur': 22, 'line-opacity': 0.55 } });
+    map.addLayer({ id: `${id}-m`, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': c, 'line-width': 10, 'line-blur': 2, 'line-opacity': 1 } });
+    map.addLayer({ id: `${id}-c`, type: 'line', source: id, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': lighten(c, 0.65), 'line-width': 3.6 } });
+    const head = svg('path', fxMarkers, { fill: lighten(c, 0.5), filter: 'url(#glow)' });
     const sparks = Array.from({ length: 3 }, () => svg('circle', fxMarkers, { r: 3.2, fill: '#fff', filter: 'url(#glow)', opacity: 0 }));
     const plate = e.label ? makePlate(e.label, e.role) : null;
     return (t) => {
@@ -136,7 +164,7 @@ const builders = {
       if (p > 0.03) {
         const a = Math.atan2(tip.y - back.y, tip.x - back.x);
         const pt = (r, da) => `${tip.x + Math.cos(a + da) * r},${tip.y + Math.sin(a + da) * r}`;
-        head.setAttribute('d', `M${pt(16, 0)}L${pt(13, 2.4)}L${pt(13, -2.4)}Z`);
+        head.setAttribute('d', `M${pt(22, 0)}L${pt(18, 2.5)}L${pt(18, -2.5)}Z`);
       } else head.setAttribute('d', '');
       // Light pulses travelling along the finished route.
       const flow = prog(t, e.at + e.dur, 0.6);
@@ -157,8 +185,9 @@ const builders = {
     const c = color(e.role || 'sensor');
     map.addSource(`${id}-g`, { type: 'geojson', data: line([coords[0], coords[0]]) });
     map.addSource(id, { type: 'geojson', data: multiline([]) });
-    map.addLayer({ id: `${id}-g`, type: 'line', source: `${id}-g`, layout: { 'line-cap': 'round' }, paint: { 'line-color': c, 'line-width': 16, 'line-blur': 9, 'line-opacity': 0.55 } });
-    map.addLayer({ id: `${id}-d`, type: 'line', source: id, layout: { 'line-cap': 'butt' }, paint: { 'line-color': lighten(c, 0.45), 'line-width': 6 } });
+    map.addLayer({ id: `${id}-g`, type: 'line', source: `${id}-g`, layout: { 'line-cap': 'round' }, paint: { 'line-color': c, 'line-width': 30, 'line-blur': 20, 'line-opacity': 0.5 } });
+    map.addLayer({ id: `${id}-b`, type: 'line', source: `${id}-g`, layout: { 'line-cap': 'round' }, paint: { 'line-color': c, 'line-width': 9, 'line-opacity': 1 } });
+    map.addLayer({ id: `${id}-d`, type: 'line', source: id, layout: { 'line-cap': 'butt' }, paint: { 'line-color': lighten(c, 0.75), 'line-width': 3.5 } });
     const plate = e.label ? makePlate(e.label, e.role || 'sensor') : null;
     const dash = 0.022;
     return (t) => {
@@ -226,6 +255,100 @@ const builders = {
     return (t) => placePlate(plate, [e.lon, e.lat], prog(t, e.at, 1), [0, 0], 'center');
   },
 
+  // A key number living on the map, next to the place it is about ("-95%", "$83.2 BILLION").
+  callout(e) {
+    const el = document.createElement('div');
+    el.className = 'callout';
+    el.dataset.nudge = '0';
+    el.style.setProperty('--c', color(e.role));
+    el.style.opacity = '0';
+    el.innerHTML = '<div class="k"></div><div class="v"></div>';
+    el.querySelector('.k').textContent = e.label;
+    el.querySelector('.v').textContent = e.value;
+    if (!e.label) el.querySelector('.k').remove();
+    ui.appendChild(el);
+    plates.push(el);
+    return (t) => placePlate(el, [e.lon, e.lat], prog(t, e.at, 1.1), [0, 0], 'center');
+  },
+
+  // Pictogram grid next to a place: `count` icons in the role colour out of `total`
+  // ("35 MILLION PEOPLE, 19.6 MILLION CITIZENS"). Icons appear one by one.
+  icons(e) {
+    const el = document.createElement('div');
+    el.className = 'info';
+    el.dataset.nudge = '0';
+    el.style.setProperty('--c', color(e.role));
+    el.style.opacity = '0';
+    const cols = Math.min(10, e.total);
+    el.innerHTML = `${e.label ? '<div class="k"></div>' : ''}<div class="grid" style="grid-template-columns: repeat(${cols}, 24px)"></div>${e.value ? '<div class="v"></div>' : ''}`;
+    if (e.label) el.querySelector('.k').textContent = e.label;
+    if (e.value) el.querySelector('.v').textContent = e.value;
+    const grid = el.querySelector('.grid');
+    const cells = Array.from({ length: e.total }, (_, k) => {
+      const s = svg('svg', grid, { viewBox: '0 0 24 24' });
+      svg('path', s, { d: PICTOS[e.icon] || PICTOS.person, fill: k < e.count ? color(e.role) : '#ffffff', 'fill-rule': 'evenodd', opacity: 0 });
+      return s.firstChild;
+    });
+    ui.appendChild(el);
+    plates.push(el);
+    return (t) => {
+      placePlate(el, [e.lon, e.lat], prog(t, e.at, 0.6), [0, 0], 'center');
+      cells.forEach((c, k) => {
+        const p = prog(t, e.at + 0.3 + (e.dur * k) / e.total, 0.25);
+        c.setAttribute('opacity', String(p * (k < e.count ? 1 : 0.35)));
+      });
+    };
+  },
+
+  // Share of a whole as a pie that sweeps in, with the number under it ("-95%").
+  pie(e) {
+    const R = 52;
+    const el = document.createElement('div');
+    el.className = 'pie';
+    el.dataset.nudge = '0';
+    el.style.setProperty('--c', color(e.role));
+    el.style.opacity = '0';
+    el.innerHTML = `${e.label ? '<div class="k"></div>' : ''}<svg width="${R * 2 + 8}" height="${R * 2 + 8}" viewBox="${-R - 4} ${-R - 4} ${R * 2 + 8} ${R * 2 + 8}"></svg><div class="v"></div>`;
+    if (e.label) el.querySelector('.k').textContent = e.label;
+    el.querySelector('.v').textContent = e.value;
+    const s = el.querySelector('svg');
+    svg('circle', s, { r: R, fill: '#f2f2f2', stroke: 'rgba(0,0,0,0.5)', 'stroke-width': 2 });
+    const wedge = svg('path', s, { fill: color(e.role) });
+    ui.appendChild(el);
+    plates.push(el);
+    return (t) => {
+      placePlate(el, [e.lon, e.lat], prog(t, e.at, 0.5), [0, 0], 'center');
+      const a = 2 * Math.PI * (e.percent / 100) * ease(prog(t, e.at + 0.3, e.dur));
+      if (a <= 0.001) { wedge.setAttribute('d', ''); return; }
+      if (a >= 2 * Math.PI - 0.001) { wedge.setAttribute('d', `M0,${-R}A${R},${R} 0 1 1 0,${R}A${R},${R} 0 1 1 0,${-R}Z`); return; }
+      const x = R * Math.sin(a); const y = -R * Math.cos(a);
+      wedge.setAttribute('d', `M0,0L0,${-R}A${R},${R} 0 ${a > Math.PI ? 1 : 0} 1 ${x},${y}Z`);
+    };
+  },
+
+  // Boxed vector map of another place in a corner of the frame.
+  inset(e) {
+    const el = document.createElement('div');
+    el.className = 'inset';
+    el.style.setProperty('--c', color(e.role));
+    el.style.width = `${e.w}px`; el.style.height = `${e.h}px`;
+    const margin = 56;
+    el.style[e.position.includes('t') ? 'top' : 'bottom'] = `${margin}px`;
+    el.style[e.position.includes('l') ? 'left' : 'right'] = `${margin}px`;
+    el.style.opacity = '0';
+    el.innerHTML = `<svg width="${e.w}" height="${e.h}" viewBox="0 0 ${e.w} ${e.h}"></svg>${e.label ? '<div class="k"></div>' : ''}`;
+    if (e.label) el.querySelector('.k').textContent = e.label;
+    const s = el.querySelector('svg');
+    svg('path', s, { d: e.land, fill: '#5b4a37', stroke: 'rgba(255,255,255,0.55)', 'stroke-width': 0.8 });
+    if (e.hi) svg('path', s, { d: e.hi, fill: spec.fills[e.role] || color(e.role), 'fill-opacity': 0.85, stroke: lighten(color(e.role), 0.4), 'stroke-width': 1.4 });
+    ui.appendChild(el);
+    return (t) => {
+      const p = easeOut(prog(t, e.at, 0.7));
+      el.style.opacity = String(p);
+      el.style.transform = `scale(${0.94 + 0.06 * p})`;
+    };
+  },
+
   icon(e) {
     const coords = densify(e.coords);
     const cum = cumulative(coords);
@@ -282,7 +405,9 @@ function waitIdle() {
 
 window.geoInit = async (s) => {
   spec = s;
+  document.getElementById('vignette').style.setProperty('--vig', String(spec.vignette));
   await document.fonts.load('600 25px Oswald');
+  await document.fonts.load('500 15px Oswald');
   await document.fonts.load('500 17px "Inter Tight"');
   const b = spec.basemap;
   const sources = {
@@ -302,7 +427,7 @@ window.geoInit = async (s) => {
         { id: 'bg', type: 'background', paint: { 'background-color': spec.ocean.color } },
         { id: 'base', type: 'raster', source: 'base', paint: { 'raster-saturation': g.saturation, 'raster-contrast': g.contrast, 'raster-brightness-max': g.brightness_max, 'raster-brightness-min': g.brightness_min, 'raster-hue-rotate': g.hue, 'raster-fade-duration': 0, 'raster-resampling': 'linear' } },
         { id: 'coast', type: 'line', source: 'land', paint: { 'line-color': '#ffffff', 'line-opacity': 0.18, 'line-width': 1.2 } },
-        { id: 'borders', type: 'line', source: 'borders', paint: { 'line-color': spec.borders_style.color, 'line-opacity': spec.borders_style.opacity, 'line-width': 1.4 } },
+        { id: 'borders', type: 'line', source: 'borders', paint: { 'line-color': spec.borders_style.color, 'line-opacity': spec.borders_style.opacity, 'line-width': spec.borders_style.width } },
       ],
     },
     interactive: false, attributionControl: false, fadeDuration: 0, preserveDrawingBuffer: true,
@@ -314,7 +439,7 @@ window.geoInit = async (s) => {
   await Promise.race([new Promise((r) => map.once('load', r)), new Promise((r) => setTimeout(r, 30000))]);
   if (!map.isStyleLoaded()) await new Promise((r) => map.once('styledata', r));
   spec.elements.forEach((e, i) => els.push(builders[e.type](e, i)));
-  if (spec.title) { const d = document.createElement('div'); d.className = 'title'; d.textContent = spec.title; ui.appendChild(d); els.push((t) => { d.style.opacity = String(clamp01((t - 0.2) / 0.6)); }); }
+  if (spec.title && spec.show_title) { const d = document.createElement('div'); d.className = 'title'; d.textContent = spec.title; ui.appendChild(d); els.push((t) => { d.style.opacity = String(clamp01((t - 0.2) / 0.6)); }); }
   if (spec.legend?.length) {
     const d = document.createElement('div');
     d.className = 'legend';

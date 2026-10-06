@@ -8,10 +8,10 @@
   },
 
   "colors": {
-    "friendly": "#7FA7C9",
-    "threat": "#E5484D",
-    "sensor": "#3CCFCF",
-    "warning": "#F2A93B"
+    "friendly": "#39B8FF",
+    "threat": "#FF2E63",
+    "sensor": "#2EE6B6",
+    "warning": "#FFC400"
   },
 
   "labels": {
@@ -33,7 +33,7 @@
   },
 
   "editorial": {
-    "voice": "Calm, intelligent, confident documentary narrator. Never a salesman, never hype.",
+    "voice": "Conversational, confident explainer with a clear point of view, like a sharp friend who has read every report and the map. Plain words, vivid comparisons, steady momentum. Never a salesman, never hype, never glorifying.",
     "rules": [
       "Explain concepts and principles. Never write operational instructions for defeating a real, named system, never list exploitable gaps or coordinates.",
       "Classified or uncertain specifications are always phrased as estimates with attribution.",

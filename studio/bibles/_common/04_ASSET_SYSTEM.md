@@ -107,7 +107,12 @@ File:       assets/<genre>/<subjek>/<asset_id>.<ext>
 1. Tahap Visual Director menulis **kebutuhan visual** per shot di `shotlist.json`: subjek, platform, aksi, dan mood.
 2. Asset Researcher mencari di **database lokal** dulu, lalu di sumber eksternal sesuai prioritas di `SOURCES.md`.
 3. Kandidat ditulis ke `asset_candidates.json` dengan skor relevansi. Aset baru masuk database dengan metadata lengkap.
-4. Shot tanpa kandidat `A`/`B` yang sah ditandai `needs_flow` atau `needs_tech`, lalu ditinjau di human gate G3.
+4. **Review visual.** Metadata teks hanya bilang klip itu tentang apa, bukan isi setiap shot di dalamnya. Setiap shot (hasil deteksi cut) dari aset yang akan dipakai dilihat sekali oleh model vision per kebutuhan visual, lalu disimpan di tabel `reviews`:
+   - `relevance` 0–3: 3 = persis platform dan aksinya, 2 = platform benar dengan aksi atau sudut lain, 1 = konteks yang tidak menyesatkan, 0 = tidak relevan atau platform/varian lain.
+   - `defects`: `slate`, `text` (caption, lower third, watermark), `talking_head`, `blank`, `poor`, `people`. Shot dengan defect tidak dipakai.
+   - `taste` 0–2: kualitas sinematik frame, untuk memilih di antara shot yang sama relevannya.
+   Pemilihan mengambil shot `relevance` ≥ 2 dari seluruh pool dulu, baru ≥ 1. Kalau review gagal, keputusan kembali ke pencocokan teks.
+5. Shot tanpa kandidat `A`/`B` yang sah ditandai `needs_flow` atau `needs_tech`, lalu ditinjau di human gate G3.
 
 ## 7. Kredit
 

@@ -32,10 +32,10 @@ export async function detectSilences(wav, { noiseDb = -38, minS = 0.18 } = {}) {
 }
 
 // Script words with the strength of the pause expected after each one.
-function scriptWords(pieces) {
+function scriptWords(pieces, lengths = false) {
   const words = [];
   for (const p of pieces) {
-    if (p.pause) { if (words.length) words.at(-1).after = Math.max(words.at(-1).after, 3); continue; }
+    if (p.pause) { if (words.length) { words.at(-1).after = Math.max(words.at(-1).after, 3); if (lengths) words.at(-1).pause = Math.max(words.at(-1).pause || 0, p.pause); } continue; }
     for (const w of p.text.trim().split(/\s+/).filter(Boolean)) {
       words.push({ w, weight: wordWeight(w), after: /[.!?]["')\]]?$/.test(w) ? 2 : /[,;:—-]$/.test(w) ? 1 : 0 });
     }
@@ -43,8 +43,11 @@ function scriptWords(pieces) {
   return words;
 }
 
-export function pauseAnchoredAlign(pieces, silences, duration) {
-  const words = scriptWords(pieces);
+// lengths: the engine renders explicit pauses at their written length (break tags), so silence
+// length is evidence too. Engines that read "..." give every pause about the same length.
+export function pauseAnchoredAlign(pieces, silences, duration, { lengths = false } = {}) {
+  const words = scriptWords(pieces, lengths);
+  words.lengths = lengths;
   if (!words.length) return [];
   // Speech region: from the first sound to the last.
   const lead = silences[0] && silences[0].s <= 0.05 ? silences[0].e : 0;
@@ -68,7 +71,7 @@ function alignStretch(words, from, to, t0, t1, sils, level, out) {
   const speechAt = (t) => t - t0 - sils.filter((x) => x.e <= t).reduce((n, x) => n + (x.e - x.s), 0);
   const totalWeight = group.reduce((n, w) => n + w.weight, 0);
   let acc = 0;
-  const bounds = group.slice(0, -1).map((w, k) => { acc += w.weight; return { i: from + k, at: (acc / totalWeight) * speechTotal, strength: w.after }; });
+  const bounds = group.slice(0, -1).map((w, k) => { acc += w.weight; return { i: from + k, at: (acc / totalWeight) * speechTotal, strength: w.after, pause: w.pause || 0, lengths: Boolean(words.lengths) }; });
   const cand = chosen.map((x) => ({ ...x, at: speechAt(x.s) }));
   const anchors = matchSilences(cand, bounds, level === 0 ? 1.2 : 3);
   if (!anchors.length) return spread(group, t0, t1, sils, out);
@@ -89,7 +92,15 @@ function alignStretch(words, from, to, t0, t1, sils, level, out) {
 function matchSilences(sils, bounds, skip) {
   const S = sils.length;
   const B = bounds.length;
-  const cost = (si, bi) => Math.abs(sils[si].at - bounds[bi].at) + [0.5, 0.25, 0, -0.3][bounds[bi].strength];
+  // Position, the kind of boundary, and length: an explicit pause of p seconds comes out as roughly
+  // p + 0.5 s of silence (back-to-back pauses: the longest one, measured on Inworld), so a long
+  // silence belongs to an explicit pause rather than a comma.
+  const lengthCost = (sil, b) => {
+    const d = sil.e - sil.s;
+    if (!b.lengths) return 0;
+    return b.pause ? 2.0 * Math.max(0, Math.abs(d - (b.pause + 0.5)) - 0.35) : 2.0 * Math.max(0, d - 0.9);
+  };
+  const cost = (si, bi) => Math.abs(sils[si].at - bounds[bi].at) + [0.5, 0.25, 0, -0.3][bounds[bi].strength] + lengthCost(sils[si], bounds[bi]);
   const dp = Array.from({ length: S + 1 }, () => new Float64Array(B + 1).fill(Infinity));
   const from = Array.from({ length: S + 1 }, () => new Int32Array(B + 1).fill(-1));
   for (let b = 0; b <= B; b++) dp[0][b] = 0;
@@ -188,7 +199,7 @@ export async function transcribeWords(config, wav) {
 }
 
 // Best available word timings for one voiced segment. Returns { words, method }.
-export async function alignSegment({ config, wav, pieces, duration }) {
+export async function alignSegment({ config, wav, pieces, duration, lengths = false }) {
   if (config.voice.align?.model) {
     try {
       const { words, matchRate } = mapTranscript(pieces, await transcribeWords(config, wav));
@@ -197,5 +208,5 @@ export async function alignSegment({ config, wav, pieces, duration }) {
       if (config.voice.align.required) throw err;
     }
   }
-  return { words: pauseAnchoredAlign(pieces, await detectSilences(wav), duration), method: 'pauses' };
+  return { words: pauseAnchoredAlign(pieces, await detectSilences(wav), duration, { lengths }), method: 'pauses' };
 }

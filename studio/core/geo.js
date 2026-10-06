@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { chromium } from 'playwright-core';
-import { geoCentroid } from 'd3-geo';
+import { geoCentroid, geoMercator, geoPath } from 'd3-geo';
 import { REPO_ROOT } from './config.js';
 import { ensureDir } from './util.js';
 
@@ -42,6 +42,25 @@ function world() {
 
 const zoomFor = (scale) => Z0 + Math.log2(Math.max(0.5, scale));
 
+// A small boxed map of somewhere else (a distant theatre, a second front), drawn as vectors:
+// land and borders, with the named countries highlighted. Same scale semantics as the main map.
+const INSET = { w: 520, h: 320 };
+export function insetPaths(w, s) {
+  const projection = geoMercator()
+    .center(s.center)
+    .scale((INSET.w * s.scale) / (2 * Math.PI))
+    .translate([INSET.w / 2, INSET.h / 2])
+    .clipExtent([[0, 0], [INSET.w, INSET.h]]);
+  const draw = geoPath(projection);
+  const names = new Set((s.highlight || []).map((n) => (ALIAS[n] || n).toLowerCase()));
+  const all = [...w.byName.values()];
+  return {
+    w: INSET.w, h: INSET.h,
+    land: draw({ type: 'FeatureCollection', features: all }) || '',
+    hi: draw({ type: 'FeatureCollection', features: all.filter((f) => names.has(f.properties.name.toLowerCase())) }) || '',
+  };
+}
+
 // Turns the map data the visual director wrote (template "map") into a fully timed render spec.
 export function buildGeoSpec({ data, duration, style, provider }) {
   const w = world();
@@ -73,7 +92,7 @@ export function buildGeoSpec({ data, duration, style, provider }) {
         const features = s.countries.map((n) => w.byName.get((ALIAS[n] || n).toLowerCase())).filter(Boolean);
         if (!features.length) break;
         const label_at = s.label ? geoCentroid({ type: 'FeatureCollection', features }) : null;
-        elements.push({ type: 'region', features, role: s.role, at, label: s.label || '', label_at });
+        elements.push({ type: 'region', features, role: s.role, at, label: s.label || '', label_at, hatch: Boolean(s.hatch) });
         if (s.legend) legend.push({ label: s.legend, role: s.role });
         break;
       }
@@ -96,6 +115,18 @@ export function buildGeoSpec({ data, duration, style, provider }) {
       case 'label':
         elements.push({ type: 'label', lon: s.lon, lat: s.lat, text: s.text, role: s.role || 'info', big: s.big ?? true, at });
         break;
+      case 'callout':
+        elements.push({ type: 'callout', lon: s.lon, lat: s.lat, value: s.value, label: s.label || '', role: s.role || 'info', at });
+        break;
+      case 'icons':
+        elements.push({ type: 'icons', lon: s.lon, lat: s.lat, icon: s.icon, count: s.count, total: Math.max(s.count, s.total || s.count), label: s.label || '', value: s.value || '', role: s.role || 'info', at, dur: Math.min(2.2, gap * 0.9) });
+        break;
+      case 'pie':
+        elements.push({ type: 'pie', lon: s.lon, lat: s.lat, percent: s.percent, value: s.value || `${Math.round(s.percent)}%`, label: s.label || '', role: s.role || 'threat', at, dur: Math.min(1.6, gap * 0.8) });
+        break;
+      case 'inset':
+        elements.push({ type: 'inset', ...insetPaths(w, s), position: s.position || 'tr', label: s.label || '', role: s.role || 'threat', at });
+        break;
       default:
     }
   });
@@ -105,9 +136,10 @@ export function buildGeoSpec({ data, duration, style, provider }) {
     basemap: provider, land: w.land, borders: w.borders,
     grade: geo.grade || { saturation: 0.05, contrast: 0.12, brightness_min: 0, brightness_max: 0.92, hue: 0 },
     ocean: { color: geo.ocean || '#060b12' },
-    borders_style: geo.borders || { color: '#ffffff', opacity: 0.55 },
+    borders_style: { color: '#ffffff', opacity: 0.55, width: 1.4, ...(geo.borders || {}) },
+    fills: { ...style.colors, ...(geo.fills || {}) }, fill_opacity: geo.fill_opacity ?? 0.62, vignette: geo.vignette ?? 0.55,
     camera: { keys, drift: geo.drift || { bearing: 5, zoom: 0.12, pan: [0, 0] } },
-    elements, title: data.title || '', legend, credit: provider.credit || '',
+    elements, title: data.title || '', show_title: Boolean(geo.show_title), legend, credit: provider.credit || '',
   };
 }
 

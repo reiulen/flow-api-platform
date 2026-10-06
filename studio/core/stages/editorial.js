@@ -9,13 +9,29 @@ import { countWords, nowIso, round, stripMarkup } from '../util.js';
 const TopicsOut = z.object({
   candidates: z.array(z.object({
     title: z.string(), central_question: z.string(), angle: z.string(),
-    scores: z.object({ contradiction: z.number(), mechanism: z.number(), footage: z.number(), sources: z.number(), relevance: z.number(), visualization: z.number(), risk: z.number() }),
+    scores: z.object({ contradiction: z.number(), mechanism: z.number(), footage: z.number(), sources: z.number(), relevance: z.number(), visualization: z.number(), risk: z.number(), hype: z.number() }),
     footage_query: z.string(), footage_evidence: z.array(z.string()), key_sources: z.array(z.string()), risks: z.array(z.string()),
   })),
 });
 
 export function topicTotal(s) {
-  return s.contradiction * 2 + s.mechanism * 1.5 + s.footage * 2 + s.sources * 1.5 + s.relevance + s.visualization - s.risk * 1.5;
+  return s.contradiction * 2 + s.mechanism * 1.5 + s.footage * 2 + s.sources * 1.5 + s.relevance + s.visualization + (s.hype ?? 3) * 2.5 - s.risk * 1.5;
+}
+
+// Models write searches like 'DVIDS: "F-35 takeoff" OR "F-35B landing"'; archives take plain keywords.
+export function footageQueries(raw) {
+  return raw.replace(/^[^:"]{1,40}:\s*/, '').split(/\s+OR\s+|\s*[;|]\s*/i)
+    .map((q) => q.replace(/["“”']/g, '').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 3);
+}
+
+// Best result count over the query's alternatives.
+export async function probeFootage(footageProbe, raw) {
+  let best = { query: raw, found: null };
+  for (const query of footageQueries(raw)) {
+    const found = await footageProbe(query).catch(() => null);
+    if (found != null && (best.found == null || found > best.found)) best = { query, found };
+  }
+  return best;
 }
 
 export async function scoutTopics({ llm, style, genre, count = 8, exclude = [], seedIdeas = '', footageProbe }) {
@@ -28,9 +44,9 @@ export async function scoutTopics({ llm, style, genre, count = 8, exclude = [], 
     const scores = { ...c.scores };
     const evidence = [...c.footage_evidence];
     if (footageProbe) {
-      const found = await footageProbe(c.footage_query).catch(() => null);
+      const { query, found } = await probeFootage(footageProbe, c.footage_query);
       if (found != null) {
-        evidence.unshift(`archive probe "${c.footage_query}": ${found} results`);
+        evidence.unshift(`archive probe "${query}": ${found} results`);
         if (found === 0) scores.footage = Math.min(scores.footage, 1);
         else if (found < 10) scores.footage = Math.min(scores.footage, 3);
       }
@@ -47,7 +63,9 @@ export async function scoutTopics({ llm, style, genre, count = 8, exclude = [], 
 // Automated G1: pick the best unused topic that clears the footage bar.
 export function pickTopic(topics, used = []) {
   const usedSet = new Set(used.map((t) => t.toLowerCase()));
-  return topics.candidates.find((c) => !usedSet.has(c.title.toLowerCase()) && c.scores.footage >= 3 && c.scores.risk <= 3) || null;
+  const usable = topics.candidates.filter((c) => !usedSet.has(c.title.toLowerCase()) && c.scores.footage >= 3 && c.scores.risk <= 3);
+  // High click appeal first; a lower-hype topic only when nothing else clears the bars.
+  return usable.find((c) => (c.scores.hype ?? 3) >= 4) || usable[0] || null;
 }
 
 // ---------- S1 research ----------
@@ -168,6 +186,19 @@ export async function runScript({ llm, style, brief, research, outline, maxAttem
   return Script.parse({ version: 1, title: outline.title, words, est_duration_s: Math.round((words / style.narration.wpm) * 60), segments });
 }
 
+const HEDGES = /\b(reportedly|according to|analysts (?:say|believe|report|estimate)|by (?:some|one|analysts'?) (?:estimates?|accounts?)|by estimate|figures vary|it is said|some sources|is said to)\b/gi;
+// A spoken list: three or more comma-separated parts ending in "and"/"or", whose middle items are all
+// short (a contrast like "X come off, and Y go on" or an appositive like ", or LRSO," is not a list).
+export function isListLike(sentence) {
+  const parts = sentence.trim().replace(/[.?!]$/, '').split(',').map((p) => p.trim()).filter(Boolean);
+  // The last item opens with "and"/"or", or (no Oxford comma) carries it: "X, Y, Z and W".
+  const lastJoins = /^(?:and|or)\s/i.test(parts.at(-1)) || (parts.length >= 4 && /\s(?:and|or)\s/i.test(parts.at(-1)) && parts.at(-1).split(/\s+/).length <= 7);
+  if (parts.length < 3 || !lastJoins) return false;
+  const middle = parts.slice(1, -1);
+  const words = (p) => p.split(/\s+/).length;
+  return middle.length >= 2 ? middle.every((p) => words(p) <= 5) : middle.length === 1 && parts.length >= 4;
+}
+
 export function lintAct(segments, { style, research, budget, actNo }) {
   const problems = [];
   const claimIds = new Set(research.claims.map((c) => c.claim_id));
@@ -191,6 +222,13 @@ export function lintAct(segments, { style, research, budget, actNo }) {
     if (infoRun > style.pacing.max_consecutive_info) problems.push({ msg: `more than ${style.pacing.max_consecutive_info} consecutive I segments ending at ${s.seg_id}` });
   }
   if (beats > 2) problems.push({ msg: `act uses ${beats} [BEAT] markers (max 2)` });
+  // Narration that hedges every fact or reads lists sounds like a report, not a film.
+  const spokenAll = segments.map((s) => stripMarkup(s.text)).join(' ');
+  const hedges = spokenAll.match(HEDGES) || [];
+  const hedgeBudget = Math.max(1, Math.ceil(words / 200));
+  if (hedges.length > hedgeBudget) problems.push({ msg: `act uses ${hedges.length} hedge/attribution phrases (${[...new Set(hedges.map((h) => h.toLowerCase()))].join(', ')}); budget is ${hedgeBudget}. State sourced facts plainly; attribute by name only a party's claim, a forecast or a quote` });
+  const lists = segments.flatMap((s) => stripMarkup(s.text).split(/(?<=[.?!])\s+/).filter(isListLike).map(() => s.seg_id));
+  if (lists.length) problems.push({ msg: `${[...new Set(lists)].join(', ')} read(s) like a list; use one vivid example or two contrasting ones instead` });
   if (actNo === 1 && /^(today|in this|hey|welcome)/i.test(stripMarkup(segments[0]?.text || ''))) problems.push({ msg: 'act 1 opens with a greeting/announcement', hard: true });
   return problems;
 }

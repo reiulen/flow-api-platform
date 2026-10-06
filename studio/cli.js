@@ -34,6 +34,7 @@ const HELP = `studio <command> [options]
   calibrate <project_id>                   measure the render like the reference videos and compare
   map-preview [--file map.json] [--seconds 15] [--out preview.mp4]
                                            render one map shot with the configured imagery
+  library-fetch                            download library tracks listed in index.json that are not on disk
 `;
 
 const config = loadConfig();
@@ -98,7 +99,8 @@ const commands = {
     ok('map browser', Boolean(chromePath(config)), chromePath(config) || 'set CHROME_EXECUTABLE_PATH');
     for (const k of ['dvids', 'nara', 'pexels', 'pixabay']) ok(`source ${k}`, Boolean(config.sources[k]), config.sources[k] ? 'key set' : 'no key (source skipped)');
     const lib = (k) => fs.existsSync(path.join(config.libraryDir, k, 'index.json'));
-    ok('music library', lib('music'), lib('music') ? '' : `add tracks + ${path.join(config.libraryDir, 'music', 'index.json')}`);
+    const missing = (k) => (lib(k) ? readJson(path.join(config.libraryDir, k, 'index.json')).filter((t) => !fs.existsSync(path.join(config.libraryDir, k, t.file))).length : 0);
+    ok('music library', lib('music') && !missing('music'), !lib('music') ? `add tracks + ${path.join(config.libraryDir, 'music', 'index.json')}` : missing('music') ? `${missing('music')} track(s) missing — run "studio library-fetch"` : '');
     ok('ambience library', lib('ambience'), lib('ambience') ? '' : 'optional');
     if (config.flow.mode === 'direct') {
       try {
@@ -191,6 +193,24 @@ const commands = {
     const started = Date.now();
     await renderGeo({ config, style: loadStyle(config, opt.genre), data, duration: Number(opt.seconds || 15), out });
     console.log(`${out} (${config.map.provider}, ${Math.round((Date.now() - started) / 1000)}s)`);
+  },
+
+  // Audio files are not in git (they are large and re-downloadable); index.json records where each came from.
+  async 'library-fetch'() {
+    for (const kind of ['music', 'ambience']) {
+      const index = path.join(config.libraryDir, kind, 'index.json');
+      if (!fs.existsSync(index)) continue;
+      for (const t of readJson(index)) {
+        const file = path.join(config.libraryDir, kind, t.file);
+        if (fs.existsSync(file)) continue;
+        if (!t.source_url) { console.log(`missing ${kind}/${t.file} (no source_url, add it by hand)`); continue; }
+        const res = await fetch(t.source_url);
+        if (!res.ok) throw new Error(`${t.source_url} -> ${res.status}`);
+        fs.writeFileSync(`${file}.part`, Buffer.from(await res.arrayBuffer()));
+        fs.renameSync(`${file}.part`, file);
+        console.log(`fetched ${kind}/${t.file}`);
+      }
+    }
   },
 
   async 'flow-runner'() {

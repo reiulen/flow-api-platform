@@ -48,19 +48,24 @@ const QueryPlan = z.object({ queries: z.array(z.string().min(3)).min(1).max(12) 
 // json(): the provider's structured call; write(): a plain text completion (system, prompt) -> text.
 export async function searchResearch({ config, json, write, stage, system, prompt, maxPages = 30 }) {
   const pages = new Map();
-  const gather = async (queries) => {
-    for (const q of queries) {
-      const results = await routerSearch(config, q).catch(() => []);
-      for (const r of results) if (r.url && !pages.has(r.url) && pages.size < maxPages) pages.set(r.url, r);
+  // The first round may only fill part of the budget; otherwise the gap round can never add a page.
+  const gather = async (queries, cap) => {
+    const lists = await Promise.all(queries.map((q) => routerSearch(config, q).catch(() => [])));
+    // Round-robin over queries so every query contributes its best results before any query's tail.
+    for (let rank = 0; rank < Math.max(0, ...lists.map((l) => l.length)); rank++) {
+      for (const list of lists) {
+        const r = list[rank];
+        if (r?.url && !pages.has(r.url) && pages.size < cap) pages.set(r.url, r);
+      }
     }
     await Promise.all([...pages.values()].filter((p) => !p.text).map(async (p) => { p.text = (await fetchPageText(p.url)) || p.snippet; }));
   };
 
   const plan = await json({ stage: `${stage}-plan`, system, schema: QueryPlan, prompt: `${prompt}\n\nYou cannot browse. List the web search queries (up to 10) that will find the best primary and reputable sources for this research. Be specific: program names, official reports, agencies, dates.` });
-  await gather(plan.queries);
+  await gather(plan.queries, Math.ceil(maxPages * 0.6));
   // Second round: search for what is still missing or only weakly sourced.
   const gaps = await json({ stage: `${stage}-gaps`, system, schema: QueryPlan, prompt: `${prompt}\n\nSources found so far:\n${[...pages.values()].map((p) => `- ${p.title} ${p.url}`).join('\n')}\n\nList up to 8 further search queries for what is still missing or only covered by weak sources.` });
-  await gather(gaps.queries);
+  await gather(gaps.queries, maxPages);
 
   const read = [...pages.values()].filter((p) => p.text);
   if (read.length < 5) throw new Error(`${stage}: web search returned only ${read.length} readable pages; check STUDIO_SEARCH_MODEL and the 9router search provider`);

@@ -2,6 +2,8 @@
 @font-face { font-family: "Inter Tight"; font-weight: 500; src: url("vendor/inter-tight-500.woff2") format("woff2"); }
 @font-face { font-family: "Inter Tight"; font-weight: 600; src: url("vendor/inter-tight-600.woff2") format("woff2"); }
 @font-face { font-family: "Inter Tight"; font-weight: 700; src: url("vendor/inter-tight-700.woff2") format("woff2"); }
+@font-face { font-family: "Oswald"; font-weight: 500; src: url("vendor/oswald-500.woff2") format("woff2"); }
+@font-face { font-family: "Oswald"; font-weight: 600; src: url("vendor/oswald-600.woff2") format("woff2"); }
 @font-face { font-family: "IBM Plex Mono"; font-weight: 400; src: url("vendor/plex-mono-400.woff2") format("woff2"); }
 @font-face { font-family: "IBM Plex Mono"; font-weight: 500; src: url("vendor/plex-mono-500.woff2") format("woff2"); }
 
@@ -11,3 +13,9 @@ body { background: transparent; color: var(--info, #EDEFF2); font-family: "Inter
 .clip { position: absolute; inset: 0; }
 .caps { text-transform: uppercase; letter-spacing: 0.16em; }
 .mono { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+/* Chart frame shared by data templates: near-black, faint grid, condensed caps headings. */
+.chart-bg { position: absolute; inset: 0; background: #0a0a0b; }
+.chart-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px); background-size: 48px 48px; }
+.chart-title { position: absolute; left: 150px; top: 110px; font-family: "Oswald", sans-serif; font-weight: 600; font-size: 54px; letter-spacing: 0.02em; text-transform: uppercase; color: #fff; }
+.chart-sub { position: absolute; left: 152px; top: 182px; font-family: "Oswald", sans-serif; font-weight: 500; font-size: 22px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.7); }
+.chart-source { position: absolute; left: 152px; bottom: 70px; font-family: "Inter Tight", sans-serif; font-weight: 500; font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.45); }

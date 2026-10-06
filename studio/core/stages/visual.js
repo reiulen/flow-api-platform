@@ -22,18 +22,30 @@ const ActVisualOut = z.object({
 const Role = z.enum(['threat', 'friendly', 'warning', 'info', 'sensor', 'success']);
 const LonLat = z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)]);
 const MapStep = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('highlight'), countries: z.array(z.string()).min(1), role: Role, label: z.string().max(32).default(''), legend: z.string().max(32).default('') }),
+  z.object({ type: z.literal('highlight'), countries: z.array(z.string()).min(1), role: Role, label: z.string().max(32).default(''), legend: z.string().max(32).default(''), hatch: z.boolean().default(false) }),
   z.object({ type: z.literal('point'), lon: z.number(), lat: z.number(), label: z.string().max(32), role: Role, marker: z.enum(['chokepoint', 'dot']).optional() }),
   z.object({ type: z.literal('route'), from: LonLat, via: z.array(LonLat).max(8).default([]), to: LonLat, label: z.string().max(32).default(''), role: Role, icon: z.enum(['ship', 'plane', 'missile']).optional() }),
   z.object({ type: z.literal('pipeline'), coords: z.array(LonLat).min(2).max(12), label: z.string().max(32).default(''), role: Role.default('sensor'), legend: z.string().max(32).default('') }),
   z.object({ type: z.literal('ring'), lon: z.number(), lat: z.number(), radius_km: z.number().positive().max(20000), label: z.string().max(32).default(''), role: Role }),
   z.object({ type: z.literal('label'), lon: z.number(), lat: z.number(), text: z.string().max(32), role: Role.default('info') }),
   z.object({ type: z.literal('zoom'), center: LonLat, scale: z.number().min(0.5).max(400) }),
+  z.object({ type: z.literal('callout'), lon: z.number(), lat: z.number(), value: z.string().min(1).max(16), label: z.string().max(32).default(''), role: Role.default('info') }),
+  z.object({ type: z.literal('icons'), lon: z.number(), lat: z.number(), icon: z.enum(['person', 'barrel', 'coin', 'ship', 'plane', 'tank', 'missile']), count: z.number().int().min(1).max(60), total: z.number().int().min(1).max(60).optional(), label: z.string().max(40).default(''), value: z.string().max(24).default(''), role: Role.default('info') })
+    .refine((s) => !s.total || s.total >= s.count, 'total must be >= count'),
+  z.object({ type: z.literal('pie'), lon: z.number(), lat: z.number(), percent: z.number().min(0).max(100), value: z.string().max(12).default(''), label: z.string().max(32).default(''), role: Role.default('threat') }),
+  z.object({ type: z.literal('inset'), center: LonLat, scale: z.number().min(1).max(400), position: z.enum(['tl', 'tr', 'bl', 'br']).default('tr'), highlight: z.array(z.string()).max(6).default([]), label: z.string().max(32).default(''), role: Role.default('threat') }),
 ]);
 export const MotionData = {
   map: z.object({ title: z.string().default(''), legend: z.array(z.object({ label: z.string().max(32), role: Role })).max(4).default([]), view: z.object({ center: LonLat, scale_from: z.number().default(1), scale_to: z.number().default(3), pitch: z.number().min(0).max(50).optional(), bearing: z.number().min(-60).max(60).optional() }), steps: z.array(MapStep).min(1).max(10) }),
   process: z.object({ title: z.string().default(''), steps: z.array(z.object({ label: z.string().max(24), detail: z.string().max(48).default(''), role: Role.default('info') })).min(2).max(6) }),
-  compare: z.object({ title: z.string().default(''), unit: z.string().default(''), items: z.array(z.object({ label: z.string().max(24), value: z.number(), role: Role.default('info') })).min(2).max(6) }),
+  compare: z.object({ title: z.string().default(''), unit: z.string().default(''), source: z.string().max(90).default(''), items: z.array(z.object({ label: z.string().max(24), value: z.number(), role: Role.default('info') })).min(2).max(6) }),
+  trend: z.object({
+    title: z.string().max(40), subtitle: z.string().max(40).default(''), unit: z.string().max(16).default(''), kind: z.enum(['bar', 'line']).default('line'),
+    x: z.array(z.string().max(10)).min(3).max(40),
+    series: z.array(z.object({ label: z.string().max(24), role: Role.default('threat'), values: z.array(z.number()) })).min(1).max(3),
+    annotation: z.object({ at: z.string().max(10), text: z.string().max(28) }).nullable().default(null),
+    source: z.string().max(90).default(''),
+  }).refine((d) => d.series.every((s) => s.values.length === d.x.length), 'every series needs one value per x label'),
 };
 
 export function parseMotion(json) {

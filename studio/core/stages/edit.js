@@ -5,63 +5,113 @@ import { AssetDb } from './assets.js';
 import { hash, readJson, round, seededRandom } from '../util.js';
 
 const FOOTAGE = new Set(['REAL', 'ARCHIVAL', 'NEWS', 'FLOW']);
+// Natural sound comes only from real footage; generated clips carry invented audio.
+const NAT = new Set(['REAL', 'ARCHIVAL', 'NEWS']);
 
-// S10a: shot list -> EDL. Shots without media are absorbed by the previous clip so the
-// timeline never has holes; each repair is reported for QC.
+// S10a: shot list -> EDL. Shots without media are covered by their neighbours so the timeline never
+// has holes: first with the unused clean source time after each neighbour's range (never across a
+// cut inside the source), then with a gentle slow-down. Each repair is reported for QC.
+const MIN_REPAIR_SPEED = 0.7;
+
 export function buildEdl({ project, shotList, style, config }) {
   const db = new AssetDb(config);
   const repairs = [];
-  const clips = [];
+  const items = [];
   try {
     for (const shot of shotList.shots) {
       const media = mediaFor(shot, db, project, config);
       if (!media) {
         repairs.push({ shot_id: shot.shot_id, at_s: shot.start_s, visual_type: shot.visual_type });
-        if (clips.length) {
-          clips.at(-1).duration_s = round(clips.at(-1).duration_s + shot.duration_s);
-          continue;
-        }
+        const last = items.at(-1);
+        if (last?.gap) last.duration_s = round(last.duration_s + shot.duration_s);
+        else items.push({ gap: true, shot_id: shot.shot_id, start_s: shot.start_s, duration_s: shot.duration_s });
+        continue;
       }
-      const kind = media?.kind || 'black';
-      clips.push({
-        clip_id: `C-${String(clips.length + 1).padStart(4, '0')}`,
+      items.push({
         shot_id: shot.shot_id,
-        kind,
-        src: media?.src || null,
-        src_in: media?.src_in || 0,
-        speed: media?.speed || 1,
+        kind: media.kind,
+        src: media.src || null,
+        src_in: media.src_in || 0,
+        speed: media.speed || 1,
         start_s: shot.start_s,
         duration_s: shot.duration_s,
         transition_in: { type: shot.transition_in, dur_s: style.transitions.durations[shot.transition_in] || 0 },
         look: FOOTAGE.has(shot.visual_type),
-        overlays: shotList.overlays.filter((o) => o.motion_file && o.start_s >= shot.start_s - 0.01 && o.start_s < shot.start_s + shot.duration_s)
-          .map((o) => ({ src: path.join(project.dir, o.motion_file), at_s: round(o.start_s - shot.start_s), duration_s: o.duration_s })),
+        nat: NAT.has(shot.visual_type) && media.kind === 'video',
+        _room: media.room ?? 0,
       });
     }
   } finally {
     db.close();
   }
-  // A clip never starts with a dissolve longer than the previous clip.
+
+  items.forEach((gap, i) => { if (gap.gap) fillGap(gap, items[i - 1], items[i + 1]); });
+  const clips = items.filter((x) => !x.gap && x.duration_s > 0.01);
+  if (!clips.length) clips.push({ shot_id: shotList.shots[0]?.shot_id || 'none', kind: 'black', src: null, src_in: 0, speed: 1, start_s: 0, duration_s: shotList.duration_s, transition_in: { type: 'fade_black', dur_s: 1 }, look: false, nat: false });
+
+  // Overlays follow the final clip windows, so a number card over a repaired shot is kept.
+  for (const clip of clips) {
+    clip.overlays = shotList.overlays.filter((o) => o.motion_file && o.start_s >= clip.start_s - 0.01 && o.start_s < clip.start_s + clip.duration_s)
+      .map((o) => ({ src: path.join(project.dir, o.motion_file), at_s: round(o.start_s - clip.start_s), duration_s: o.duration_s }));
+  }
+  clips.forEach((clip, i) => { clip.clip_id = `C-${String(i + 1).padStart(4, '0')}`; });
+  // A clip never starts with a dissolve longer than the previous clip, and a dissolve never needs
+  // tail frames from past the previous clip's clean source range (that would flash the next scene).
   for (let i = 1; i < clips.length; i++) {
     const t = clips[i].transition_in;
-    t.dur_s = round(Math.min(t.dur_s, clips[i - 1].duration_s * 0.5, clips[i].duration_s * 0.5));
+    const prev = clips[i - 1];
+    const tail = prev.kind === 'video' ? prev._room ?? 0 : Infinity;
+    t.dur_s = round(Math.min(t.dur_s, prev.duration_s * 0.5, clips[i].duration_s * 0.5, tail));
     if (t.dur_s < 0.1 && t.type !== 'cut') clips[i].transition_in = { type: 'cut', dur_s: 0 };
   }
+  for (const clip of clips) delete clip._room;
   clips[0].transition_in = { type: 'fade_black', dur_s: 1.0 };
   const edl = Edl.parse({ fps: style.canvas.fps, width: style.canvas.width, height: style.canvas.height, duration_s: shotList.duration_s, clips });
   return { edl, repairs };
 }
 
+function fillGap(gap, prev, next) {
+  prev = prev && !prev.gap ? prev : null;
+  next = next && !next.gap ? next : null;
+  let d = gap.duration_s;
+  const extendPrev = (x) => { prev.duration_s = round(prev.duration_s + x); d = round(d - x); };
+  const extendNext = (x) => { next.start_s = round(next.start_s - x); next.duration_s = round(next.duration_s + x); d = round(d - x); };
+  // 1. Unused clean source time after each neighbour's range.
+  if (prev && d > 0) { const x = Math.min(d, prev._room); prev._room -= x; extendPrev(x); }
+  if (next && d > 0) { const x = Math.min(d, next._room); next._room -= x; extendNext(x); }
+  // 2. Slow a video neighbour down, never below MIN_REPAIR_SPEED.
+  for (const [c, extend] of [[prev, extendPrev], [next, extendNext]]) {
+    if (!c || d <= 0 || c.kind !== 'video') continue;
+    const source = c.duration_s * c.speed;
+    const x = Math.min(d, source / MIN_REPAIR_SPEED - c.duration_s);
+    if (x <= 0.01) continue;
+    extend(x);
+    c.speed = round(source / c.duration_s, 4);
+  }
+  // 3. Whatever is left runs on (the old behaviour); rare once the steps above apply.
+  if (d > 0 && prev) extendPrev(d);
+  else if (d > 0 && next) extendNext(d);
+  gap.duration_s = d;
+}
+
 function mediaFor(shot, db, project, config) {
-  if (shot.shot_class === 'black' && !shot.motion_file) return { kind: 'black' };
-  if (shot.motion_file) return { kind: 'motion', src: path.join(project.dir, shot.motion_file) };
-  if (shot.visual_type === 'FLOW' && shot.flow_file) return { kind: 'video', src: path.join(project.dir, shot.flow_file), src_in: shot.asset_range?.in || 0 };
+  if (shot.shot_class === 'black' && !shot.motion_file) return { kind: 'black', room: Infinity };
+  if (shot.motion_file) return { kind: 'motion', src: path.join(project.dir, shot.motion_file), room: 0 };
+  if (shot.visual_type === 'FLOW' && shot.flow_file) {
+    const r = shot.asset_range;
+    return { kind: 'video', src: path.join(project.dir, shot.flow_file), src_in: r?.in || 0, room: r ? Math.max(0, r.out - r.in - shot.duration_s) : 0 };
+  }
   if (shot.asset_id) {
     const asset = db.byId(shot.asset_id);
     if (!asset?.file) return null;
     const src = path.join(config.assetsDir, asset.file);
     if (!fs.existsSync(src)) return null;
-    return asset.kind === 'image' ? { kind: 'image', src } : { kind: 'video', src, src_in: shot.asset_range?.in || 0, speed: shot.asset_range?.speed || 1 };
+    if (asset.kind === 'image') return { kind: 'image', src, room: Infinity };
+    const r = shot.asset_range;
+    const speed = r?.speed || 1;
+    const end = r ? r.out : 0;
+    const seg = r && asset.segments.find((s) => s.in <= r.in + 0.05 && s.out >= end - 0.05);
+    return { kind: 'video', src, src_in: r?.in || 0, speed, room: seg ? Math.max(0, (seg.out - end) / speed) : 0 };
   }
   return null;
 }
@@ -120,7 +170,9 @@ export function buildAudioPlan({ project, shotList, vo, script, style, config })
     for (const span of actSpans) {
       const fn = ACT_FUNCTION[span.act] || 'engineering';
       const pool = tracks.filter((t) => t.function === fn && !used.has(t.file));
-      const pick = (pool.length ? pool : tracks.filter((t) => !used.has(t.file)).concat(tracks))[0];
+      const options = pool.length ? pool : tracks.filter((t) => !used.has(t.file)).concat(tracks);
+      // Seeded per project: deterministic for one film, but films do not all share the same cues.
+      const pick = options[Math.floor(rand() * options.length) % options.length];
       used.add(pick.file);
       // Split the act span around no-music windows and black beats.
       let pieces = [{ s: span.s, e: span.e }];

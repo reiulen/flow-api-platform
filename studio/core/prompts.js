@@ -15,16 +15,26 @@ Story principles
 
 Narration voice
 - ${ed.voice || 'Calm, intelligent, confident documentary narrator. Never a salesman.'}
-- Pattern: question -> contradiction -> explanation. One idea per sentence. Vary sentence length; short sentences carry emphasis.
-- Round numbers in narration ("almost 1,100 feet"); precise numbers belong on screen cards.
-- No unsourced superlatives ("most advanced", "unstoppable").
+- Pattern: question -> contradiction -> explanation. Vary sentence length: a long sentence that builds the chain of cause and effect, then a short one that lands it.
+- Every key number gets a comparison that makes its scale felt: "more than 30 times over", "about 4% of the entire world's supply", "nearly double", "five times larger than Yemen's whole economy". A number without a sense of scale is wasted.
+- Carry the logic with spoken connectors: "Now,", "But", "And then,", "Meanwhile,", "Indeed,", "Unfortunately for them, however,", "In the meantime,". Each paragraph should feel like the next step of one argument.
+- Prefer vivid, concrete pictures over abstractions ("it would almost landlock them", "the engine of their economy grinding to a halt").
+- Have a point of view where the evidence supports it, and say it plainly ("Geopolitically, this is a disaster for them."). A dry aside is allowed about once per act; never about casualties or suffering.
+- First person sparingly, only to guide ("like I mentioned earlier").
+- Round numbers when precision adds nothing ("almost 1,100 feet"); keep the exact figure when the precision is the point. Exact figures also go on screen cards.
+- No unsourced superlatives ("most advanced", "unstoppable"); a superlative needs a claim behind it.
 - Never use these phrases or close variants: ${style.narration.banned_phrases.map((p) => `"${p}"`).join(', ')}.
 - Never open with a greeting or "today we will". Never end with thanks or subscribe requests.
 
 Fact standards
 - Source tiers: 1 = primary (government, military, manufacturer, official reports, legislative/procurement documents, technical papers); 2 = highly reputable media and research institutions (Reuters, AP, BBC, established defense/industry publications); 3 = analysis (think tanks, experts, specialist outlets); 4 = discovery only (forums, blogs, social media, video, wikis) and never the basis of a claim.
 - Key numbers need one tier-1 source or two independent tier-2 sources.
-- Confidence: confirmed (tier 1 or several agreeing tier 2) -> state plainly; reported (one tier 2) -> "reportedly", "according to"; estimated (tier 3 analysis) -> "estimated", "analysts believe"; disputed -> give both sides.
+- Confidence decides what you may claim, not how many hedge words you say. The sources are listed in the video description; the narration speaks plainly, like a confident explainer, not like a footnote.
+  - confirmed and reported -> state it plainly. Never "reportedly" for an ordinary fact from a reputable outlet.
+  - estimated -> a soft number word is enough: "around", "roughly", "nearly", "an estimated".
+  - disputed -> use the best-sourced figure with "around", or, only when the disagreement matters to the story, say who claims what.
+- Attribute by name, once, only when it adds meaning: a party's own claim ("the Pentagon says", "the Houthis claim"), a forecast or plan that may not happen, an official warning or quote. Never the vague "analysts say", "according to analysts", "figures vary by source", "by some estimates".
+- Hedge budget: at most one hedge or attribution phrase per ~200 spoken words, and never two in one sentence.
 - Never invent a number, date, name or quote. If a fact is unknown, say so or leave it out.
 ${(ed.rules || []).map((r) => `- ${r}`).join('\n')}`;
 }
@@ -36,6 +46,8 @@ Each topic must be built around a contradiction or paradox that makes people cur
 Title format: a question or a claim containing a contradiction ("Why Aircraft Carriers Are So Hard to Sink"), never a history title ("The History of the USS Nimitz").
 
 Score each topic 1-5 on: contradiction, mechanism (a system that can be explained step by step), footage (amount of real, legally usable footage — government archives are best), sources (depth of tier 1-2 sources for 20+ minutes), relevance (timely or evergreen), visualization (something only a map or diagram makes clear), risk (misinformation, sensitivity, licensing; 5 = very risky).
+hype (click appeal right now: would a broad YouTube audience click this title over everything else on their home page? 5 = a famous system or conflict people are already searching for, huge stakes, a surprising number or reveal that begs to be shared; 1 = niche, only enthusiasts care). Favour topics tied to what people are talking about this year, without sensationalising: the title must still be true.
+footage_query: 2-4 plain keywords for an archive search, e.g. F-35 takeoff. No archive name, no quotes, no OR.
 footage_evidence: name the concrete archive search that supports the footage score (e.g. 'DVIDS: "carrier flight operations"'). Use the archive evidence below when present; do not claim counts you were not given.
 key_sources: name real, specific primary documents or publications you are confident exist.
 
@@ -115,13 +127,14 @@ ${actOutline.beats.map((b) => `${b.beat_id} [${b.mode}] ${b.summary} (claims: ${
 Exit tension: ${actOutline.exit_tension}
 
 Output segments. A segment is 1-4 sentences (max 55 words) that belong to one beat and one visual idea.
+Never read out a list. At most three items in one sentence; turn categories into one vivid example or two contrasting ones ("It can hit a bunker deep inside a country one night, and mine a shipping lane the next.").
 For each segment:
 - seg_id: S-${String(act.act).padStart(2, '0')}-01, S-${String(act.act).padStart(2, '0')}-02, ...
 - text: the spoken narration with markup:
   [PAUSE 0.6] a pause in seconds (0.3-1.5) inside the segment, use 1-3 per minute of narration where a thought lands.
   [BEAT] a 2 second pause for the visuals/music to breathe, use after a key reveal (max 2 per act).
   *word* emphasis on a single word, sparingly.
-- claims: claim_ids for every factual statement in the segment. A segment with numbers, dates, names of programs or specifications MUST cite claims. Only use claim_ids from the list below, and respect their confidence wording.
+- claims: claim_ids for every factual statement in the segment. A segment with numbers, dates, names of programs or specifications MUST cite claims. Only use claim_ids from the list below; the [confidence] tag decides what you may claim (see Fact standards), not how many hedge words you add.
 - tone: quiet (intimate, serious), normal, firm (key statement).
 - purpose: E evidence, I information, C cinematic, T transition, R reset/breathing.
 - density: low, medium, high (information per second).
@@ -130,8 +143,12 @@ For each segment:
 - stats: at most one on-screen number card per segment, only for a key number: value (e.g. "$13 BILLION", "1,106 FT"), label (max 3 words, e.g. "CONSTRUCTION COST"), claim_id.
 
 Rhythm rules: never more than 4 consecutive segments with purpose I; after about 90 seconds of high density add a C or R segment; vary density.
-${act.act === 1 ? 'Act 1 starts after a cold open of pure visuals and sound: the first sentence lands in the middle of the mystery. Do not greet, do not announce the topic.' : ''}
-${act.act === 7 ? 'Act 7 resolves the central question with the answer above, admits the limits, and ends on a short, quiet final line. No summary of the video, no thanks, no call to action.' : ''}
+${act.act === 1 ? `Act 1 starts after a cold open of pure visuals and sound. Do not greet, do not announce the topic. Hook formula:
+  1. First sentence: the stakes, in the present, as strong as the claims allow (what is happening, to whom, how bad).
+  2. Escalate: the second blow ("As if X wasn't enough, ... now ...").
+  3. Make the worst case concrete with one physical picture of what it would mean.
+  4. Then the contradiction and the central question, and promise the mechanism the film will explain.` : ''}
+${act.act === 7 ? 'Act 7 resolves the central question with the answer above and admits the limits: lay out the options that remain and what each one costs. End on one short, plain-spoken line a viewer would repeat. No summary of the video, no thanks, no call to action.' : ''}
 
 Narration so far (for continuity, do not repeat it):
 ${previousText || '(this is the first act)'}
@@ -179,9 +196,17 @@ For each beat:
          {"type":"pipeline","coords":[[lon,lat],...],"label":"EAST-WEST PIPELINE","role":"sensor"}   flowing dashed line for pipelines, cables, supply lines
          {"type":"ring","lon":0,"lat":0,"radius_km":400,"label":"400 KM","role":"sensor"}   range/coverage circle
          {"type":"zoom","center":[lon,lat],"scale":20}   camera move to a new area
+         {"type":"callout","lon":0,"lat":0,"value":"-95%","label":"SAUDI OIL EXPORTS","role":"threat"}   a key number shown on the map next to the place it is about (value max 16 chars, from claims only)
+         {"type":"icons","lon":0,"lat":0,"icon":"person|barrel|coin|ship|plane|tank|missile","count":20,"total":35,"label":"SAUDI POPULATION ~35 MILLION","value":"19.6M CITIZENS","role":"success"}   pictogram grid: count icons coloured out of total (max 60; one icon = a round unit you state in the label)
+         {"type":"pie","lon":0,"lat":0,"percent":95,"value":"-95%","label":"SAUDI OIL EXPORTS","role":"threat"}   share of a whole, sweeping in
+         {"type":"inset","center":[lon,lat],"scale":20,"position":"tl|tr|bl|br","highlight":["Cuba"],"label":"US STRIKE GROUP","role":"threat"}   boxed small map of another place (a second front, a distant base), in a corner away from the action
+       highlight takes "hatch": true for recent gains, advances or contested ground (striped instead of solid).
+       Put numbers on the map where the narration compares places: a callout, pie or icon grid next to the country it belongs to. All values from claims only.
        Coordinates must be accurate. Labels uppercase, max 3 words. Only label what the narration mentions. Colors carry meaning: threat red, friendly blue, sensor teal, warning amber.
   process: { "title": "", "steps": [ {"label":"DETECTION","detail":"max 5 words","role":"sensor"}, ... 3-6 steps ] }
-  compare: { "title": "", "unit": "", "items": [ {"label":"","value":0,"role":"info"}, ... 2-5 items ] }   (values from claims only)
+  compare: { "title": "", "unit": "", "source": "publisher of the figures", "items": [ {"label":"","value":0,"role":"info"}, ... 2-5 items ] }   (values from claims only)
+  trend: { "title": "SAUDI OIL PRODUCTION", "subtitle": "2023-PRESENT", "unit": "M BBL/DAY", "kind": "bar|line", "x": ["2023","2024",...], "series": [ {"label":"SAUDI ARABIA","role":"threat","values":[...one per x]} ], "annotation": {"at":"2026","text":"HORMUZ CLOSES"} or null, "source": "publisher" }
+       a number changing over time; only when the claims give the values for every x. 1-3 series.
 - flow (for FLOW): { "reconstruction": true if it depicts a specific real event/place/hardware, "composition": "", "camera": "", "lighting": "", "motion": "", "constraints": ["key hardware facts that must be visually correct"] }
 - claims: claim_ids the beat visualises (for MAP/TECH numbers).
 
@@ -204,6 +229,35 @@ Check, strictly:
 3. AI artifacts: garbled text or numbers, melting textures, broken hands/faces, flicker.
 4. Style: too cinematic/blockbuster, oversaturated, exaggerated explosions or smoke, fake shaky camera, any text or HUD.
 Verdict approved only if nothing would make a knowledgeable viewer doubt the shot. Use approved_with_trim when only the start or end is bad and give the usable fraction range.`;
+}
+
+export function footageReviewPrompt({ need, asset, frames }) {
+  return `You are the footage researcher of a documentary. Before archive footage is cut into the film, you check every shot of the source clip.
+The images above are ${frames} frames, one from the middle of each shot of the source clip, in order: image 1 = shot 1, image 2 = shot 2, ...
+
+Source: ${asset.source.toUpperCase()} — "${asset.title}"${asset.description ? `\nSource caption: ${asset.description.slice(0, 500)}` : ''}
+
+The narration at this point needs:
+- subject: ${need.subject || '-'}
+- platform: ${need.platform || '(any, generic)'}
+- action: ${need.action || '-'}
+- era: ${need.era || '-'}
+
+For every image return index (1-based), relevance and defects.
+relevance:
+  3 = shows exactly this platform/subject doing this action (or something that clearly proves the narration)
+  2 = the right platform/subject, different action or angle, still a good fit
+  1 = related context that does not mislead (same environment, crew, base, weather, sea, sky)
+  0 = unrelated, or a different platform/class/variant than the one named (a knowledgeable viewer would object)
+Be strict about the platform: a different aircraft type, ship class or variant is 0 even if it looks similar. Use the source caption to identify hardware.
+defects (list every one that applies, else empty):
+  slate = title or ID card, countdown, text on black
+  text = burned-in captions, lower thirds, subtitles, on-screen graphics, watermarks, channel logos
+  talking_head = interview, press briefing, person speaking to camera
+  blank = black, white, color bars, test pattern, fade
+  poor = blurry, heavily compressed, interlaced, very dark, shaky beyond use
+  people = identifiable civilians in close-up
+taste: 0-2, how cinematic the frame is (0 flat/snapshot, 1 decent, 2 striking composition, light or scale). Judge only the image.`;
 }
 
 export function reviewPrompt({ outline, script, shotSummary }) {

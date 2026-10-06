@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { z } from 'zod';
+import { footageReviewPrompt, houseRules } from '../prompts.js';
 import { adapters, download } from '../sources.js';
 import { ensureDir, ffprobe, hash, nowIso, round, run } from '../util.js';
 
@@ -16,7 +18,8 @@ export class AssetDb {
     this.db.exec(`PRAGMA journal_mode=WAL;
       CREATE TABLE IF NOT EXISTS assets (asset_id TEXT PRIMARY KEY, source TEXT, source_id TEXT, data TEXT, updated_at TEXT, UNIQUE(source, source_id));
       CREATE TABLE IF NOT EXISTS searches (key TEXT PRIMARY KEY, results TEXT, at TEXT);
-      CREATE TABLE IF NOT EXISTS usage (asset_id TEXT, project_id TEXT, shot_id TEXT, src_in REAL, src_out REAL, at TEXT);`);
+      CREATE TABLE IF NOT EXISTS usage (asset_id TEXT, project_id TEXT, shot_id TEXT, src_in REAL, src_out REAL, at TEXT);
+      CREATE TABLE IF NOT EXISTS reviews (asset_id TEXT, need_key TEXT, data TEXT, at TEXT, PRIMARY KEY (asset_id, need_key));`);
   }
 
   get(source, sourceId) {
@@ -43,6 +46,14 @@ export class AssetDb {
   recordUse(assetId, projectId, shotId, range) {
     this.db.prepare('INSERT INTO usage (asset_id, project_id, shot_id, src_in, src_out, at) VALUES (?, ?, ?, ?, ?, ?)')
       .run(assetId, projectId, shotId, range?.in ?? null, range?.out ?? null, nowIso());
+  }
+  review(assetId, needKey) {
+    const row = this.db.prepare('SELECT data FROM reviews WHERE asset_id = ? AND need_key = ?').get(assetId, needKey);
+    return row ? JSON.parse(row.data) : null;
+  }
+  putReview(assetId, needKey, data) {
+    this.db.prepare('INSERT OR REPLACE INTO reviews (asset_id, need_key, data, at) VALUES (?, ?, ?, ?)').run(assetId, needKey, JSON.stringify(data), nowIso());
+    return data;
   }
   usesElsewhere(assetId, projectId) {
     return this.db.prepare('SELECT COUNT(*) AS n FROM usage WHERE asset_id = ? AND project_id != ?').get(assetId, projectId).n;
@@ -75,13 +86,17 @@ export class AssetDb {
 // Internal cut points of a source clip, so a 5 s window never straddles a cut inside the source.
 export async function detectSegments(file, duration, config = {}) {
   let cuts = [];
-  const maxScan = config?.assets?.sceneScanMaxSeconds || 180;
+  const maxScan = config?.assets?.sceneScanMaxSeconds || 300;
   const scanDuration = Math.min(Number(duration) || maxScan, maxScan);
   try {
-    const { stderr } = await run('ffmpeg', ['-v', 'info', '-t', String(scanDuration), '-i', file, '-an', '-vf', "scale=160:-2,select='gt(scene,0.32)',showinfo", '-f', 'null', '-'], { timeoutMs: 60 * 1000 });
+    const { stderr } = await run('ffmpeg', ['-v', 'info', '-t', String(scanDuration), '-i', file, '-an', '-vf', "scale=160:-2,select='gt(scene,0.32)',showinfo", '-f', 'null', '-'], { timeoutMs: 150 * 1000 });
     cuts = [...stderr.matchAll(/pts_time:([\d.]+)/g)].map((m) => Number(m[1]));
-  } catch { /* treat as one segment */ }
-  const bounds = [0, ...cuts, duration];
+  } catch {
+    // Unknown cuts: offering the whole window as one shot would cut blind across scenes.
+    return [];
+  }
+  // Past the scanned window cuts are unknown, so that part is never offered as one clean shot.
+  const bounds = [0, ...cuts.filter((t) => t < scanDuration), Math.min(Number(duration) || 0, scanDuration)];
   const segs = [];
   for (let i = 0; i < bounds.length - 1; i++) {
     const a = bounds[i] + 0.25;
@@ -89,6 +104,80 @@ export async function detectSegments(file, duration, config = {}) {
     if (b - a >= 1.5) segs.push({ in: round(a), out: round(b) });
   }
   return segs;
+}
+
+// ---------- visual review ----------
+// Text metadata says what a clip is about, not what each shot inside it shows. Archive clips open
+// with slates, cut to interviews and carry captions, so every shot that may be used is looked at
+// once per visual need (frames of the shot middles, one vision call per asset) and cached.
+
+const MAX_REVIEW_FRAMES = 14;
+const DEFECTS = ['slate', 'text', 'talking_head', 'blank', 'poor', 'people'];
+const FootageReviewOut = z.object({
+  frames: z.array(z.object({ index: z.number().int(), relevance: z.number(), defects: z.array(z.string()), taste: z.number() })),
+});
+
+export const needKey = (need) => hash({ s: need.subject || '', p: need.platform || '', a: need.action || '', e: need.era || '' });
+
+async function reviewFrames(asset, file, dir) {
+  if (asset.kind === 'image') {
+    const out = path.join(dir, 'img.jpg');
+    await run('ffmpeg', ['-y', '-v', 'error', '-i', file, '-frames:v', '1', '-vf', 'scale=640:-2', out]);
+    return [{ seg: null, file: out }];
+  }
+  const segs = [...asset.segments].sort((a, b) => (b.out - b.in) - (a.out - a.in)).slice(0, MAX_REVIEW_FRAMES).sort((a, b) => a.in - b.in);
+  const frames = [];
+  for (const [i, seg] of segs.entries()) {
+    const out = path.join(dir, `f${i}.jpg`);
+    await run('ffmpeg', ['-y', '-v', 'error', '-ss', String(round((seg.in + seg.out) / 2, 2)), '-i', file, '-frames:v', '1', '-vf', 'scale=512:-2', out]);
+    if (fs.existsSync(out)) frames.push({ seg, file: out });
+  }
+  return frames;
+}
+
+// Returns [{ in, out, relevance, defects, taste }] per reviewed shot (image: one entry with in = out = 0),
+// or null when no review is available (test mode, no LLM, or the call failed: text matching decides).
+export async function reviewAsset({ db, llm, asset, need, style, config, log = () => {} }) {
+  if (!llm || config.testMode) return null;
+  const key = needKey(need);
+  const cached = db.review(asset.asset_id, key);
+  if (cached) return cached;
+  const file = path.join(config.assetsDir, asset.file);
+  const dir = ensureDir(path.join(config.assetsDir, 'review-tmp', `${asset.asset_id}-${key}`));
+  try {
+    const frames = await reviewFrames(asset, file, dir);
+    if (!frames.length) return db.putReview(asset.asset_id, key, []);
+    const out = await llm.json({
+      stage: 'footage', schema: FootageReviewOut, system: houseRules(style), images: frames.map((f) => f.file),
+      prompt: footageReviewPrompt({ need, asset, frames: frames.length }), maxTokens: 4000,
+    });
+    const byIndex = new Map(out.frames.map((f) => [f.index, f]));
+    const review = frames.map((f, i) => {
+      const r = byIndex.get(i + 1);
+      // A frame the model skipped is treated as unusable rather than guessed.
+      return {
+        in: f.seg?.in ?? 0, out: f.seg?.out ?? 0,
+        relevance: r ? Math.max(0, Math.min(3, Math.round(r.relevance))) : 0,
+        defects: r ? r.defects.map((d) => d.toLowerCase().trim()).filter((d) => DEFECTS.includes(d)) : ['unreviewed'],
+        taste: r ? Math.max(0, Math.min(2, Math.round(r.taste))) : 0,
+      };
+    });
+    return db.putReview(asset.asset_id, key, review);
+  } catch (err) {
+    log(`footage review ${asset.asset_id} failed, using text match only: ${err.message.slice(0, 160)}`);
+    return null;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// Usable shots of an asset for a need, best first. Without a review every detected shot counts as
+// relevance 1 (the old text-only behaviour), so it is only taken after reviewed better matches.
+export function usableShots(asset, review, minRelevance) {
+  const shots = review
+    ? review.filter((r) => !r.defects.length && r.relevance >= minRelevance)
+    : (minRelevance <= 1 ? (asset.kind === 'image' ? [{ in: 0, out: 0, relevance: 1, taste: 0 }] : asset.segments.map((s) => ({ ...s, relevance: 1, taste: 0 }))) : []);
+  return [...shots].sort((a, b) => (b.relevance - a.relevance) || (b.taste - a.taste) || ((b.out - b.in) - (a.out - a.in)));
 }
 
 export function scoreCandidate(c, need, style) {
@@ -139,7 +228,7 @@ async function findCandidates({ db, config, style, need, kind }) {
 }
 
 // S6: attach a real asset and a clean source range to every footage shot.
-export async function runAssets({ project, shotList, style, config, flowAvailable }) {
+export async function runAssets({ project, shotList, style, config, flowAvailable, llm = null, log = () => {} }) {
   const db = new AssetDb(config);
   const report = [];
   const pools = new Map();
@@ -158,7 +247,8 @@ export async function runAssets({ project, shotList, style, config, flowAvailabl
         if (kind === 'any' && found.length < 3) found = [...found, ...(await findCandidates({ db, config, style, need: shot.need, kind: 'image' }))];
         pools.set(shot.seq_id, found.slice(0, 6));
       }
-      let pick = await pickRange({ db, pool: pools.get(shot.seq_id), shot, used, style });
+      const ctx = { db, llm, shot, used, style, config, log };
+      let pick = await pickRange({ ...ctx, pool: pools.get(shot.seq_id) });
       if (!pick && !expanded.has(shot.seq_id)) {
         // Pool exhausted: widen once with a looser query (subject only) before splitting or falling back.
         expanded.add(shot.seq_id);
@@ -166,7 +256,7 @@ export async function runAssets({ project, shotList, style, config, flowAvailabl
         const more = await findCandidates({ db, config, style, need: loose, kind: 'video' });
         const known = new Set(pools.get(shot.seq_id).map((x) => `${x.c.source}:${x.c.source_id}`));
         pools.set(shot.seq_id, [...pools.get(shot.seq_id), ...more.filter((x) => !known.has(`${x.c.source}:${x.c.source_id}`)).slice(0, 8)]);
-        pick = await pickRange({ db, pool: pools.get(shot.seq_id), shot, used, style });
+        pick = await pickRange({ ...ctx, pool: pools.get(shot.seq_id) });
       }
       // A long hold with no long-enough source shot becomes two shots of the same sequence.
       if (!pick && shot.duration_s >= style.pacing.footage.min * 2) {
@@ -174,13 +264,13 @@ export async function runAssets({ project, shotList, style, config, flowAvailabl
         const second = { ...shot, shot_id: `${shot.shot_id}b`, start_s: round(shot.start_s + half), duration_s: round(shot.duration_s - half), transition_in: style.transitions.same_sequence };
         shot.duration_s = half;
         shotList.shots.splice(i + 1, 0, second);
-        pick = await pickRange({ db, pool: pools.get(shot.seq_id), shot, used, style });
+        pick = await pickRange({ ...ctx, pool: pools.get(shot.seq_id) });
       }
       if (pick) {
         shot.asset_id = pick.asset.asset_id;
         shot.asset_range = pick.range;
         db.recordUse(pick.asset.asset_id, project.id, shot.shot_id, pick.range);
-        report.push({ shot_id: shot.shot_id, status: 'found', asset_id: pick.asset.asset_id, source: pick.asset.source, score: pick.score, license: pick.asset.license });
+        report.push({ shot_id: shot.shot_id, status: 'found', asset_id: pick.asset.asset_id, source: pick.asset.source, score: pick.score, relevance: pick.relevance, reviewed: pick.reviewed, license: pick.asset.license });
         continue;
       }
       if (flowAvailable && flowShots < flowBudget) {
@@ -201,28 +291,35 @@ export async function runAssets({ project, shotList, style, config, flowAvailabl
 }
 
 // Picks a clean source range: one continuous shot inside the source, never reused in this project.
-// Tries real speed first, then a gentle slow-down (documentary-safe) before giving up.
-async function pickRange({ db, pool, shot, used, style }) {
-  for (const speed of [1, style.assets.min_speed]) {
-    const need = shot.duration_s * speed + 0.2;
-    for (const { c, score } of pool) {
-      let asset;
-      try { asset = await db.materialize(c); } catch { continue; }
-      if (asset.height && asset.height < 360) continue;
-      const taken = used.get(asset.asset_id) || [];
-      if (asset.kind === 'image') {
-        if (taken.length || speed !== 1) continue;
-        used.set(asset.asset_id, [{ in: 0, out: 0 }]);
-        return { asset, range: null, score };
-      }
-      for (const seg of asset.segments) {
-        if (seg.out - seg.in < need) continue;
-        if (taken.some((u) => u.in < seg.out && u.out > seg.in)) continue;
-        const len = shot.duration_s * speed;
-        const pad = (seg.out - seg.in - len) / 2;
-        const range = { in: round(seg.in + pad), out: round(seg.in + pad + len), speed };
-        used.set(asset.asset_id, [...taken, { in: seg.in, out: seg.out }]);
-        return { asset, range, score };
+// Strong visual matches (relevance >= 2) anywhere in the pool win over weak ones; within a level,
+// real speed comes before a gentle documentary-safe slow-down.
+async function pickRange({ db, llm, pool, shot, used, style, config, log }) {
+  for (const minRelevance of [2, 1]) {
+    for (const speed of [1, style.assets.min_speed]) {
+      const need = shot.duration_s * speed + 0.2;
+      for (const { c, score } of pool) {
+        let asset;
+        try { asset = await db.materialize(c); } catch { continue; }
+        if (asset.height && asset.height < 360) continue;
+        const review = await reviewAsset({ db, llm, asset, need: shot.need, style, config, log });
+        const taken = used.get(asset.asset_id) || [];
+        const shots = usableShots(asset, review, minRelevance);
+        if (asset.kind === 'image') {
+          if (taken.length || speed !== 1 || !shots.length) continue;
+          used.set(asset.asset_id, [{ in: 0, out: 0 }]);
+          return { asset, range: null, score, relevance: shots[0].relevance, reviewed: Boolean(review) };
+        }
+        for (const seg of shots) {
+          if (seg.out - seg.in < need) continue;
+          if (taken.some((u) => u.in < seg.out && u.out > seg.in)) continue;
+          const len = shot.duration_s * speed;
+          // Centred, but keep ~0.6 s of clean source after the range for a dissolve tail when possible.
+          const slack = seg.out - seg.in - len;
+          const before = Math.max(0.1, Math.min(slack / 2, slack - 0.6));
+          const range = { in: round(seg.in + before), out: round(seg.in + before + len), speed };
+          used.set(asset.asset_id, [...taken, { in: seg.in, out: seg.out }]);
+          return { asset, range, score, relevance: seg.relevance, reviewed: Boolean(review) };
+        }
       }
     }
   }
