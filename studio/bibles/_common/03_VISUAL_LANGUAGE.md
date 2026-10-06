@@ -106,7 +106,7 @@ Dipakai untuk: cutaway, exploded view, sistem mekanik, arsitektur internal, rada
 
 **Tidak dipakai** untuk "lihat objeknya berputar 360°". Kalau cuma itu, real footage lebih baik.
 
-Data berbasis angka memakai bingkai chart gaya referensi: latar hampir hitam dengan grid tipis, judul Oswald kapital besar di kiri atas, subjudul dan satuan di bawahnya, bar atau garis neon, tag seri berwarna di ujung garis, anotasi peristiwa (garis putus-putus dan tag merah), dan baris sumber di kiri bawah. Template: `compare` (perbandingan kategori) dan `trend` (angka berubah dari waktu ke waktu, bar atau garis, 1–3 seri). Nilainya hanya dari klaim riset.
+Data berbasis angka memakai bingkai chart gaya referensi: latar hampir hitam dengan grid tipis, judul Oswald kapital besar di kiri atas, subjudul dan satuan di bawahnya, bar atau garis neon, tag seri berwarna di ujung garis, anotasi peristiwa (garis putus-putus dan tag merah), dan baris sumber di kiri bawah. Template: `compare` (perbandingan kategori), `trend` (angka berubah dari waktu ke waktu, bar atau garis, 1–3 seri), dan `ranking` (tabel peringkat 3–12 baris: baris muncul dari atas, baris yang dibahas disorot, lalu kamera mendorong pelan ke baris itu). Nilainya hanya dari klaim riset. Sepertiga film kira-kira berupa peta dan chart, templatenya divariasikan, dan setiap angka kunci punya visual.
 
 Pola utama untuk sistem adalah diagram alur yang dianimasikan:
 

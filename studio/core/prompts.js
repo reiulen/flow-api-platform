@@ -19,7 +19,9 @@ Narration voice
 - Every key number gets a comparison that makes its scale felt: "more than 30 times over", "about 4% of the entire world's supply", "nearly double", "five times larger than Yemen's whole economy". A number without a sense of scale is wasted.
 - Carry the logic with spoken connectors: "Now,", "But", "And then,", "Meanwhile,", "Indeed,", "Unfortunately for them, however,", "In the meantime,". Each paragraph should feel like the next step of one argument.
 - Prefer vivid, concrete pictures over abstractions ("it would almost landlock them", "the engine of their economy grinding to a halt").
-- Have a point of view where the evidence supports it, and say it plainly ("Geopolitically, this is a disaster for them."). A dry aside is allowed about once per act; never about casualties or suffering.
+- Talk like a sharp friend explaining something fascinating: relaxed and conversational, never stiff, formal or academic. Contractions, "you", rhetorical questions, the occasional wry aside. The viewer should enjoy listening.
+- Say it straight. When the sources support it, state facts in full, including the uncomfortable ones: who did it, who was hit, how many died, what failed, what it cost, who profits. Name names. No euphemisms ("kinetic action", "collateral damage", "an incident", "neutralized"): say strike, civilians killed, crash, killed. Do not soften, sanitize, moralize, or add disclaimers; the viewer can judge.
+- Have a point of view where the evidence supports it, and say it plainly ("Geopolitically, this is a disaster for them."). A dry aside is welcome about once per act; never joke about casualties or suffering.
 - First person sparingly, only to guide ("like I mentioned earlier").
 - Round numbers when precision adds nothing ("almost 1,100 feet"); keep the exact figure when the precision is the point. Exact figures also go on screen cards.
 - No unsourced superlatives ("most advanced", "unstoppable"); a superlative needs a claim behind it.
@@ -157,36 +159,48 @@ Claims available:
 ${research.claims.map((c) => `${c.claim_id} [${c.confidence}] ${c.text}`).join('\n')}`;
 }
 
-export function visualPrompt({ style, act, segments, research }) {
-  const types = `REAL: real operational footage from official archives (best evidence, preferred whenever it exists).
-ARCHIVAL: historical footage or photos (development history, old generations, past decisions).
-FLOW: generated cinematic reconstruction. Only when real footage cannot exist or is unavailable (e.g. a missile approaching a ship, an interior, a hypothetical). Never as evidence.
-MAP: animated information map (geography, ranges, routes, zones, formations).
-TECH: animated technical diagram (a process chain or comparison) explaining an invisible system.`;
-  return `You are the visual director. Decide what the viewer sees under each narration segment of Act ${act.act} "${act.name}".
-The editing engine will decide exact durations, cuts and transitions; you decide WHAT is shown and from which word.
+// S3b: one editor pass over the whole script, after every act is written. Acts are written one
+// after another; only here does anyone see the film as a whole.
+export function scriptEditPrompt({ outline, script, research, maxEdits }) {
+  const claimText = new Map(research.claims.map((c) => [c.claim_id, c.text]));
+  const body = script.segments.map((s, i) => {
+    const head = i === 0 || script.segments[i - 1].act !== s.act ? `\n## Act ${s.act} — ${outline.acts.find((a) => a.act === s.act)?.name || ''}\n` : '';
+    return `${head}${s.seg_id} [${s.purpose}/${s.density}/${s.mode}] claims: ${s.claims.join(', ') || '-'}\n${s.text}`;
+  }).join('\n');
+  const used = [...new Set(script.segments.flatMap((s) => s.claims))];
+  return `You are the story editor of a documentary. The narration below was written act by act; you are the first to read it as one film. Make it a film people watch to the end: a hook that grabs in the first seconds, momentum between acts, no repetition, and narration that sounds like a person talking, not a report being read.
 
-Visual types:
-${types}
+Title: ${outline.title}
+Central question: ${outline.central_question}
+Answer (revealed in act 7): ${outline.answer}
 
-Target share of screen time across the whole video: footage (REAL+ARCHIVAL) ${pct(style.visual_mix.footage)}, MAP+TECH ${pct(style.visual_mix.explainer)}, FLOW ${pct(style.visual_mix.flow)}.
+Edit for, in this order:
+1. Hook: the first segments must make the stakes concrete in the first sentence, escalate, open a question the viewer needs answered, and promise the film will answer it. No throat-clearing, no setup before the stakes.
+2. Momentum: every act opens with a turn or a new question and ends with an open loop the next act pays off. Fix act openings that restart from zero and act endings that close everything.
+3. Payoffs: every question or promise raised is answered later. If one is never paid, fix the segment that should pay it (or soften the promise).
+4. Repetition: the same fact, number, image, phrase or sentence opening said twice anywhere in the film. Keep the stronger one, change the other.
+5. Rhythm: three or more segments in a row with the same sentence shape, length or density. Vary them: a long sentence that builds, a short one that lands.
+6. Spoken English: rewrite anything that reads like written prose: nested clauses, passive voice, noun piles, abbreviations a narrator would not say aloud. Use contractions where a person would. It should sound relaxed and enjoyable, never stiff.
+7. Directness: replace euphemisms, vague softeners and moralizing with the plain sourced fact (who, what, how many, what it cost). Keep only the attributions the house rules require.
 
-Rules:
-- Real footage beats generated footage whenever it is plausible that an official archive has it.
-- Never just illustrate the noun being said. Show what the thing does or produces.
-- Platform continuity: when narration names a class/variant/country, the need.platform must name exactly that.
-- A segment with mode INFORMATION about geography, range, routes or numbers usually gets a MAP or TECH beat followed by REAL evidence beats.
-- Alternate: explainer -> footage proving it -> explainer. Do not put two explainers back to back.
-- CINEMATIC segments: REAL or FLOW, wide and atmospheric, few beats.
-- 1-4 beats per segment. from_word is the 0-based index of the word (in the segment's word list) where the beat starts; the first beat starts at 0.
+Hard rules for every edited segment:
+- Keep its meaning and its job in the film. Do not merge, split, add or remove segments; edit text only.
+- Never add a number, date, name, quote or fact that is not already in that segment. You may only use facts from that segment's claims (listed with each segment, texts below).
+- Keep the markup rules: [PAUSE 0.3-1.5], [BEAT] (max 2 per act), *emphasis*; max 55 words per segment; keep about the same length (±25%).
+- Never use greetings, "in this video", calls to action, or the banned phrases from the house rules.
+- At most ${maxEdits} edits. Change only what clearly improves the film; leave good segments alone.
 
-For each beat:
-- visual_type
-- need (for REAL, ARCHIVAL, FLOW): subject, platform (exact class/type or empty), action, mood[], era (decade or year if relevant), query_terms (3-6 short archive search phrases, most specific first, e.g. "USS Gerald R. Ford flight operations", "F/A-18 catapult launch").
-- need is required for every beat. For MAP/TECH it describes the real footage that would prove the explainer (used if the explainer cannot be built).
-- flow is required for every beat; for non-FLOW beats fill it with reconstruction false and empty strings/arrays.
-- motion_json (for MAP or TECH; empty string otherwise) is a JSON string {"template": "...", "data": {...}} using these templates:
-  map: { "title": "", "legend": [{"label":"HOUTHI CONTROLLED","role":"threat"}], "view": {"center":[lon,lat], "scale_from":4, "scale_to":5.5, "pitch":32}, "steps": [ step, ... ] }
+Script:
+${body}
+
+Claim texts:
+${used.map((id) => `${id}: ${claimText.get(id) || '?'}`).join('\n')}
+
+Return {"edits":[{"seg_id":"S-01-01","text":"...","reason":"hook: stakes first"}],"notes":["one line per problem you saw but could not fix by editing text"]}.`;
+}
+
+// Data formats of the motion templates, shared by the visual director and the motion fill-in.
+const MOTION_DOC = `  map: { "title": "", "legend": [{"label":"HOUTHI CONTROLLED","role":"threat"}], "view": {"center":[lon,lat], "scale_from":4, "scale_to":5.5, "pitch":32}, "steps": [ step, ... ] }
        Rendered on graded satellite imagery with a slowly drifting, tilted 3D camera. scale: 1 = whole world, 4 = a region like the Middle East, 20 = a country like Yemen, 80+ = a city or strait.
        step types (2-8 steps, revealed in order, one per narrative idea):
          {"type":"label","lon":0,"lat":0,"text":"SAUDI ARABIA","role":"info"}   big plate naming a country or sea
@@ -205,9 +219,67 @@ For each beat:
        Coordinates must be accurate. Labels uppercase, max 3 words. Only label what the narration mentions. Colors carry meaning: threat red, friendly blue, sensor teal, warning amber.
   process: { "title": "", "steps": [ {"label":"DETECTION","detail":"max 5 words","role":"sensor"}, ... 3-6 steps ] }
   compare: { "title": "", "unit": "", "source": "publisher of the figures", "items": [ {"label":"","value":0,"role":"info"}, ... 2-5 items ] }   (values from claims only)
+  ranking: { "title": "HIGHEST MILITARY SPENDING", "subtitle": "2024", "unit": "US$ BN", "source": "publisher", "highlight": "SAUDI ARABIA", "highlight_role": "warning", "note_label": "% OF GDP", "rows": [ {"label":"UNITED STATES","value":997,"note":"3.4%"}, ... 3-12 rows in rank order ] }
+       where one country or system stands among others; the highlighted row is the one the narration is about. Rows and values from claims only (rank defaults to the row order).
   trend: { "title": "SAUDI OIL PRODUCTION", "subtitle": "2023-PRESENT", "unit": "M BBL/DAY", "kind": "bar|line", "x": ["2023","2024",...], "series": [ {"label":"SAUDI ARABIA","role":"threat","values":[...one per x]} ], "annotation": {"at":"2026","text":"HORMUZ CLOSES"} or null, "source": "publisher" }
        a number changing over time; only when the claims give the values for every x. 1-3 series.
-- flow (for FLOW): { "reconstruction": true if it depicts a specific real event/place/hardware, "composition": "", "camera": "", "lighting": "", "motion": "", "constraints": ["key hardware facts that must be visually correct"] }
+`;
+
+// S6c: shots that found no footage get a map or chart that explains their line, before Flow is
+// considered. Data only from the claims listed with each shot.
+export function motionFillPrompt({ shots }) {
+  const body = shots.map((x) => `### ${x.shot_id} — ${x.duration_s.toFixed(1)} s, between ${x.prev || 'start'} and ${x.next || 'end'}
+Narration: "${x.narration}"
+Wanted footage (not found): ${x.need.subject}${x.need.platform ? ` (${x.need.platform})` : ''}${x.need.action ? `, ${x.need.action}` : ''}
+Claims you may use:
+${x.claims.map((c) => `${c.claim_id}: ${c.text}`).join('\n') || '(none)'}`).join('\n\n');
+  return `You are the motion designer of a documentary. No real footage was found for the shots below. For each one, design an animated map or chart that makes its narration line clear and interesting to watch, like a top explainer channel would: a map when the line is about a place, route, distance or territory; a ranking, compare or trend chart, or a callout/pie/icon grid on a map, when it is about a number; a process when it is about how something works.
+Rules:
+- Every number, label value and data point must come from that shot's claims. Never invent or estimate one. Coordinates of real places are fine.
+- If nothing in the line can be shown honestly as a map or chart (pure atmosphere, emotion, an action that must be seen), return motion null; that shot will be reconstructed instead.
+- Keep it readable in the time the shot lasts: about one map step or chart item per 1.5 seconds.
+- Do not repeat the template of the neighbouring shots when another one fits.
+
+Templates (motion = {"template": "...", "data": {...}}):
+${MOTION_DOC}
+${body}
+
+Return {"shots":[{"shot_id":"...","motion":{"template":"...","data":{...}} or null,"reason":"..."}]}.`;
+}
+
+export function visualPrompt({ style, act, segments, research }) {
+  const types = `REAL: real operational footage from official archives (best evidence, preferred whenever it exists).
+ARCHIVAL: historical footage or photos: development history, past decisions, and official photos of named leaders, signings, meetings, crowds and events (government press photos are public domain).
+FLOW: generated cinematic reconstruction. The last resort: only for what can neither be filmed nor be shown with a map or chart (e.g. a missile approaching a ship, an interior, a hypothetical). Never as evidence.
+MAP: animated information map (geography, ranges, routes, zones, formations, numbers tied to places).
+TECH: animated chart or diagram: a process chain, a comparison, a trend over time, a ranking table.`;
+  return `You are the visual director. Decide what the viewer sees under each narration segment of Act ${act.act} "${act.name}".
+The editing engine will decide exact durations, cuts and transitions; you decide WHAT is shown and from which word.
+
+Visual types:
+${types}
+
+Target share of screen time across the whole video: footage (REAL+ARCHIVAL) ${pct(style.visual_mix.footage)}, MAP+TECH ${pct(style.visual_mix.explainer)}, FLOW ${pct(style.visual_mix.flow)}.
+
+Rules:
+- Real footage beats generated footage whenever it is plausible that an official archive has it.
+- Never just illustrate the noun being said. Show what the thing does or produces.
+- Platform continuity: when narration names a class/variant/country, the need.platform must name exactly that.
+- A segment with mode INFORMATION about geography, range, routes or numbers usually gets a MAP or TECH beat followed by REAL evidence beats.
+- Alternate: explainer -> footage proving it -> explainer. Do not put two explainers back to back.
+- Be as rich in motion as a top explainer channel: roughly a third of the film is maps and charts. Every key number gets a visual that makes its scale felt: ranking (where it stands among others), compare (two to five things side by side), trend (how it changed), or a callout, pie or icon grid on the map next to the place it belongs to. Every place, route or distance the narration mentions gets a map.
+- Vary the graphics: not the same template twice in a row, and across an act use several kinds (map steps, ranking, compare, trend, process).
+- Prefer, in order: real footage or photos, then a map or chart that explains the line, and only then FLOW.
+- CINEMATIC segments: REAL or FLOW, wide and atmospheric, few beats.
+- 1-4 beats per segment. from_word is the 0-based index of the word (in the segment's word list) where the beat starts; the first beat starts at 0.
+
+For each beat:
+- visual_type
+- need (for REAL, ARCHIVAL, FLOW): subject, platform (exact class/type or empty), action, mood[], era (decade or year if relevant), query_terms (3-6 short archive search phrases, most specific first, e.g. "USS Gerald R. Ford flight operations", "F/A-18 catapult launch").
+- need is required for every beat. For MAP/TECH it describes the real footage that would prove the explainer (used if the explainer cannot be built).
+- flow is required for every beat; for non-FLOW beats fill it with reconstruction false and empty strings/arrays.
+- motion_json (for MAP or TECH; empty string otherwise) is a JSON string {"template": "...", "data": {...}} using these templates:
+${MOTION_DOC}- flow (for FLOW): { "reconstruction": true if it depicts a specific real event/place/hardware, "composition": "", "camera": "", "lighting": "", "motion": "", "constraints": ["key hardware facts that must be visually correct"] }
 - claims: claim_ids the beat visualises (for MAP/TECH numbers).
 
 Narration segments (word lists are 0-indexed):
@@ -231,9 +303,43 @@ Check, strictly:
 Verdict approved only if nothing would make a knowledgeable viewer doubt the shot. Use approved_with_trim when only the start or end is bad and give the usable fraction range.`;
 }
 
-export function footageReviewPrompt({ need, asset, frames }) {
-  return `You are the footage researcher of a documentary. Before archive footage is cut into the film, you check every shot of the source clip.
-The images above are ${frames} frames, one from the middle of each shot of the source clip, in order: image 1 = shot 1, image 2 = shot 2, ...
+// S6a: plan the footage before anything is downloaded. Text metadata only.
+export function assetPlanPrompt({ groups }) {
+  const fmtDur = (d) => (d ? `${Math.floor(d / 60)}:${String(Math.round(d % 60)).padStart(2, '0')}` : '?');
+  const blocks = groups.map((g) => {
+    const lens = g.shots.map((s) => s.duration_s);
+    const cands = g.candidates.map((x) => {
+      const c = x.c;
+      const meta = [`${c.source.toUpperCase()} ${c.kind}`, c.kind === 'video' ? fmtDur(c.duration_s) : '', c.year || '', c.height ? `${c.height}p` : ''].filter(Boolean).join(' · ');
+      const desc = String(c.description || '').replace(/\s+/g, ' ').slice(0, 220);
+      const tags = (c.tags || []).slice(0, 8).join(', ');
+      return `${x.cid} | ${meta} | "${c.title}"${desc ? ` — ${desc}` : ''}${tags ? ` [tags: ${tags}]` : ''}`;
+    }).join('\n');
+    return `### ${g.id} — act ${g.act} · ${g.shots.length} shot(s) of ${Math.min(...lens).toFixed(1)}-${Math.max(...lens).toFixed(1)} s · pick up to ${g.wanted + 1} clip(s), best first
+Narration here: "${g.narration}"
+Visual need: subject "${g.need.subject}"; platform "${g.need.platform || 'any'}"; action "${g.need.action || '-'}"; era "${g.need.era || 'any'}"
+Candidates:
+${cands || '(none found by the first search)'}`;
+  }).join('\n\n');
+  return `You are the footage planner of a documentary. Nothing has been downloaded yet. Every download costs minutes and every clip you pick is later checked frame by frame, so pick only clips whose metadata shows they contain what each moment of the film needs. A wrong pick wastes time; an empty pick is better than a wrong one.
+
+For each group below, choose the candidate clips to download, best first:
+- Hardware accuracy first: the named platform (aircraft type, ship class, variant) must be stated in the title, description or tags. A different type, class or variant is never acceptable, even if it looks similar. With platform "any", the subject and action decide.
+- Prefer raw B-roll of the actual activity (takeoff, launch, underway, refuelling, loading, maintenance, firing, flyover). Short clips (under about 5 minutes) usually hold the cleanest shots. Prefer HD and the right era when one is given.
+- Avoid press briefings, interviews, speeches, ceremonies, award or promotion events, news packages and reports, highlight reels and compilations with titles and music, slideshows, animations and graphics (unless the need asks for them), and clips about something else that only mention the platform.
+- Candidates marked "image" are photos. They are good for people, leaders, signings, meetings, crowds, events, places and hardware, and are shown with a slow push-in. Prefer video for action; pick a photo as a backup, or first when it clearly shows the moment better.
+- One clip can hold several usable shots, so pick only as many as needed (up to the number shown). The same clip may be picked for several groups when it fits all of them.
+- look_for: in a few words, which moment to cut from that clip for this narration (for example "wide takeoff, gear retracting").
+- If no candidate fits, return picks [] and better_query: one precise archive search query of at most 6 words that would find the right footage (DVIDS, NASA, National Archives). Otherwise better_query "".
+
+${blocks}
+
+Return {"groups":[{"group":"G1","picks":[{"id":"c3","look_for":"..."}],"better_query":""}, ...]} with one entry per group.`;
+}
+
+export function footageReviewPrompt({ need, asset, frames, cols = frames, purpose = '' }) {
+  return `You are the footage researcher of a documentary. Before archive footage is cut into the film, you check every usable shot of the source clip.
+The image above is a contact sheet of ${frames} frames in a grid of ${cols} column(s), read left to right, top to bottom: frame 1 is top-left, frame ${Math.min(cols, frames)} ends the first row. Each frame is the middle of one shot of the source clip, in time order.
 
 Source: ${asset.source.toUpperCase()} — "${asset.title}"${asset.description ? `\nSource caption: ${asset.description.slice(0, 500)}` : ''}
 
@@ -241,9 +347,9 @@ The narration at this point needs:
 - subject: ${need.subject || '-'}
 - platform: ${need.platform || '(any, generic)'}
 - action: ${need.action || '-'}
-- era: ${need.era || '-'}
+- era: ${need.era || '-'}${purpose ? `\n- planned use: ${purpose}` : ''}
 
-For every image return index (1-based), relevance and defects.
+For every frame return index (1-based), relevance and defects.
 relevance:
   3 = shows exactly this platform/subject doing this action (or something that clearly proves the narration)
   2 = the right platform/subject, different action or angle, still a good fit

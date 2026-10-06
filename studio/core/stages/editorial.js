@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CONFIDENCE, DENSITIES, MODES, PURPOSES, TONES, Outline, Research, Script, Topics } from '../contracts.js';
-import { houseRules, outlinePrompt, researchExtractPrompt, researchPrompt, scriptActPrompt, topicsPrompt } from '../prompts.js';
+import { houseRules, outlinePrompt, researchExtractPrompt, researchPrompt, scriptActPrompt, scriptEditPrompt, topicsPrompt } from '../prompts.js';
 import { actTargets } from '../style.js';
 import { countWords, nowIso, round, stripMarkup } from '../util.js';
 
@@ -156,11 +156,14 @@ export function scriptWordBudget(style, brief) {
   return Math.round(minutes * style.narration.wpm * share);
 }
 
-export async function runScript({ llm, style, brief, research, outline, maxAttempts = 3 }) {
+// checkpoint: { get(act) -> segments | null, set(act, segments) } keeps finished acts across a retry.
+export async function runScript({ llm, style, brief, research, outline, maxAttempts = 3, checkpoint = null }) {
   const total = scriptWordBudget(style, brief);
   const segments = [];
   for (const act of style.acts) {
     const budget = Math.round(total * act.share);
+    const saved = checkpoint?.get(act.act);
+    if (saved) { segments.push(...saved); continue; }
     const previousText = segments.map((s) => stripMarkup(s.text)).join(' ').split(/\s+/).slice(-900).join(' ');
     let feedback = '';
     let accepted;
@@ -181,9 +184,86 @@ export async function runScript({ llm, style, brief, research, outline, maxAttem
       feedback = `\n\nYour previous attempt was rejected by the automated editor for these reasons. Rewrite the whole act fixing all of them:\n${problems.map((p) => `- ${p.msg}`).join('\n')}`;
     }
     segments.push(...accepted);
+    checkpoint?.set(act.act, accepted);
   }
   const words = segments.reduce((n, s) => n + countWords(s.text), 0);
   return Script.parse({ version: 1, title: outline.title, words, est_duration_s: Math.round((words / style.narration.wpm) * 60), segments });
+}
+
+// ---------- S3b whole-script edit ----------
+
+const EditOut = z.object({
+  edits: z.array(z.object({ seg_id: z.string(), text: z.string(), reason: z.string().default('') })).default([]),
+  notes: z.array(z.string()).default([]),
+});
+
+const numbersIn = (t) => (stripMarkup(t).match(/\d[\d,.]*\d|\d/g) || []).map((n) => n.replace(/,/g, '').replace(/\.$/, ''));
+// Capitalized words that are not the first word of a sentence: names, programs, places.
+const namesIn = (t) => {
+  const out = [];
+  for (const sentence of stripMarkup(t).split(/(?<=[.?!:;—])\s+/)) {
+    sentence.split(/\s+/).slice(1).forEach((w) => { const m = w.match(/^["'(]?([A-Z][A-Za-z0-9-]+)/); if (m && !/^(I|I'm|I've|I'd)$/.test(m[1])) out.push(m[1]); });
+  }
+  return out;
+};
+
+// One editor pass over the finished script. Edits that add facts, numbers or names, break the
+// markup or length rules, or make an act fail its lint are dropped; the rest are applied.
+export async function runScriptEdit({ llm, style, brief, research, outline, script, maxEdits = 30 }) {
+  const out = await llm.json({ stage: 'script_edit', schema: EditOut, system: houseRules(style), prompt: scriptEditPrompt({ outline, script, research, maxEdits }) });
+  const byId = new Map(script.segments.map((x) => [x.seg_id, x]));
+  const claimText = new Map(research.claims.map((c) => [c.claim_id, c.text]));
+  const applied = [];
+  const rejected = [];
+  const next = new Map();
+  for (const e of out.edits.slice(0, maxEdits)) {
+    const seg = byId.get(e.seg_id);
+    const why = (() => {
+      if (!seg) return 'unknown segment';
+      if (next.has(e.seg_id)) return 'edited twice';
+      const text = e.text.trim();
+      if (!text || text === seg.text) return 'no change';
+      const lower = stripMarkup(text).toLowerCase();
+      const banned = style.narration.banned_phrases.find((b) => lower.includes(b));
+      if (banned) return `banned phrase "${banned}"`;
+      const words = countWords(text);
+      if (words > 60) return `${words} words`;
+      if (Math.abs(words - countWords(seg.text)) > Math.max(6, countWords(seg.text) * 0.35)) return 'length changed too much';
+      if (/\[(?!PAUSE \d(\.\d+)?\]|BEAT\]|TONE: (quiet|normal|firm)\])[^\]]*\]/.test(text)) return 'invalid markup';
+      const allowedNums = new Set([...numbersIn(seg.text), ...seg.claims.flatMap((c) => numbersIn(claimText.get(c) || ''))]);
+      const newNum = numbersIn(text).find((n) => !allowedNums.has(n));
+      if (newNum) return `new number ${newNum}`;
+      const allowedNames = new Set([...namesIn(seg.text), ...seg.claims.flatMap((c) => stripMarkup(claimText.get(c) || '').split(/\s+/).map((w) => w.replace(/[^A-Za-z0-9-]/g, ''))), ...outline.title.split(/\s+/).map((w) => w.replace(/[^A-Za-z0-9-]/g, ''))]);
+      const newName = namesIn(text).find((n) => !allowedNames.has(n));
+      if (newName) return `new name ${newName}`;
+      return '';
+    })();
+    if (why) { rejected.push({ seg_id: e.seg_id, why }); continue; }
+    next.set(e.seg_id, { ...seg, text: e.text.trim() });
+    applied.push({ seg_id: e.seg_id, reason: e.reason, before: seg.text, after: e.text.trim() });
+  }
+  // An act whose edits introduce lint problems keeps its original text.
+  const total = scriptWordBudget(style, brief);
+  for (const act of style.acts) {
+    const ids = applied.filter((a) => byId.get(a.seg_id).act === act.act).map((a) => a.seg_id);
+    if (!ids.length) continue;
+    const lintOf = (segs) => lintAct(segs, { style, research, budget: Math.round(total * act.share), actNo: act.act });
+    const before = lintOf(script.segments.filter((x) => x.act === act.act));
+    const after = lintOf(script.segments.filter((x) => x.act === act.act).map((x) => next.get(x.seg_id) || x));
+    // Only problems the edits introduce count (the same kind of problem, numbers aside).
+    const kind = (p) => p.msg.replace(/\d+/g, '#');
+    const had = new Set(before.map(kind));
+    const introduced = after.filter((p) => !had.has(kind(p)));
+    if (introduced.length || after.length > before.length) {
+      for (const id of ids) { next.delete(id); rejected.push({ seg_id: id, why: `act ${act.act} would fail lint: ${(introduced.length ? introduced : after).map((p) => p.msg).join('; ').slice(0, 200)}` }); }
+    }
+  }
+  const segments = script.segments.map((x) => next.get(x.seg_id) || x);
+  const words = segments.reduce((n, x) => n + countWords(x.text), 0);
+  return {
+    script: Script.parse({ ...script, version: (script.version || 1) + 1, words, est_duration_s: Math.round((words / style.narration.wpm) * 60), segments }),
+    report: { applied: applied.filter((a) => next.has(a.seg_id)), rejected, notes: out.notes },
+  };
 }
 
 const HEDGES = /\b(reportedly|according to|analysts (?:say|believe|report|estimate)|by (?:some|one|analysts'?) (?:estimates?|accounts?)|by estimate|figures vary|it is said|some sources|is said to)\b/gi;

@@ -20,10 +20,15 @@ export function loadConfig(overrides = {}) {
     llm: {
       provider: env.STUDIO_LLM_PROVIDER || 'anthropic',
       model: env.STUDIO_LLM_MODEL || 'claude-opus-5-5',
+      // Light model for mechanical stages (footage planning/review, Flow QC, search queries).
+      // Direct API: Sonnet by default. Behind a proxy set STUDIO_LLM_MODEL_LIGHT to its Sonnet id
+      // (9router: e.g. cc/claude-sonnet-4-6); unset there means the main model everywhere.
+      lightModel: env.STUDIO_LLM_MODEL_LIGHT === 'none' ? '' : (env.STUDIO_LLM_MODEL_LIGHT || (env.ANTHROPIC_BASE_URL ? '' : 'claude-sonnet-5-5')),
+      lightStages: env.STUDIO_LLM_LIGHT_STAGES ? list(env.STUDIO_LLM_LIGHT_STAGES) : null,
       // stage -> effort. Writing/reasoning stages get more effort than mechanical ones.
       effort: {
         topics: 'high', research: 'high', outline: 'high', script: 'xhigh',
-        visual: 'high', flowqc: 'medium', footage: 'medium', review: 'high', rank: 'low',
+        visual: 'high', flowqc: 'medium', flow_spec: 'medium', footage: 'medium', asset_plan: 'medium', review: 'high', script_edit: 'xhigh', rank: 'low',
       },
       researchMaxSearches: Number(env.STUDIO_RESEARCH_MAX_SEARCHES || 30),
     },
@@ -33,6 +38,9 @@ export function loadConfig(overrides = {}) {
       url: env.NINE_ROUTER_BASE_URL?.replace(/\/v1\/?$/, '') || env.ANTHROPIC_BASE_URL?.replace(/\/v1\/?$/, '') || '',
       key: env.NINE_ROUTER_API_KEY || env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN || '',
       model: env.STUDIO_SEARCH_MODEL || '',
+      // 9router /v1/web/fetch provider for reading pages (tavily, jina, firecrawl, exa). Defaults to the
+      // search provider when it can also fetch; "none" reads pages directly.
+      fetchModel: env.STUDIO_FETCH_MODEL === 'none' ? '' : (env.STUDIO_FETCH_MODEL || (/^(tavily|jina|firecrawl|exa)/.test(env.STUDIO_SEARCH_MODEL || '') ? env.STUDIO_SEARCH_MODEL : '')),
     },
 
     voice: {
@@ -84,6 +92,14 @@ export function loadConfig(overrides = {}) {
       sceneScanMaxSeconds: Number(env.STUDIO_ASSET_SCENE_SCAN_S || 300),
       preferredHeight: Number(env.STUDIO_ASSET_PREFERRED_HEIGHT || 1080),
       minHeight: Number(env.STUDIO_ASSET_MIN_HEIGHT || 720),
+      // Planning: clips downloaded per video (0 = 1.5x the clips the footage shots need, at least 6), candidates the
+      // planner reads per need, clips planned per need, and shots one clip is expected to give.
+      maxDownloads: Number(env.STUDIO_ASSET_MAX_DOWNLOADS || 0),
+      candidatesPerNeed: Number(env.STUDIO_ASSET_CANDIDATES || 10),
+      clipsPerNeed: Number(env.STUDIO_ASSET_CLIPS_PER_NEED || 4),
+      shotsPerClip: Number(env.STUDIO_ASSET_SHOTS_PER_CLIP || 3),
+      // Wall-clock budget for the whole asset stage; past it nothing new is downloaded or reviewed.
+      timeBudgetMin: Number(env.STUDIO_ASSET_TIME_BUDGET_MIN || 30),
     },
 
     render: {

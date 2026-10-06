@@ -111,6 +111,7 @@ const providers = {
     }
     const res = await fetch(`${baseUrl}/v1/audio/speech`, {
       method: 'POST',
+      signal: AbortSignal.timeout(240000),
       headers: {
         'Authorization': `Bearer ${key}`,
         'Content-Type': 'application/json',
@@ -143,6 +144,7 @@ const providers = {
     if (!key || !voiceId) throw new Error('voice: ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID are required');
     const text = pieces.map((p) => (p.pause ? `<break time="${p.pause.toFixed(1)}s" />` : applyPron(p.text, segment.pron))).join(' ');
     const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps?output_format=mp3_44100_128`, {
+      signal: AbortSignal.timeout(180000),
       method: 'POST',
       headers: { 'xi-api-key': key, 'content-type': 'application/json' },
       body: JSON.stringify({

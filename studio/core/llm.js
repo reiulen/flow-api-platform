@@ -14,10 +14,32 @@ export function createLlm(config) {
 
 class RefusalError extends Error {}
 
+// Writing and judgement (topics, outline, script, story editor, visual director, editorial review)
+// run on the main model. Reading and checking run on the light model when one is set: research
+// (query planning, reading sources into notes, extracting claims), footage planning and review,
+// motion fill-ins, Flow QC and platform features. If the light model is unavailable, everything
+// falls back to the main model for the rest of the run.
+export const LIGHT_STAGES = new Set(['research', 'research-plan', 'research-gaps', 'research-notes', 'asset_plan', 'footage', 'motion_fill', 'flowqc', 'flow_spec', 'rank']);
+
 function createAnthropicLlm(config) {
   const client = new Anthropic({ maxRetries: 4 });
   const model = config.llm.model;
-  const effortFor = (stage) => config.llm.effort[stage] || 'high';
+  let lightModel = config.llm.lightModel || '';
+  const lightStages = config.llm.lightStages ? new Set(config.llm.lightStages) : LIGHT_STAGES;
+  const modelFor = (stage) => (lightModel && lightStages.has(stage) ? lightModel : model);
+  const effortFor = (stage) => config.llm.effort[stage] || config.llm.effort[stage.split('-')[0]] || 'high';
+  // A light model the endpoint does not know is dropped once, not retried on every call.
+  async function streamWithFallback(opts, stage) {
+    try {
+      return await client.beta.messages.stream(opts).finalMessage();
+    } catch (err) {
+      const unknownModel = opts.model === lightModel && /model|not[_ ]found|invalid/i.test(err.message) && [400, 404].includes(err.status);
+      if (!unknownModel) throw err;
+      console.log(`[llm] light model ${lightModel} unavailable (${err.message.slice(0, 100)}); using ${model} for ${stage} and every later light stage`);
+      lightModel = '';
+      return client.beta.messages.stream({ ...opts, model }).finalMessage();
+    }
+  }
   // Large stable system prompts (style rules) are cached across the many calls of a batch.
   const system = (text) => [{ type: 'text', text, cache_control: { type: 'ephemeral', ttl: '1h' } }];
 
@@ -38,43 +60,38 @@ function createAnthropicLlm(config) {
       const finalPrompt = isProxy
         ? `${prompt}\n\nIMPORTANT: You MUST return ONLY a valid JSON object strictly matching this schema:\n${JSON.stringify(format.schema, null, 2)}\nOutput pure JSON without any markdown formatting, preamble, or conversational commentary.`
         : prompt;
-
-      const opts = {
-        model,
-        max_tokens: maxTokens,
-        system: system(sys),
-        output_config: { effort: effortFor(stage), format },
-        messages: [{ role: 'user', content: content(finalPrompt, images) }],
-      };
-      if (!isProxy) {
-        opts.betas = ['server-side-fallback-2026-07-01'];
-        opts.fallbacks = 'default';
-      }
-      const stream = client.beta.messages.stream(opts);
-      const response = await stream.finalMessage();
-      if (response.stop_reason === 'refusal') throw new RefusalError(`${stage}: model declined (${response.stop_details?.category || 'unknown'})`);
-      if (response.stop_reason === 'max_tokens') throw new Error(`${stage}: output hit max_tokens`);
-      const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-        if (fence) {
-          try { data = JSON.parse(fence[1].trim()); } catch {}
+      const messages = [{ role: 'user', content: content(finalPrompt, images) }];
+      // One repair turn: an invalid reply is shown back with the exact problem, instead of failing
+      // (and retrying) the whole stage.
+      let problem = '';
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const opts = {
+          model: modelFor(stage),
+          max_tokens: maxTokens,
+          system: system(sys),
+          // The schema still constrains the output, but without the SDK's parse step: a reply that
+          // misses the schema must reach the repair turn below, not throw inside the SDK.
+          output_config: { effort: effortFor(stage), format: { type: format.type, schema: format.schema } },
+          messages,
+        };
+        if (!isProxy) {
+          opts.betas = ['server-side-fallback-2026-07-01'];
+          opts.fallbacks = 'default';
         }
-        if (!data) {
-          const first = text.indexOf('{');
-          const last = text.lastIndexOf('}');
-          if (first !== -1 && last !== -1) {
-            try { data = JSON.parse(text.slice(first, last + 1)); } catch {}
-          }
+        const response = await streamWithFallback(opts, stage);
+        if (response.stop_reason === 'refusal') throw new RefusalError(`${stage}: model declined (${response.stop_details?.category || 'unknown'})`);
+        if (response.stop_reason === 'max_tokens') throw new Error(`${stage}: output hit max_tokens`);
+        const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+        const data = parseJsonLoose(text);
+        if (data === undefined) problem = `the reply is not valid JSON (${text.slice(0, 80)})`;
+        else {
+          const parsed = schema.safeParse(data);
+          if (parsed.success) return parsed.data;
+          problem = `the reply failed validation: ${parsed.error.issues.slice(0, 8).map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ')}`;
         }
-        if (!data) throw new Error(`${stage}: response is not valid JSON (${text.slice(0, 100)})`);
+        messages.push({ role: 'assistant', content: text || '{}' }, { role: 'user', content: `That reply cannot be used: ${problem}. Reply again with the complete, corrected JSON object only.` });
       }
-      const parsed = schema.safeParse(data);
-      if (!parsed.success) throw new Error(`${stage}: response failed validation: ${parsed.error.issues.slice(0, 5).map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
-      return parsed.data;
+      throw new Error(`${stage}: ${problem}`);
     },
 
     async research({ stage, system: sys, prompt, maxSearches = 30 }) {
@@ -83,7 +100,7 @@ function createAnthropicLlm(config) {
       // Never research from model memory alone; the documentary's facts must trace to real sources.
       if (isProxy) {
         if (!searchConfigured(config)) throw new Error(`${stage}: web search is not configured for the proxy; set STUDIO_SEARCH_MODEL (a search provider enabled in 9router)`);
-        return searchResearch({ config, json: llm.json, write: (s, p) => writeText(s, p, stage), stage, system: sys, prompt, maxPages: maxSearches });
+        return searchResearch({ config, json: llm.json, write: (s, p) => writeText(s, p, `${stage}-notes`), stage, system: sys, prompt, maxPages: maxSearches });
       }
       const tools = isProxy ? [] : [
         { type: 'web_search_20260209', name: 'web_search', max_uses: maxSearches },
@@ -93,7 +110,7 @@ function createAnthropicLlm(config) {
       let final;
       for (let turn = 0; turn < 8; turn++) {
         const opts = {
-          model,
+          model: modelFor(stage),
           max_tokens: 64000,
           system: system(sys),
           output_config: { effort: effortFor(stage) },
@@ -104,8 +121,7 @@ function createAnthropicLlm(config) {
           opts.betas = ['server-side-fallback-2026-07-01'];
           opts.fallbacks = 'default';
         }
-        const stream = client.beta.messages.stream(opts);
-        final = await stream.finalMessage();
+        final = await streamWithFallback(opts, stage);
         if (final.stop_reason !== 'pause_turn') break;
         messages.push({ role: 'assistant', content: final.content });
       }
@@ -126,13 +142,23 @@ function createAnthropicLlm(config) {
 
   // Plain text completion through the proxy (no tools, no proxy-incompatible options).
   async function writeText(sys, prompt, stage) {
-    const stream = client.messages.stream({ model, max_tokens: 32000, system: system(sys), messages: [{ role: 'user', content: prompt }] });
-    const final = await stream.finalMessage();
+    const final = await streamWithFallback({ model: modelFor(stage), max_tokens: 32000, system: system(sys), messages: [{ role: 'user', content: prompt }] }, stage);
     if (final.stop_reason === 'refusal') throw new RefusalError(`${stage}: model declined`);
     return final.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
   }
 
   return llm;
+}
+
+// JSON from a reply that may carry code fences or stray prose around it; undefined when there is none.
+export function parseJsonLoose(text) {
+  try { return JSON.parse(text); } catch {}
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence) { try { return JSON.parse(fence[1].trim()); } catch {} }
+  const first = text.indexOf('{');
+  const last = text.lastIndexOf('}');
+  if (first !== -1 && last > first) { try { return JSON.parse(text.slice(first, last + 1)); } catch {} }
+  return undefined;
 }
 
 // Deterministic provider for tests and dry runs. `responders[stage](args)` returns the object.

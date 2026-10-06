@@ -10,7 +10,7 @@ export const TONES = ['quiet', 'normal', 'firm'];
 export const CONFIDENCE = ['confirmed', 'reported', 'estimated', 'disputed'];
 export const TRANSITIONS = ['cut', 'dissolve_short', 'dissolve', 'dissolve_slow', 'fade_black', 'match_cut'];
 export const LICENSES = ['public_domain', 'open_commercial', 'stock_licensed', 'share_alike', 'non_commercial', 'editorial_only', 'fair_use_candidate', 'unknown'];
-export const MOTION_TEMPLATES = ['map', 'process', 'compare', 'stat', 'chapter', 'title', 'label'];
+export const MOTION_TEMPLATES = ['map', 'process', 'compare', 'trend', 'ranking', 'stat', 'chapter', 'title', 'label'];
 
 const id = z.string().min(1);
 

@@ -130,6 +130,11 @@ Hasil QC ditulis di `flow_results.json`: `approved`, `approved_with_trim` (beser
 
 Batas regenerate: maks **3 putaran per shot**. Setelah itu shot diganti tipe visualnya (`TECH`, `MAP`, atau footage lain) atau dibawa ke manusia.
 
+Supaya putaran tidak terbuang:
+
+- **Ciri platform sebelum generate pertama.** Shot yang menyebut platform tapi belum punya `subject_constraints` (misalnya shot footage yang jatuh ke Flow) mendapat 2–5 ciri pembeda platform itu (jumlah dan letak mesin, bentuk ekor, sisi island, dan sebagainya), ditulis sekali dengan bantuan checklist genre lalu disimpan di `assets/platform-constraints.json`. Video berikutnya memakai ciri yang sama, jadi penggambaran hardware konsisten di seluruh channel.
+- **Retry membawa koreksi.** Masalah yang ditemukan QC pada percobaan yang ditolak dimasukkan ke prompt percobaan berikutnya ("The previous attempt was rejected. It must not happen again: ..."), jadi retry bukan lemparan dadu yang sama.
+
 ## 8. Budget
 
 Setiap proyek mencatat `flow_budget` di `brief.json`:

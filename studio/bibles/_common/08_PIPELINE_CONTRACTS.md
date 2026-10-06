@@ -2,7 +2,7 @@
 
 Tahap-tahap pipeline, human gate, dan format data antar tahap. Setiap tahap hanya membaca file dari tahap sebelumnya dan menulis file miliknya sendiri. Dengan begitu tahap bisa diulang, diganti, atau dikerjakan manual tanpa merusak tahap lain.
 
-Kontrak ini diimplementasikan sebagai skema zod di `studio/core/contracts.js`, dan urutan tahapnya di `studio/core/pipeline.js`. Kalau dokumen dan kode berbeda, **kode yang benar** dan dokumen ini wajib diperbarui. Nama file di implementasi: `visual_beats.json` (S5a), `shotlist.plan.json` (S5b), `shotlist.assets.json` + `asset_report.json` (S6), `shotlist.flow.json` + `flow_results.json` (S8), `shotlist.final.json` (S9), `render.json` (S11).
+Kontrak ini diimplementasikan sebagai skema zod di `studio/core/contracts.js`, dan urutan tahapnya di `studio/core/pipeline.js`. Kalau dokumen dan kode berbeda, **kode yang benar** dan dokumen ini wajib diperbarui. Nama file di implementasi: `visual_beats.json` (S5a), `shotlist.plan.json` (S5b), `asset_plan.json` + `shotlist.assets.json` + `asset_report.json` (S6), `shotlist.flow.json` + `flow_results.json` (S8), `shotlist.final.json` (S9), `render.json` (S11).
 
 ## 1. Alur
 
@@ -11,7 +11,7 @@ S0  Topic Scout        → topics.json
 G1  ── manusia memilih topik ──
 S1  Deep Research      → research.json
 S2  Story Architect    → outline.json
-S3  Scriptwriter       → script.json
+S3  Scriptwriter       → script.json (+ script.draft.json, script_edits.json)
 G2  ── manusia menyetujui script ──
 S4  Voice              → vo/ + vo_timing.json
 S5  Visual Director    → shotlist.json
@@ -326,7 +326,7 @@ Timeline final yang bisa langsung dirender:
 
 `nat`: audio asli klip ikut di-mix sebagai natural sound (hanya footage REAL/ARCHIVAL/NEWS). Shot tanpa media ditutup oleh klip tetangganya: pertama dengan sisa waktu bersih di shot sumber yang sama (tidak pernah melewati cut di sumber), lalu dengan perlambatan maks sampai 0,7×. Durasi dissolve dibatasi oleh sisa waktu bersih klip sebelumnya.
 
-`asset_report.json` per shot: `status`, `asset_id`, `source`, `score` (teks), `relevance` (0–3 dari review visual), `reviewed`, `license`. `credits.json` berisi `footage`, `audio` (musik dan ambience dari library), dan `sources`.
+`asset_plan.json`: `totals` (`groups`, `candidates_considered`, `planned`, `downloaded_new`, `reviewed`, `used_assets`, `unused_fetched`) dan `groups[]` per kebutuhan visual (`group`, `seq_ids`, `need`, `narration`, `shots`, `wanted`, `planned_by`, `better_query`, `picks[]` dengan `source`, `source_id`, `title`, `look_for`, `fetched`, `used`). `asset_report.json` per shot: `status` (`found`, `fallback_motion`, `fallback_flow`, `none`), `asset_id`, `source`, `score` (teks), `relevance` (0–3 dari review visual), `reviewed`, `license`, `group`, plus `totals` yang sama. `credits.json` berisi `footage`, `audio` (musik dan ambience dari library), dan `sources`.
 
 ### audio_plan.json (S10)
 
@@ -377,4 +377,9 @@ Aturan untuk kedua mode:
 
 ## 6. LLM per tahap
 
-Setiap tahap memanggil LLM lewat satu antarmuka provider yang bisa diganti per tahap (konfigurasi di `.env`). Default awal: tahap yang paling butuh penalaran dan tulisan panjang (S1, S2, S3, S12) memakai model terkuat yang tersedia, dan tahap mekanis (S6 ranking, S7 perakitan prompt) memakai model yang lebih murah.
+Semua tahap memanggil LLM lewat satu antarmuka (`core/llm.js`).
+
+- **Model utama** (`STUDIO_LLM_MODEL`) untuk tulisan dan penilaian: topik, riset, outline, naskah, editor naskah, visual director, review editorial.
+- **Model ringan** (`STUDIO_LLM_MODEL_LIGHT`) untuk tugas mekanis yang hasilnya bisa dicek: perencanaan dan review footage (`asset_plan`, `footage`), ciri platform dan QC Flow (`flow_spec`, `flowqc`), serta rencana query riset. Lewat API langsung default-nya Sonnet. Lewat 9router isi dengan id Sonnet-nya. Kalau model ringan tidak dikenal endpoint, semua tahap otomatis kembali ke model utama.
+- **Perbaikan sekali:** balasan JSON yang tidak valid dikembalikan sekali ke model bersama masalahnya sebelum tahap dianggap gagal.
+- **Checkpoint per act:** naskah dan visual director menyimpan act yang sudah jadi (`script.acts.json`, `visual.acts.json`), jadi retry hanya mengulang act yang belum jadi.

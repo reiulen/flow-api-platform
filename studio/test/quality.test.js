@@ -50,7 +50,7 @@ test('usable shots: defects are dropped, strongest relevance and taste come firs
   assert.equal(usableShots(asset, null, 1).length, 3);
 });
 
-test('footage review looks at every shot once per need and falls back when the model fails', async () => {
+test('footage review shows every usable shot once per need on one contact sheet and falls back when the model fails', async () => {
   const dir = tmpDir('review');
   const config = loadConfig({ assetsDir: dir, testMode: false });
   const style = loadStyle(config, 'military');
@@ -65,12 +65,16 @@ test('footage review looks at every shot once per need and falls back when the m
     let images = 0;
     const llm = { async json(args) { calls += 1; images = args.images.length; assert.equal(args.stage, 'footage'); return { frames: [{ index: 1, relevance: 3, defects: [], taste: 2 }, { index: 2, relevance: 1, defects: ['Slate'], taste: 0 }] }; } };
     const review = await reviewAsset({ db, llm, asset, need, style, config });
-    assert.equal(images, 2);
+    assert.equal(images, 1, 'both shots on one contact sheet');
     assert.deepEqual(review.map((r) => [r.relevance, r.defects]), [[3, []], [1, ['slate']]]);
     // Cached per asset and need.
     await reviewAsset({ db, llm, asset, need, style, config });
     assert.equal(calls, 1);
     assert.ok(db.review('A-test', needKey(need)));
+    // A clip with no shot long enough for the need is rejected without a model call.
+    const before = calls;
+    assert.deepEqual(await reviewAsset({ db, llm, asset, need: { ...need, action: 'climb' }, minLen: 6, style, config }), []);
+    assert.equal(calls, before);
     // A failing model leaves the decision to text matching.
     const broken = { async json() { throw new Error('proxy down'); } };
     assert.equal(await reviewAsset({ db, llm: broken, asset, need: { ...need, action: 'landing' }, style, config }), null);

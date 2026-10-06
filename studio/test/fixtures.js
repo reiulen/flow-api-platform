@@ -83,6 +83,27 @@ export function mockResponders() {
         })),
       };
     },
+    // Story editor: tightens the opening of the first segment.
+    script_edit: ({ prompt }) => {
+      const m = prompt.match(/^(S-01-01) \[[^\]]*\] claims: [^\n]*\n([^\n]+)/m);
+      return { edits: m ? [{ seg_id: m[1], text: `Now, ${m[2].charAt(0).toLowerCase()}${m[2].slice(1)}`, reason: 'hook' }] : [], notes: [] };
+    },
+    // Motion fill-in: a small chart built from the first claim number of each shot.
+    motion_fill: ({ prompt }) => ({
+      shots: prompt.split('\n### ').slice(1).map((block) => {
+        const id = block.match(/^(\S+)/)[1];
+        const n = Number((block.match(/Fact number (\d+)/) || [])[1]);
+        return { shot_id: id, motion: n ? { template: 'compare', data: { title: 'Scale', items: [{ label: 'A', value: n }, { label: 'B', value: n }] } } : null, reason: 'test' };
+      }),
+    }),
+    // Footage planner: the first candidates of every group, as many as the prompt allows.
+    asset_plan: ({ prompt }) => ({
+      groups: prompt.split('\n### ').slice(1).map((block) => ({
+        group: block.match(/^(G\d+)/)[1],
+        picks: [...block.matchAll(/^(c\d+) \|/gm)].slice(0, Number(block.match(/pick up to (\d+)/)[1])).map((m) => ({ id: m[1], look_for: 'wide shot' })),
+        better_query: '',
+      })),
+    }),
     review: () => ({ findings: [{ pass: 3, level: 'minor', ref: 'S-03-02', detail: 'slightly repetitive', fix: 'vary the sentence' }] }),
   };
 }

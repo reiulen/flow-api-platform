@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<script src="vendor/gsap.min.js"></script>
+<link rel="stylesheet" href="common.css" />
+<style>
+  #stage { position: absolute; inset: 0; transform-origin: 50% 50%; }
+  #table { position: absolute; left: 50%; top: 250px; width: 1240px; transform: translateX(-50%); }
+  .row { display: grid; grid-template-columns: 90px 1fr 300px 220px; align-items: center; height: 58px; padding: 0 28px; margin-bottom: 6px; background: rgba(255,255,255,0.045); position: relative; overflow: hidden; }
+  .row.head { height: 40px; background: none; margin-bottom: 10px; }
+  .row.head div { font-family: "Inter Tight", sans-serif; font-weight: 500; font-size: 16px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+  .row .hl { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0); }
+  .row .rank, .row .name, .row .val, .row .note { position: relative; font-family: "Oswald", sans-serif; font-weight: 600; text-transform: uppercase; color: #fff; }
+  .row .rank { font-size: 28px; color: rgba(255,255,255,0.55); }
+  .row .name { font-size: 30px; letter-spacing: 0.05em; }
+  .row .val { font-size: 32px; text-align: right; }
+  .row .note { font-size: 22px; text-align: right; color: rgba(255,255,255,0.6); font-weight: 500; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="__DURATION__">
+  <section id="scene" class="clip" data-start="0" data-duration="__DURATION__">
+    <div class="chart-bg"></div><div class="chart-grid"></div>
+    <div id="stage">
+      <div id="title" class="chart-title"></div><div id="sub" class="chart-sub"></div>
+      <div id="table"></div>
+    </div>
+    <div id="source" class="chart-source"></div>
+  </section>
+</div>
+<script>
+  const P = __PAYLOAD__;
+  const D = P.duration;
+  const root = document.getElementById('root');
+  for (const [k, v] of Object.entries(P.colors)) root.style.setProperty(`--${k}`, v);
+  const data = P.data;
+  document.getElementById('title').textContent = data.title || '';
+  document.getElementById('sub').textContent = data.subtitle || '';
+  document.getElementById('source').textContent = data.source ? `Source: ${data.source}` : '';
+  const fmt = (v) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString('en-US') : (Math.round(v * 10) / 10).toString());
+  const table = document.getElementById('table');
+  const hasNotes = data.rows.some((r) => r.note);
+  const head = document.createElement('div');
+  head.className = 'row head';
+  head.innerHTML = `<div>#</div><div></div><div style="text-align:right"></div><div style="text-align:right"></div>`;
+  head.children[2].textContent = data.unit || '';
+  head.children[3].textContent = hasNotes ? (data.note_label || '') : '';
+  table.appendChild(head);
+  const hlColor = P.colors[data.highlight_role] || P.colors.warning || '#e8a33d';
+  const rows = data.rows.map((r, i) => {
+    const el = document.createElement('div');
+    el.className = 'row';
+    el.innerHTML = '<div class="hl"></div><div class="rank"></div><div class="name"></div><div class="val"></div><div class="note"></div>';
+    el.querySelector('.hl').style.background = hlColor;
+    el.querySelector('.rank').textContent = String(r.rank ?? i + 1);
+    el.querySelector('.name').textContent = r.label;
+    el.querySelector('.val').textContent = fmt(r.value);
+    el.querySelector('.note').textContent = r.note || '';
+    table.appendChild(el);
+    return el;
+  });
+  const hi = data.rows.findIndex((r) => r.label.toLowerCase() === String(data.highlight || '').toLowerCase());
+  const tl = gsap.timeline({ paused: true });
+  tl.fromTo('#title', { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.15)
+    .fromTo('#sub', { opacity: 0 }, { opacity: 1, duration: 0.5 }, 0.35)
+    .fromTo('#source', { opacity: 0 }, { opacity: 1, duration: 0.5 }, 0.6)
+    .fromTo(head, { opacity: 0 }, { opacity: 1, duration: 0.4 }, 0.5);
+  // Rows arrive top-down, then the row the narration is about lights up and the frame leans in.
+  const step = Math.min(0.18, (D * 0.35) / Math.max(1, rows.length));
+  rows.forEach((el, i) => tl.fromTo(el, { opacity: 0, x: -24 }, { opacity: 1, x: 0, duration: 0.45, ease: 'power2.out' }, 0.7 + i * step));
+  const lit = 0.9 + rows.length * step + 0.3;
+  if (hi >= 0) {
+    const r = rows[hi];
+    tl.to(r.querySelector('.hl'), { scaleX: 1, duration: 0.6, ease: 'power2.inOut' }, lit)
+      .to([r.querySelector('.name'), r.querySelector('.val')], { color: '#0a0a0b', duration: 0.3 }, lit + 0.3)
+      .to([r.querySelector('.rank'), r.querySelector('.note')], { color: 'rgba(0,0,0,0.75)', duration: 0.3 }, lit + 0.3)
+      .to(r, { boxShadow: `0 0 30px ${hlColor}88`, duration: 0.6 }, lit);
+    const rowY = 250 + 50 + hi * 64;
+    tl.fromTo('#stage', { scale: 1, y: 0 }, { scale: 1.12, y: (540 - rowY) * 0.12, duration: Math.max(1, D - lit), ease: 'sine.inOut' }, lit);
+  } else {
+    tl.fromTo('#stage', { scale: 1 }, { scale: 1.05, duration: D, ease: 'none' }, 0);
+  }
+  tl.to({}, { duration: 0 }, D);
+  document.fonts.ready.then(() => { window.__timelines['main'] = tl; });
+</script>
+</body>
+</html>

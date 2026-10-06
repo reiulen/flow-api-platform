@@ -39,6 +39,11 @@ export const MotionData = {
   map: z.object({ title: z.string().default(''), legend: z.array(z.object({ label: z.string().max(32), role: Role })).max(4).default([]), view: z.object({ center: LonLat, scale_from: z.number().default(1), scale_to: z.number().default(3), pitch: z.number().min(0).max(50).optional(), bearing: z.number().min(-60).max(60).optional() }), steps: z.array(MapStep).min(1).max(10) }),
   process: z.object({ title: z.string().default(''), steps: z.array(z.object({ label: z.string().max(24), detail: z.string().max(48).default(''), role: Role.default('info') })).min(2).max(6) }),
   compare: z.object({ title: z.string().default(''), unit: z.string().default(''), source: z.string().max(90).default(''), items: z.array(z.object({ label: z.string().max(24), value: z.number(), role: Role.default('info') })).min(2).max(6) }),
+  ranking: z.object({
+    title: z.string().max(60), subtitle: z.string().max(40).default(''), unit: z.string().max(24).default(''), source: z.string().max(90).default(''),
+    highlight: z.string().max(28).default(''), highlight_role: Role.default('warning'), note_label: z.string().max(16).default(''),
+    rows: z.array(z.object({ rank: z.number().int().positive().optional(), label: z.string().max(28), value: z.number(), note: z.string().max(16).default('') })).min(3).max(12),
+  }),
   trend: z.object({
     title: z.string().max(40), subtitle: z.string().max(40).default(''), unit: z.string().max(16).default(''), kind: z.enum(['bar', 'line']).default('line'),
     x: z.array(z.string().max(10)).min(3).max(40),
@@ -61,12 +66,17 @@ export function parseMotion(json) {
   }
 }
 
-export async function runVisualDirector({ llm, style, script, research }) {
+// checkpoint: { get(act), set(act, out) } keeps finished acts across a retry of this stage.
+export async function runVisualDirector({ llm, style, script, research, checkpoint = null }) {
   const result = { cold_open: [], segments: {} };
   for (const act of style.acts) {
     const segments = script.segments.filter((s) => s.act === act.act).map((s) => ({ ...s, words: spokenWords(s.text) }));
     if (!segments.length) continue;
-    const out = await llm.json({ stage: 'visual', schema: ActVisualOut, system: houseRules(style), prompt: visualPrompt({ style, act, segments, research }) });
+    let out = checkpoint?.get(act.act);
+    if (!out) {
+      out = await llm.json({ stage: 'visual', schema: ActVisualOut, system: houseRules(style), prompt: visualPrompt({ style, act, segments, research }) });
+      checkpoint?.set(act.act, out);
+    }
     if (act.act === 1) result.cold_open = out.cold_open.slice(0, 3);
     for (const seg of segments) {
       const got = out.segments.find((s) => s.seg_id === seg.seg_id);
