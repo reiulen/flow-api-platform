@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
-import { assetPlanPrompt, footageReviewPrompt, houseRules } from '../prompts.js';
+import { assetPlanPrompt, footageReviewPrompt, houseRules, motionFillPrompt } from '../prompts.js';
+import { parseMotion } from './visual.js';
 import { adapters, download } from '../sources.js';
 import { ensureDir, ffprobe, hash, mapLimit, nowIso, round, run, stripMarkup } from '../util.js';
 
@@ -308,9 +309,10 @@ const ck = (c) => `${c.source}:${c.source_id}`;
 const sharpEnough = (asset) => !asset.height || asset.height >= 360;
 
 // S6: plan the footage, download only what the plan names, review each clip once, cut ranges.
-export async function runAssets({ project, shotList, script = null, style, config, flowAvailable, llm = null, log = () => {} }) {
+export async function runAssets({ project, shotList, script = null, research = null, style, config, flowAvailable, llm = null, log = () => {} }) {
   const db = new AssetDb(config);
   const report = [];
+  let motionAdded = 0;
   const used = new Map(); // asset_id -> [{in,out}]
   let flowAdded = 0;
   const flowBudget = Math.floor((shotList.duration_s * style.visual_mix.flow[1]) / style.flow.duration_s);
@@ -319,12 +321,17 @@ export async function runAssets({ project, shotList, script = null, style, confi
   try {
     const groups = groupNeeds(shotList, script, config);
     const label = (list) => list.map((x, k) => ({ ...x, cid: `c${k + 1}` }));
-    const search = async (g, queries) => {
-      let found = await findCandidates({ db, config, style, need: g.need, kind: 'video', queries });
-      if (g.archival && found.length < 3) found = [...found, ...(await findCandidates({ db, config, style, need: g.need, kind: 'image', queries }))];
-      return found;
+    // Videos first; a few public-domain photos ride along as backups (leaders, signings, crowds,
+    // hardware), shown with a slow push-in like the reference films do.
+    const perNeed = config.assets?.candidatesPerNeed || 10;
+    const search = async (g, queries = queriesFor(g.need)) => {
+      const videos = await findCandidates({ db, config, style, need: g.need, kind: 'video', queries });
+      const seen = new Set(videos.map((x) => ck(x.c)));
+      const photos = (await findCandidates({ db, config, style, need: g.need, kind: 'image', queries: queries.slice(0, 2), limit: 8 }))
+        .filter((x) => x.c.kind === 'image' && !seen.has(ck(x.c))).slice(0, g.archival ? 4 : 3);
+      return [...videos.slice(0, perNeed - photos.length), ...photos];
     };
-    await mapLimit(groups, 4, async (g) => { g.candidates = label((await search(g)).slice(0, config.assets?.candidatesPerNeed || 10)); g.considered = g.candidates.length; });
+    await mapLimit(groups, 4, async (g) => { g.candidates = label(await search(g)); g.considered = g.candidates.length; });
 
     // Plan; groups the planner found nothing for get one targeted search and one more plan.
     const plan = await planGroups({ llm, style, groups, log });
@@ -390,6 +397,7 @@ export async function runAssets({ project, shotList, script = null, style, confi
     await mapLimit(groups, 3, async (g) => { for (let n = 0; n < g.wanted; n++) if (!(await loadNext(g))) break; });
 
     const reviewing = Boolean(llm) && !config.testMode;
+    const unfilled = [];
     const groupOf = new Map(groups.flatMap((g) => g.shots.map((s) => [s.shot_id, g])));
     for (let i = 0; i < shotList.shots.length; i++) {
       const shot = shotList.shots[i];
@@ -413,6 +421,24 @@ export async function runAssets({ project, shotList, script = null, style, confi
         shot.asset_range = pick.range;
         db.recordUse(pick.asset.asset_id, project.id, shot.shot_id, pick.range);
         report.push({ shot_id: shot.shot_id, status: 'found', asset_id: pick.asset.asset_id, source: pick.asset.source, score: pick.score, relevance: pick.relevance, reviewed: pick.reviewed, license: pick.asset.license, group: g.id });
+        continue;
+      }
+      unfilled.push({ shot, g });
+    }
+
+    // No footage: a map or chart that explains the line comes before Flow, Flow before nothing.
+    const motions = await motionFill({ llm, style, research, script, shotList, items: unfilled, log });
+    let explainerSeconds = shotList.shots.filter((x) => ['MAP', 'TECH'].includes(x.visual_type)).reduce((n, x) => n + x.duration_s, 0);
+    const explainerCap = shotList.duration_s * (style.visual_mix.explainer[1] + 0.05);
+    for (const { shot, g } of unfilled) {
+      const spec = motions.get(shot.shot_id);
+      if (spec && explainerSeconds + shot.duration_s <= explainerCap) {
+        shot.visual_type = spec.template === 'map' ? 'MAP' : 'TECH';
+        shot.shot_class = 'explainer';
+        shot.motion = spec;
+        explainerSeconds += shot.duration_s;
+        motionAdded += 1;
+        report.push({ shot_id: shot.shot_id, status: 'fallback_motion', template: spec.template, group: g.id });
         continue;
       }
       if (flowAvailable && flowShots < flowBudget) {
@@ -453,10 +479,81 @@ export async function runAssets({ project, shotList, script = null, style, confi
       })),
     };
     log(`assets: ${groups.length} needs, ${planOut.totals.candidates_considered} candidates read, ${planOut.totals.planned} planned, ${downloads} downloaded, ${planOut.totals.reviewed} reviewed, ${usedAssets.size} used, ${planOut.totals.minutes} min`);
-    return { shotList, plan: planOut, report: { generated_at: nowIso(), flow_added: flowAdded, totals: planOut.totals, shots: report } };
+    planOut.totals.motion_added = motionAdded;
+    planOut.totals.flow_added = flowAdded;
+    return { shotList, plan: planOut, report: { generated_at: nowIso(), flow_added: flowAdded, motion_added: motionAdded, totals: planOut.totals, shots: report } };
   } finally {
     db.close();
   }
+}
+
+// ---------- motion fill-in ----------
+
+const FillOut = z.object({ shots: z.array(z.object({ shot_id: z.string(), motion: z.any().nullable().default(null), reason: z.string().default('') })) });
+const numbersOf = (text) => (String(text).match(/\d[\d,]*(?:\.\d+)?/g) || []).map((n) => Number(n.replace(/,/g, '')));
+
+// The numbers a motion graphic states as facts (not coordinates, zoom levels or icon counts).
+export function factNumbers(spec) {
+  const d = spec.data;
+  const out = [];
+  const add = (v) => { if (typeof v === 'number') out.push(v); else out.push(...numbersOf(v ?? '')); };
+  if (spec.template === 'compare') d.items.forEach((i) => add(i.value));
+  if (spec.template === 'ranking') d.rows.forEach((r) => { add(r.value); add(r.note); });
+  if (spec.template === 'trend') d.series.forEach((x) => x.values.forEach(add));
+  if (spec.template === 'process') d.steps.forEach((x) => { add(x.label); add(x.detail); });
+  if (spec.template === 'map') {
+    for (const st of d.steps) {
+      if (['callout', 'pie', 'icons'].includes(st.type)) { add(st.value); add(st.label); }
+      if (st.type === 'pie') add(st.percent);
+      if (st.type === 'ring') { add(st.radius_km); add(st.label); }
+    }
+  }
+  return out;
+}
+
+// One call per batch of unfilled shots; a spec is kept only if it parses and every number it shows
+// appears in the claims of that shot's narration (or of its act).
+async function motionFill({ llm, style, research, script, shotList, items, log }) {
+  const out = new Map();
+  if (!llm || !items.length || !research || !script) return out;
+  const segs = new Map(script.segments.map((x) => [x.seg_id, x]));
+  const claimById = new Map(research.claims.map((c) => [c.claim_id, c]));
+  const actClaims = new Map();
+  for (const x of script.segments) actClaims.set(x.act, [...new Set([...(actClaims.get(x.act) || []), ...x.claims])]);
+  const index = new Map(shotList.shots.map((x, i) => [x.shot_id, i]));
+  const describe = (x) => (x ? (x.motion ? `${x.visual_type} ${x.motion.template}` : x.visual_type) : '');
+  const prepared = items.map(({ shot }) => {
+    const own = shot.seg_refs.flatMap((id) => segs.get(id)?.claims || []);
+    const ids = [...new Set([...own, ...(actClaims.get(shot.act) || [])])].slice(0, 24);
+    const i = index.get(shot.shot_id);
+    return {
+      shot_id: shot.shot_id, duration_s: shot.duration_s, need: shot.need,
+      narration: shot.seg_refs.map((id) => stripMarkup(segs.get(id)?.text || '')).join(' ').slice(0, 400),
+      prev: describe(shotList.shots[i - 1]), next: describe(shotList.shots[i + 1]),
+      claims: ids.map((id) => claimById.get(id)).filter(Boolean),
+    };
+  });
+  for (let i = 0; i < prepared.length; i += 12) {
+    const batch = prepared.slice(i, i + 12);
+    let res;
+    try {
+      res = await llm.json({ stage: 'motion_fill', schema: FillOut, system: houseRules(style), prompt: motionFillPrompt({ shots: batch }), maxTokens: 12000 });
+    } catch (err) {
+      log(`motion fill-in failed for ${batch.length} shots: ${err.message.slice(0, 160)}`);
+      continue;
+    }
+    for (const r of res.shots) {
+      const x = batch.find((b) => b.shot_id === r.shot_id);
+      if (!x || !r.motion) continue;
+      const spec = parseMotion(typeof r.motion === 'string' ? r.motion : JSON.stringify(r.motion));
+      if (!spec) { log(`motion fill-in ${r.shot_id}: invalid ${r.motion?.template || ''} data`); continue; }
+      const allowed = x.claims.flatMap((c) => numbersOf(c.text));
+      const invented = factNumbers(spec).filter((n) => !allowed.some((a) => Math.abs(a - n) < 1e-9));
+      if (invented.length) { log(`motion fill-in ${r.shot_id}: numbers not in claims (${invented.slice(0, 3).join(', ')}), dropped`); continue; }
+      out.set(r.shot_id, spec);
+    }
+  }
+  return out;
 }
 
 // Picks a clean source range from the clips already fetched for this need: one continuous shot

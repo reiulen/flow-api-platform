@@ -220,6 +220,10 @@ function* walk(dir) {
 export async function download(c, resolved, dest, config = {}) {
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   if (resolved.file) { fs.copyFileSync(resolved.file, dest); return dest; }
+  if (resolved.synthetic && /\.(jpe?g|png)$/i.test(dest)) {
+    await run('ffmpeg', ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=1920x1080:rate=1:duration=1', '-frames:v', '1', dest]);
+    return dest;
+  }
   if (resolved.synthetic) {
     const color = ['0x2b3a4a', '0x4a3b2b', '0x2b4a3b'][dest.length % 3];
     await run('ffmpeg', ['-y', '-v', 'error', '-f', 'lavfi', '-i', `testsrc2=size=1280x720:rate=30:duration=8,eq=saturation=0.4`, '-f', 'lavfi', '-i', `color=c=${color}:size=1280x720:rate=30:duration=8`, '-f', 'lavfi', '-i', 'testsrc=size=1280x720:rate=30:duration=8',

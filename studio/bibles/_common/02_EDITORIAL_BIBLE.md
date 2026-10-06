@@ -52,6 +52,8 @@ Aturan:
 
 ## 4. Narasi
 
+Gayanya santai dan enak didengar, seperti teman pintar yang menjelaskan sesuatu yang menarik: kontraksi, menyapa penonton dengan "you", pertanyaan retoris, sesekali komentar kering. Tidak kaku, tidak formal, tidak akademis.
+
 ### Nada
 
 Penjelas yang cerdas, yakin, dan conversational, dengan sudut pandang yang jelas. Rujukannya narasi RealLifeLore (lihat `references/00_REFERENCE_ANALYSIS.md` §Narasi): seperti teman pintar yang sudah membaca semua laporan dan memahami petanya. Bukan salesman, bukan hype, tidak mengglorifikasi.
@@ -153,5 +155,8 @@ Tingkat keyakinan menentukan **apa yang boleh diklaim**, bukan berapa banyak kat
 
 ## 6. Hal sensitif
 
+Prinsipnya: **lugas, tidak menyensor.** Fakta yang bersumber disebut terang-terangan, termasuk yang tidak nyaman: siapa pelakunya, siapa yang kena, berapa korban, apa yang gagal, berapa biayanya, siapa yang untung. Sebut nama. Tidak ada eufemisme ("kinetic action", "collateral damage", "insiden"), tidak ada moralisasi, tidak ada disclaimer tambahan. Batasnya hanya ini:
+
 - Konflik yang sedang berlangsung: hindari footage korban yang bisa dikenali, jangan memihak tanpa sumber, dan bedakan klaim pihak yang berperang dari fakta yang terverifikasi.
 - Tidak membuat konten yang bisa menjadi panduan operasional serangan, misalnya cara menembus sistem pertahanan tertentu secara spesifik. Kita menjelaskan konsep, bukan menulis instruksi.
+- Tidak mengglorifikasi kekerasan dan tidak bercanda soal korban. Footage tempur dipakai untuk menjelaskan, bukan tontonan.

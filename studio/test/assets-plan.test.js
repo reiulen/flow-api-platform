@@ -19,7 +19,8 @@ test('footage is planned before download: only planned clips are fetched, each r
   adapters.fake = {
     enabled: () => true,
     stock: false,
-    async search(q) {
+    async search(q, cfg, { kind } = {}) {
+      if (kind === 'image') return [];
       searches.push(q);
       const mk = (id, title, description) => ({ kind: 'video', source: 'fake', source_id: id, source_url: 'fake://', title, description, tags: [], license: 'public_domain', credit: 'test', width: 1280, height: 720, duration_s: 24, year: 2021 });
       if (/abrams convoy/i.test(q)) return [mk('abrams', 'M1A2 Abrams convoy B-roll', 'M1 Abrams tanks drive in a convoy')];
@@ -181,6 +182,71 @@ test('narration that names hardware never gets context-only footage', { timeout:
     const status = Object.fromEntries(report.shots.map((r) => [r.shot_id, r.status]));
     assert.equal(status['SH-1'], 'fallback_flow', 'a B-52 line never shows just the base');
     assert.equal(status['SH-2'], 'found', 'a generic line may use context footage');
+  } finally {
+    delete adapters.fake;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('fallback order: video, then photo, then a map or chart from the claims, and Flow last', { timeout: 120000 }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-plan5-'));
+  const config = loadConfig({ assetsDir: dir, testMode: false, disabledSources: [] });
+  const style = structuredClone(loadStyle(config, 'military'));
+  style.assets.source_priority = ['fake'];
+  adapters.fake = {
+    enabled: () => true,
+    stock: false,
+    async search(q, cfg, { kind } = {}) {
+      // Only a photo exists for the signing; nothing at all for the other needs.
+      if (kind === 'image' && /signing/i.test(q)) return [{ kind: 'image', source: 'fake', source_id: 'photo', source_url: 'fake://', title: 'Crown prince signing ceremony with US president', description: 'Official White House photo of the signing', tags: [], license: 'public_domain', credit: 't', height: 1080 }];
+      return [];
+    },
+    async resolve(c) { return { synthetic: true, label: c.title }; },
+  };
+  const calls = {};
+  const llm = {
+    async json({ stage, prompt }) {
+      calls[stage] = (calls[stage] || 0) + 1;
+      if (stage === 'asset_plan') return { groups: [...prompt.matchAll(/^### (G\d+)/gm)].map((m) => { const c = prompt.split(`### ${m[1]}`)[1].split('\n### ')[0].match(/^(c\d+) \|/m); return { group: m[1], picks: c ? [{ id: c[1], look_for: 'the handshake' }] : [], better_query: '' }; }) };
+      if (stage === 'footage') return { frames: [{ index: 1, relevance: 3, defects: [], taste: 2 }] };
+      assert.equal(stage, 'motion_fill');
+      assert.match(prompt, /C-002: Saudi oil exports fell from 7.2 million barrels a day in 2024 to 0.4 million in 2026/);
+      return { shots: [
+        { shot_id: 'SH-2', motion: { template: 'compare', data: { title: 'Saudi oil exports', unit: 'M BBL/DAY', items: [{ label: '2024', value: 7.2 }, { label: '2026', value: 0.4 }] } }, reason: 'numbers' },
+        { shot_id: 'SH-3', motion: { template: 'compare', data: { title: 'Tankers lost', items: [{ label: 'A', value: 9.9 }, { label: 'B', value: 3 }] } }, reason: 'invented' },
+        { shot_id: 'SH-4', motion: null, reason: 'an action that must be seen' },
+      ] };
+    },
+  };
+  const need = (subject, platform = '') => ({ subject, platform, action: '', era: '', mood: [], query_terms: [subject] });
+  const shot = (id, seg, n, start) => ({ shot_id: id, seq_id: `Q-${id}`, act: 2, seg_refs: [seg], start_s: start, duration_s: 4, visual_type: 'REAL', shot_class: 'footage', need: n, transition_in: 'cut' });
+  const shotList = { duration_s: 300, shots: [
+    shot('SH-1', 'S-02-01', need('signing ceremony'), 0),
+    shot('SH-2', 'S-02-02', need('oil tanker at sea'), 4),
+    shot('SH-3', 'S-02-03', need('burning tanker'), 8),
+    shot('SH-4', 'S-02-04', need('missile approaching a tanker'), 12),
+  ] };
+  const script = { segments: [
+    { seg_id: 'S-02-01', act: 2, text: 'Then the deal was signed.', claims: ['C-001'] },
+    { seg_id: 'S-02-02', act: 2, text: 'Exports collapsed.', claims: ['C-002'] },
+    { seg_id: 'S-02-03', act: 2, text: 'Tankers burned.', claims: [] },
+    { seg_id: 'S-02-04', act: 2, text: 'A missile came in low.', claims: [] },
+  ] };
+  const research = { claims: [
+    { claim_id: 'C-001', text: 'The agreement was signed in Riyadh in May 2025.' },
+    { claim_id: 'C-002', text: 'Saudi oil exports fell from 7.2 million barrels a day in 2024 to 0.4 million in 2026.' },
+  ] };
+  try {
+    const { report, shotList: out } = await runAssets({ project: { id: 'P' }, shotList, script, research, style, config, flowAvailable: true, llm });
+    const status = Object.fromEntries(report.shots.map((r) => [r.shot_id, r.status]));
+    assert.equal(status['SH-1'], 'found', 'the photo fills the signing');
+    assert.equal(status['SH-2'], 'fallback_motion', 'a chart from the claims, not Flow');
+    assert.equal(status['SH-3'], 'fallback_flow', 'a chart with invented numbers is dropped');
+    assert.equal(status['SH-4'], 'fallback_flow', 'an action that must be seen is reconstructed');
+    const sh2 = out.shots.find((x) => x.shot_id === 'SH-2');
+    assert.equal(sh2.visual_type, 'TECH');
+    assert.equal(sh2.motion.template, 'compare');
+    assert.equal(calls.motion_fill, 1, 'one call for all unfilled shots');
   } finally {
     delete adapters.fake;
     fs.rmSync(dir, { recursive: true, force: true });

@@ -115,7 +115,7 @@ Prinsipnya: **rencanakan dulu, baru unduh.** Setiap download makan waktu dan set
    - `defects`: `slate`, `text` (caption, lower third, watermark), `talking_head`, `blank`, `poor`, `people`. Shot dengan defect tidak dipakai.
    - `taste` 0–2: kualitas sinematik frame, untuk memilih di antara shot yang sama relevannya.
    Pemilihan mengambil shot `relevance` ≥ 2 dulu, baru ≥ 1. Kalau review gagal, keputusan kembali ke pencocokan teks.
-6. Shot yang tetap tidak terisi jadi Flow (rekonstruksi, berlabel) selama kuota Flow masih ada, atau ditandai `none` dan ditinjau di human gate G3.
+6. **Urutan cadangan: video → foto → motion → Flow.** Perencana juga melihat kandidat foto (foto resmi tokoh, penandatanganan, kerumunan, hardware), yang tampil dengan push-in pelan. Shot yang tetap tidak terisi mendapat peta atau chart yang menjelaskan kalimat narasinya (`motion_fill`, satu panggilan untuk semua shot kosong). Datanya hanya dari klaim narasi atau act-nya, dan grafik dengan angka yang tidak ada di klaim dibuang. Porsi peta dan chart dijaga di bawah batas `visual_mix.explainer` + 5%. Sisanya baru jadi Flow (rekonstruksi, berlabel) selama kuota Flow masih ada, atau ditandai `none` dan ditinjau di G3.
 
 `asset_plan.json` mencatat untuk setiap kelompok: kandidat yang dibaca, klip yang dipilih beserta `look_for`, apakah diunduh, dan apakah terpakai. Bagian `totals` merangkum berapa kandidat dibaca, direncanakan, diunduh, di-review, dan terpakai.
 

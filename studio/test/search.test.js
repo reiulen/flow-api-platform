@@ -94,3 +94,33 @@ test('a re-run reads searches and pages from the disk cache instead of the netwo
     fs.rmSync(assetsDir, { recursive: true, force: true });
   }
 });
+
+test('pages are read through 9router web fetch, with the direct fetch as fallback', async () => {
+  const { readPage } = await import('../core/search.js');
+  const hits = [];
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      if (req.url === '/v1/web/fetch') {
+        const q = JSON.parse(body);
+        hits.push(q);
+        if (q.url.endsWith('/blocked')) { res.writeHead(502); return res.end('upstream failed'); }
+        res.writeHead(200, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ title: 't', content: { format: 'markdown', text: `# Report\n${'Clean markdown text. '.repeat(20)}` } }));
+      }
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end(`<html><p>${'Direct page text. '.repeat(20)}</p></html>`);
+    });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const url = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const config = { search: { url, key: 'k', model: 'tavily', fetchModel: 'tavily' } };
+    assert.match(await readPage(config, `${url}/report`), /^# Report/);
+    assert.deepEqual({ model: hits[0].model, format: hits[0].format }, { model: 'tavily', format: 'markdown' });
+    assert.match(await readPage(config, `${url}/blocked`), /Direct page text/);
+  } finally {
+    server.close();
+  }
+});

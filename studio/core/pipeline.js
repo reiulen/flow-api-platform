@@ -28,7 +28,7 @@ export const STAGES = [
   { id: 'voice', label: 'S4 Voice', inputs: ['script.json'], outputs: ['vo_timing.json'] },
   { id: 'visual', label: 'S5a Visual director', inputs: ['script.json', 'research.json'], outputs: ['visual_beats.json'] },
   { id: 'shotlist', label: 'S5b Editor engine', inputs: ['script.json', 'vo_timing.json', 'visual_beats.json', 'outline.json'], outputs: ['shotlist.plan.json'] },
-  { id: 'assets', label: 'S6 Asset research', inputs: ['shotlist.plan.json', 'script.json'], outputs: ['asset_plan.json', 'shotlist.assets.json', 'asset_report.json'] },
+  { id: 'assets', label: 'S6 Asset research', inputs: ['shotlist.plan.json', 'script.json', 'research.json'], outputs: ['asset_plan.json', 'shotlist.assets.json', 'asset_report.json'] },
   { id: 'G3', gate: true, label: 'G3 Shot plan approval', inputs: ['shotlist.assets.json'] },
   { id: 'flow', label: 'S7-S8 Flow generation', inputs: ['shotlist.assets.json'], outputs: ['shotlist.flow.json'] },
   { id: 'motion', label: 'S9 Motion', inputs: ['shotlist.flow.json'], outputs: ['shotlist.final.json', 'motion_report.json'] },
@@ -257,12 +257,12 @@ const STAGE_RUNNERS = {
   },
 
   async assets({ project, style, config, llm, log }) {
-    const { shotList, report, plan } = await runAssets({ project, shotList: project.read('shotlist.plan.json', ShotList), script: project.read('script.json', Script), style, config, flowAvailable: config.flow.mode !== 'off', llm, log: (m) => log(`[${project.id}] ${m}`) });
+    const { shotList, report, plan } = await runAssets({ project, shotList: project.read('shotlist.plan.json', ShotList), script: project.read('script.json', Script), research: project.read('research.json', Research), style, config, flowAvailable: config.flow.mode !== 'off', llm, log: (m) => log(`[${project.id}] ${m}`) });
     project.write('asset_plan.json', plan);
     project.write('shotlist.assets.json', shotList, ShotList);
     project.write('asset_report.json', report);
     const found = report.shots.filter((s) => s.status === 'found');
-    return { found: found.length, strong: found.filter((s) => s.relevance >= 2).length, weak: found.filter((s) => s.relevance < 2).length, flow_fallback: report.flow_added, missing: report.shots.filter((s) => s.status === 'none').length, downloaded: report.totals.downloaded_new, reviewed: report.totals.reviewed };
+    return { found: found.length, strong: found.filter((s) => s.relevance >= 2).length, weak: found.filter((s) => s.relevance < 2).length, flow_fallback: report.flow_added, motion_fallback: report.motion_added, missing: report.shots.filter((s) => s.status === 'none').length, downloaded: report.totals.downloaded_new, reviewed: report.totals.reviewed };
   },
 
   async flow({ project, style, config, llm }) {

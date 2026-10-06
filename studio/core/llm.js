@@ -14,11 +14,12 @@ export function createLlm(config) {
 
 class RefusalError extends Error {}
 
-// Writing and judgement (topics, research, outline, script, visual director, editorial review) run on
-// the main model. Mechanical stages with a narrow, checkable job run on the light model when one is
-// set: footage planning and review, Flow QC, search-query planning. If the light model is
-// unavailable, everything falls back to the main model for the rest of the run.
-export const LIGHT_STAGES = new Set(['asset_plan', 'footage', 'flowqc', 'flow_spec', 'research-plan', 'research-gaps', 'rank']);
+// Writing and judgement (topics, outline, script, story editor, visual director, editorial review)
+// run on the main model. Reading and checking run on the light model when one is set: research
+// (query planning, reading sources into notes, extracting claims), footage planning and review,
+// motion fill-ins, Flow QC and platform features. If the light model is unavailable, everything
+// falls back to the main model for the rest of the run.
+export const LIGHT_STAGES = new Set(['research', 'research-plan', 'research-gaps', 'research-notes', 'asset_plan', 'footage', 'motion_fill', 'flowqc', 'flow_spec', 'rank']);
 
 function createAnthropicLlm(config) {
   const client = new Anthropic({ maxRetries: 4 });
@@ -99,7 +100,7 @@ function createAnthropicLlm(config) {
       // Never research from model memory alone; the documentary's facts must trace to real sources.
       if (isProxy) {
         if (!searchConfigured(config)) throw new Error(`${stage}: web search is not configured for the proxy; set STUDIO_SEARCH_MODEL (a search provider enabled in 9router)`);
-        return searchResearch({ config, json: llm.json, write: (s, p) => writeText(s, p, stage), stage, system: sys, prompt, maxPages: maxSearches });
+        return searchResearch({ config, json: llm.json, write: (s, p) => writeText(s, p, `${stage}-notes`), stage, system: sys, prompt, maxPages: maxSearches });
       }
       const tools = isProxy ? [] : [
         { type: 'web_search_20260209', name: 'web_search', max_uses: maxSearches },
@@ -109,7 +110,7 @@ function createAnthropicLlm(config) {
       let final;
       for (let turn = 0; turn < 8; turn++) {
         const opts = {
-          model,
+          model: modelFor(stage),
           max_tokens: 64000,
           system: system(sys),
           output_config: { effort: effortFor(stage) },
@@ -141,8 +142,7 @@ function createAnthropicLlm(config) {
 
   // Plain text completion through the proxy (no tools, no proxy-incompatible options).
   async function writeText(sys, prompt, stage) {
-    const stream = client.messages.stream({ model, max_tokens: 32000, system: system(sys), messages: [{ role: 'user', content: prompt }] });
-    const final = await stream.finalMessage();
+    const final = await streamWithFallback({ model: modelFor(stage), max_tokens: 32000, system: system(sys), messages: [{ role: 'user', content: prompt }] }, stage);
     if (final.stop_reason === 'refusal') throw new RefusalError(`${stage}: model declined`);
     return final.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
   }

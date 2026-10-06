@@ -38,6 +38,9 @@ export function loadConfig(overrides = {}) {
       url: env.NINE_ROUTER_BASE_URL?.replace(/\/v1\/?$/, '') || env.ANTHROPIC_BASE_URL?.replace(/\/v1\/?$/, '') || '',
       key: env.NINE_ROUTER_API_KEY || env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN || '',
       model: env.STUDIO_SEARCH_MODEL || '',
+      // 9router /v1/web/fetch provider for reading pages (tavily, jina, firecrawl, exa). Defaults to the
+      // search provider when it can also fetch; "none" reads pages directly.
+      fetchModel: env.STUDIO_FETCH_MODEL === 'none' ? '' : (env.STUDIO_FETCH_MODEL || (/^(tavily|jina|firecrawl|exa)/.test(env.STUDIO_SEARCH_MODEL || '') ? env.STUDIO_SEARCH_MODEL : '')),
     },
 
     voice: {

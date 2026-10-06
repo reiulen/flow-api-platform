@@ -37,6 +37,34 @@ export async function routerSearch(config, query, maxResults = 6) {
   return (body.results || []).map((r) => ({ title: r.title || '', url: r.url, snippet: r.snippet || '', text: r.content?.text || '' }));
 }
 
+// 9router POST /v1/web/fetch: { model: <fetch provider: tavily, jina, firecrawl, exa>, url, format } ->
+// { title, content: { text } }. Clean markdown, and it gets through sites that block plain fetches.
+export async function routerFetch(config, url, maxChars = 12000) {
+  const { url: base, key, fetchModel } = config.search;
+  const res = await fetch(`${base.replace(/\/$/, '')}/v1/web/fetch`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model: fetchModel, url, format: 'markdown', max_characters: maxChars }),
+    signal: AbortSignal.timeout(45000),
+  });
+  if (!res.ok) throw new Error(`web fetch ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const body = await res.json();
+  return String(body.content?.text || body.data?.content?.text || '').slice(0, maxChars);
+}
+
+// Page text for research: 9router web fetch when configured, the direct fetch otherwise or when it fails.
+export async function readPage(config, url, maxChars = 12000) {
+  if (config.search?.fetchModel && config.search.url) {
+    try {
+      const text = await routerFetch(config, url, maxChars);
+      if (text.trim().length > 200) return text;
+    } catch {
+      // fall through to the direct fetch
+    }
+  }
+  return fetchPageText(url, maxChars);
+}
+
 // Readable text of an HTML page, truncated. Returns '' when it cannot be read.
 export async function fetchPageText(url, maxChars = 12000) {
   try {
@@ -72,7 +100,7 @@ export async function searchResearch({ config, json, write, stage, system, promp
         if (r?.url && !pages.has(r.url) && pages.size < cap) pages.set(r.url, r);
       }
     }
-    await Promise.all([...pages.values()].filter((p) => !p.text).map(async (p) => { p.text = (await webCache(config, 'page', p.url, () => fetchPageText(p.url))) || p.snippet; }));
+    await Promise.all([...pages.values()].filter((p) => !p.text).map(async (p) => { p.text = (await webCache(config, 'page', p.url, () => readPage(config, p.url))) || p.snippet; }));
   };
 
   const plan = await json({ stage: `${stage}-plan`, system, schema: QueryPlan, prompt: `${prompt}\n\nYou cannot browse. List the web search queries (up to 10) that will find the best primary and reputable sources for this research. Be specific: program names, official reports, agencies, dates.` });

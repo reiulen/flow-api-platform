@@ -326,7 +326,7 @@ Timeline final yang bisa langsung dirender:
 
 `nat`: audio asli klip ikut di-mix sebagai natural sound (hanya footage REAL/ARCHIVAL/NEWS). Shot tanpa media ditutup oleh klip tetangganya: pertama dengan sisa waktu bersih di shot sumber yang sama (tidak pernah melewati cut di sumber), lalu dengan perlambatan maks sampai 0,7×. Durasi dissolve dibatasi oleh sisa waktu bersih klip sebelumnya.
 
-`asset_plan.json`: `totals` (`groups`, `candidates_considered`, `planned`, `downloaded_new`, `reviewed`, `used_assets`, `unused_fetched`) dan `groups[]` per kebutuhan visual (`group`, `seq_ids`, `need`, `narration`, `shots`, `wanted`, `planned_by`, `better_query`, `picks[]` dengan `source`, `source_id`, `title`, `look_for`, `fetched`, `used`). `asset_report.json` per shot: `status`, `asset_id`, `source`, `score` (teks), `relevance` (0–3 dari review visual), `reviewed`, `license`, `group`, plus `totals` yang sama. `credits.json` berisi `footage`, `audio` (musik dan ambience dari library), dan `sources`.
+`asset_plan.json`: `totals` (`groups`, `candidates_considered`, `planned`, `downloaded_new`, `reviewed`, `used_assets`, `unused_fetched`) dan `groups[]` per kebutuhan visual (`group`, `seq_ids`, `need`, `narration`, `shots`, `wanted`, `planned_by`, `better_query`, `picks[]` dengan `source`, `source_id`, `title`, `look_for`, `fetched`, `used`). `asset_report.json` per shot: `status` (`found`, `fallback_motion`, `fallback_flow`, `none`), `asset_id`, `source`, `score` (teks), `relevance` (0–3 dari review visual), `reviewed`, `license`, `group`, plus `totals` yang sama. `credits.json` berisi `footage`, `audio` (musik dan ambience dari library), dan `sources`.
 
 ### audio_plan.json (S10)
 
