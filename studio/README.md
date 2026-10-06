@@ -51,6 +51,7 @@ npm run test:studio
 | `FLOW_API_KEY`, `STUDIO_FLOW_BASE_URL` | | akses ke Flow API |
 | `DVIDS_API_KEY`, `NARA_API_KEY`, `PEXELS_API_KEY`, `PIXABAY_API_KEY` | | sumber footage (NASA dan Wikimedia tanpa key) |
 | `STUDIO_MAP_PROVIDER`, `MAPTILER_KEY` | `maptiler` kalau key ada, selain itu `gibs` | citra satelit untuk peta: `maptiler`, `gibs` (NASA Blue Marble, sampai zoom 8), `s2cloudless` (Sentinel-2 2016, CC BY), `local` (folder tile sendiri) |
+| `STUDIO_ASSET_MAX_DOWNLOADS`, `STUDIO_ASSET_TIME_BUDGET_MIN` | otomatis, 30 | batas klip yang diunduh dan batas waktu tahap asset. Footage direncanakan dulu (`asset_plan.json`), baru klip yang direncanakan yang diunduh |
 | `CHROME_EXECUTABLE_PATH` | Chrome di Mac | browser untuk render peta |
 | `STUDIO_GATE_G2/G3/G4` | `auto/auto/manual` | `auto` lolos kalau cek otomatis lolos, `manual` selalu menunggu manusia |
 

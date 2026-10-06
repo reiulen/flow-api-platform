@@ -90,6 +90,8 @@ export function loadConfig(overrides = {}) {
       candidatesPerNeed: Number(env.STUDIO_ASSET_CANDIDATES || 10),
       clipsPerNeed: Number(env.STUDIO_ASSET_CLIPS_PER_NEED || 4),
       shotsPerClip: Number(env.STUDIO_ASSET_SHOTS_PER_CLIP || 3),
+      // Wall-clock budget for the whole asset stage; past it nothing new is downloaded or reviewed.
+      timeBudgetMin: Number(env.STUDIO_ASSET_TIME_BUDGET_MIN || 30),
     },
 
     render: {

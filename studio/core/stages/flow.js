@@ -52,6 +52,7 @@ export function flowRequest(shot, style, project, attempt) {
 async function flowCall(config, method, urlPath, body, headers = {}) {
   const res = await fetch(`${config.flow.baseUrl}${urlPath}`, {
     method,
+    signal: AbortSignal.timeout(60000),
     headers: { authorization: `Bearer ${config.flow.apiKey}`, 'content-type': 'application/json', ...headers },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -79,7 +80,7 @@ export async function submitAndWait(config, request) {
 }
 
 async function fetchTo(url, dest) {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(300000) });
   if (!res.ok || !res.body) throw new Error(`flow download ${res.status}`);
   await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(dest));
 }

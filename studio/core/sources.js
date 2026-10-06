@@ -9,7 +9,8 @@ import { run } from './util.js';
 const UA = 'flow-api-platform-studio/0.1 (documentary research)';
 
 async function getJson(url, headers = {}) {
-  const res = await fetch(url, { headers: { 'user-agent': UA, accept: 'application/json', ...headers } });
+  // Archive APIs sometimes hang; a search that does not answer in 25 s is treated as empty.
+  const res = await fetch(url, { headers: { 'user-agent': UA, accept: 'application/json', ...headers }, signal: AbortSignal.timeout(25000) });
   if (!res.ok) throw new Error(`${new URL(url).host} ${res.status}`);
   return res.json();
 }

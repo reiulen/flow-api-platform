@@ -315,6 +315,7 @@ export async function runAssets({ project, shotList, script = null, style, confi
   let flowAdded = 0;
   const flowBudget = Math.floor((shotList.duration_s * style.visual_mix.flow[1]) / style.flow.duration_s);
   let flowShots = shotList.shots.filter((s) => s.visual_type === 'FLOW').length;
+  const started = Date.now();
   try {
     const groups = groupNeeds(shotList, script, config);
     const label = (list) => list.map((x, k) => ({ ...x, cid: `c${k + 1}` }));
@@ -346,12 +347,20 @@ export async function runAssets({ project, shotList, script = null, style, confi
     const budget = config.assets?.maxDownloads || Math.max(6, groups.length, Math.ceil((footageShots / (config.assets?.shotsPerClip || 3)) * 1.5));
     const fetched = new Map(); // key -> Promise<asset|null>
     let downloads = 0;
+    // Time budget: past it, nothing new is downloaded or reviewed; unfilled shots go to Flow or G3.
+    const deadline = Date.now() + (config.assets?.timeBudgetMin || 30) * 60000;
+    let overtime = false;
+    const late = () => {
+      if (Date.now() < deadline) return false;
+      if (!overtime) { overtime = true; log(`assets: time budget of ${config.assets?.timeBudgetMin || 30} min reached; using what is already fetched`); }
+      return true;
+    };
     const fetchAsset = (c) => {
       const k = ck(c);
       if (!fetched.has(k)) {
         const have = db.get(c.source, c.source_id);
         const local = have?.file && fs.existsSync(path.join(config.assetsDir, have.file));
-        if (!local && downloads >= budget) return Promise.resolve(null);
+        if (!local && (downloads >= budget || late())) return Promise.resolve(null);
         if (!local) downloads += 1;
         fetched.set(k, db.materialize(c).catch((err) => { log(`download ${k} failed: ${err.message.slice(0, 120)}`); return null; }));
       }
@@ -361,7 +370,7 @@ export async function runAssets({ project, shotList, script = null, style, confi
     const reviews = new Map(); // asset_id|group -> review
     const reviewFor = async (asset, g, pick) => {
       const k = `${asset.asset_id}|${g.id}`;
-      if (!reviews.has(k)) reviews.set(k, reviewAsset({ db, llm, asset, need: g.need, purpose: pick.look_for, minLen: minLenOf(g), style, config, log }));
+      if (!reviews.has(k)) reviews.set(k, reviewAsset({ db, llm: late() ? null : llm, asset, need: g.need, purpose: pick.look_for, minLen: minLenOf(g), style, config, log }));
       return reviews.get(k);
     };
     const loaded = new Map(); // group id -> [{ asset, review, pick }]
@@ -427,6 +436,8 @@ export async function runAssets({ project, shotList, script = null, style, confi
         planned: groups.reduce((n, g) => n + plan.get(g.id).picks.length, 0),
         downloaded_new: downloads,
         reviewed: [...reviews.keys()].length,
+        minutes: round((Date.now() - started) / 60000, 1),
+        time_budget_reached: overtime,
         used_assets: usedAssets.size,
         unused_fetched: [...loaded.values()].flat().filter((x) => x.asset && !usedAssets.has(x.asset.asset_id)).length,
       },
@@ -440,7 +451,7 @@ export async function runAssets({ project, shotList, script = null, style, confi
         }),
       })),
     };
-    log(`assets: ${groups.length} needs, ${planOut.totals.candidates_considered} candidates read, ${planOut.totals.planned} planned, ${downloads} downloaded, ${planOut.totals.reviewed} reviewed, ${usedAssets.size} used`);
+    log(`assets: ${groups.length} needs, ${planOut.totals.candidates_considered} candidates read, ${planOut.totals.planned} planned, ${downloads} downloaded, ${planOut.totals.reviewed} reviewed, ${usedAssets.size} used, ${planOut.totals.minutes} min`);
     return { shotList, plan: planOut, report: { generated_at: nowIso(), flow_added: flowAdded, totals: planOut.totals, shots: report } };
   } finally {
     db.close();

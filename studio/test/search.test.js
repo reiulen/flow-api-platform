@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { searchResearch, routerSearch } from '../core/search.js';
 
 // Fake 9router: /v1/search returns pages served by the same server.
@@ -70,4 +73,24 @@ test('research lint rejects memory-only research (sources without verified URLs)
   assert.throws(() => lintResearch(invented), /not found by web search/);
   const good = { ...base, sources: [src(1, 'https://a.gov/x')], claims: claims(['SRC-1']) };
   assert.equal(lintResearch(good).claims.length, 20);
+});
+
+test('a re-run reads searches and pages from the disk cache instead of the network', async () => {
+  const { server, seen, url } = await fakeRouter();
+  const assetsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'webcache-'));
+  try {
+    const config = { assetsDir, search: { url, key: 'k', model: 'tavily' } };
+    const json = async ({ stage }) => ({ queries: stage.endsWith('-plan') ? ['q1', 'q2'] : ['q3'] });
+    const write = async () => 'notes';
+    const first = await searchResearch({ config, json, write, stage: 'research', system: 's', prompt: 'p' });
+    const calls = seen.length;
+    server.close();
+    // The router is gone: everything must come from the cache.
+    const again = await searchResearch({ config, json, write, stage: 'research', system: 's', prompt: 'p' });
+    assert.equal(seen.length, calls);
+    assert.deepEqual(again.sources, first.sources);
+  } finally {
+    server.close();
+    fs.rmSync(assetsDir, { recursive: true, force: true });
+  }
 });

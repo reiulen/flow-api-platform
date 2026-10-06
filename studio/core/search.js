@@ -1,9 +1,23 @@
 // Web research for LLM endpoints without server-side web search (e.g. Claude behind 9router).
 // The model plans queries, 9router's /v1/search finds pages, we read them, and the model writes
 // notes that cite only those pages, so every fact in research.json traces back to a real URL.
+import fs from 'node:fs';
+import path from 'node:path';
 import { z } from 'zod';
+import { ensureDir, hash } from './util.js';
 
 const UA = 'flow-api-platform-studio/0.1 (documentary research)';
+
+// Search results and page texts are kept on disk, so a retried or re-run research stage reads
+// them back instead of searching and downloading again. Empty results are not kept.
+async function webCache(config, kind, key, fn) {
+  if (!config.assetsDir) return fn();
+  const file = path.join(ensureDir(path.join(config.assetsDir, 'web-cache', kind)), `${hash(key)}.json`);
+  if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8'));
+  const value = await fn();
+  if (value && (!Array.isArray(value) || value.length)) fs.writeFileSync(file, JSON.stringify(value));
+  return value;
+}
 
 export function searchConfigured(config) {
   return Boolean(config.search.url && config.search.model);
@@ -50,7 +64,7 @@ export async function searchResearch({ config, json, write, stage, system, promp
   const pages = new Map();
   // The first round may only fill part of the budget; otherwise the gap round can never add a page.
   const gather = async (queries, cap) => {
-    const lists = await Promise.all(queries.map((q) => routerSearch(config, q).catch(() => [])));
+    const lists = await Promise.all(queries.map((q) => webCache(config, 'search', `${config.search.model}|${q}`, () => routerSearch(config, q)).catch(() => [])));
     // Round-robin over queries so every query contributes its best results before any query's tail.
     for (let rank = 0; rank < Math.max(0, ...lists.map((l) => l.length)); rank++) {
       for (const list of lists) {
@@ -58,7 +72,7 @@ export async function searchResearch({ config, json, write, stage, system, promp
         if (r?.url && !pages.has(r.url) && pages.size < cap) pages.set(r.url, r);
       }
     }
-    await Promise.all([...pages.values()].filter((p) => !p.text).map(async (p) => { p.text = (await fetchPageText(p.url)) || p.snippet; }));
+    await Promise.all([...pages.values()].filter((p) => !p.text).map(async (p) => { p.text = (await webCache(config, 'page', p.url, () => fetchPageText(p.url))) || p.snippet; }));
   };
 
   const plan = await json({ stage: `${stage}-plan`, system, schema: QueryPlan, prompt: `${prompt}\n\nYou cannot browse. List the web search queries (up to 10) that will find the best primary and reputable sources for this research. Be specific: program names, official reports, agencies, dates.` });

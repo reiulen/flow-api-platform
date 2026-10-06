@@ -125,3 +125,29 @@ test('without a planner the best text matches are planned, still within the down
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('past the time budget nothing new is downloaded and the stage still finishes', { timeout: 60000 }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-plan3-'));
+  const config = loadConfig({ assetsDir: dir, testMode: false, disabledSources: [], assets: { timeBudgetMin: -1 } });
+  const style = structuredClone(loadStyle(config, 'military'));
+  style.assets.source_priority = ['fake'];
+  adapters.fake = {
+    enabled: () => true,
+    stock: false,
+    async search() { return [{ kind: 'video', source: 'fake', source_id: 'x', source_url: 'fake://', title: 'B-52H takeoff', description: '', tags: [], license: 'public_domain', credit: 't', height: 720, duration_s: 24 }]; },
+    async resolve(c) { return { synthetic: true, label: c.title }; },
+  };
+  const need = { subject: 'takeoff', platform: 'B-52H', action: 'takeoff', era: '', mood: [], query_terms: [] };
+  const shots = [{ shot_id: 'SH-1', seq_id: 'Q-1', act: 1, seg_refs: [], start_s: 0, duration_s: 3, visual_type: 'REAL', need, transition_in: 'cut' }];
+  const logs = [];
+  try {
+    const { plan, report } = await runAssets({ project: { id: 'P' }, shotList: { duration_s: 300, shots }, style, config, flowAvailable: true, llm: null, log: (m) => logs.push(m) });
+    assert.equal(plan.totals.downloaded_new, 0);
+    assert.ok(plan.totals.time_budget_reached);
+    assert.equal(report.shots[0].status, 'fallback_flow');
+    assert.ok(logs.some((l) => /time budget/.test(l)));
+  } finally {
+    delete adapters.fake;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
