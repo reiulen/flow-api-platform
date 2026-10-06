@@ -6,7 +6,7 @@ import path from 'node:path';
 import { Brief, Outline, Research, Script, ShotList, VoTiming } from './contracts.js';
 import { createLlm } from './llm.js';
 import { Project } from './project.js';
-import { lintResearch, runOutline, runResearch, runScript, scriptWordBudget } from './stages/editorial.js';
+import { lintResearch, runOutline, runResearch, runScript, runScriptEdit, scriptWordBudget } from './stages/editorial.js';
 import { runVoice } from './stages/voice.js';
 import { runVisualDirector } from './stages/visual.js';
 import { buildShotList, pacingMetrics } from './engine/editor.js';
@@ -174,6 +174,20 @@ export function setGate(config, projectId, gate, decision, note = '') {
   return state.gates[gate];
 }
 
+// Per-act results of a multi-call stage, kept on disk so a retry of the stage only redoes the acts
+// that did not finish. The key changes whenever the stage's inputs change.
+function actCheckpoint(project, name, inputs) {
+  const file = project.file(name);
+  const key = hash(inputs);
+  const saved = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null;
+  const acts = saved?.key === key ? saved.acts : {};
+  return {
+    get: (act) => acts[act] || null,
+    set: (act, value) => { acts[act] = value; fs.writeFileSync(file, JSON.stringify({ key, acts })); },
+    clear: () => fs.rmSync(file, { force: true }),
+  };
+}
+
 // ---------- stage runners ----------
 
 const STAGE_RUNNERS = {
@@ -191,9 +205,24 @@ const STAGE_RUNNERS = {
     return { title: outline.title, beats: outline.acts.reduce((n, a) => n + a.beats.length, 0) };
   },
 
-  async script({ project, llm, style }) {
-    const script = await runScript({ llm, style, brief: project.brief, research: project.read('research.json', Research), outline: project.read('outline.json', Outline) });
+  async script({ project, llm, style, log }) {
+    const research = project.read('research.json', Research);
+    const outline = project.read('outline.json', Outline);
+    const checkpoint = actCheckpoint(project, 'script.acts.json', { outline, claims: research.claims.map((c) => [c.claim_id, c.text, c.confidence]), minutes: project.brief.target_duration_min, narration: style.narration, acts: style.acts });
+    const draft = await runScript({ llm, style, brief: project.brief, research, outline, checkpoint });
+    // One editor pass over the whole film; if it fails, the draft stands.
+    let script = draft;
+    try {
+      const edited = await runScriptEdit({ llm, style, brief: project.brief, research, outline, script: draft });
+      script = edited.script;
+      project.write('script_edits.json', edited.report);
+      log(`[${project.id}] script edit: ${edited.report.applied.length} applied, ${edited.report.rejected.length} rejected`);
+    } catch (err) {
+      log(`[${project.id}] script edit skipped: ${err.message.slice(0, 200)}`);
+    }
+    project.write('script.draft.json', draft, Script);
     project.write('script.json', script, Script);
+    checkpoint.clear();
     fs.writeFileSync(project.file('script.md'), script.segments.map((s) => `**${s.seg_id}** _(act ${s.act}, ${s.purpose}/${s.density}, ${s.tone})_\n${s.text}\n`).join('\n'));
     return { words: script.words, segments: script.segments.length, est_min: round(script.est_duration_s / 60, 1) };
   },
@@ -206,8 +235,12 @@ const STAGE_RUNNERS = {
   },
 
   async visual({ project, llm, style }) {
-    const visual = await runVisualDirector({ llm, style, script: project.read('script.json', Script), research: project.read('research.json', Research) });
+    const script = project.read('script.json', Script);
+    const research = project.read('research.json', Research);
+    const checkpoint = actCheckpoint(project, 'visual.acts.json', { script, claims: research.claims.map((c) => [c.claim_id, c.text]), acts: style.acts });
+    const visual = await runVisualDirector({ llm, style, script, research, checkpoint });
     project.write('visual_beats.json', visual);
+    checkpoint.clear();
     const beats = Object.values(visual.segments).flat();
     const count = (t) => beats.filter((b) => b.visual_type === t).length;
     return { beats: beats.length, REAL: count('REAL'), MAP: count('MAP'), TECH: count('TECH'), FLOW: count('FLOW') };

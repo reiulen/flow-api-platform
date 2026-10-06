@@ -151,3 +151,38 @@ test('past the time budget nothing new is downloaded and the stage still finishe
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('narration that names hardware never gets context-only footage', { timeout: 120000 }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-plan4-'));
+  const config = loadConfig({ assetsDir: dir, testMode: false, disabledSources: [] });
+  const style = structuredClone(loadStyle(config, 'military'));
+  style.assets.source_priority = ['fake'];
+  adapters.fake = {
+    enabled: () => true,
+    stock: false,
+    async search() { return [{ kind: 'video', source: 'fake', source_id: 'base', source_url: 'fake://', title: 'B-52H base day', description: 'Barksdale flightline', tags: [], license: 'public_domain', credit: 't', height: 720, duration_s: 24 }]; },
+    async resolve(c) { return { synthetic: true, label: c.title }; },
+  };
+  // The review sees only the base, never the aircraft: relevance 1 everywhere.
+  const llm = {
+    async json({ stage, prompt }) {
+      if (stage === 'asset_plan') return { groups: [...prompt.matchAll(/^### (G\d+)/gm)].map((m) => ({ group: m[1], picks: [{ id: 'c1', look_for: 'flightline' }], better_query: '' })) };
+      return { frames: [1, 2, 3].map((index) => ({ index, relevance: 1, defects: [], taste: 1 })) };
+    },
+  };
+  const named = { subject: 'bomber takeoff', platform: 'B-52H', action: 'takeoff', era: '', mood: [], query_terms: [] };
+  const generic = { subject: 'air base at dawn', platform: '', action: '', era: '', mood: [], query_terms: [] };
+  const shots = [
+    { shot_id: 'SH-1', seq_id: 'Q-1', act: 1, seg_refs: [], start_s: 0, duration_s: 3, visual_type: 'REAL', need: named, transition_in: 'cut' },
+    { shot_id: 'SH-2', seq_id: 'Q-2', act: 1, seg_refs: [], start_s: 3, duration_s: 3, visual_type: 'REAL', need: generic, transition_in: 'cut' },
+  ];
+  try {
+    const { report } = await runAssets({ project: { id: 'P' }, shotList: { duration_s: 300, shots }, style, config, flowAvailable: true, llm });
+    const status = Object.fromEntries(report.shots.map((r) => [r.shot_id, r.status]));
+    assert.equal(status['SH-1'], 'fallback_flow', 'a B-52 line never shows just the base');
+    assert.equal(status['SH-2'], 'found', 'a generic line may use context footage');
+  } finally {
+    delete adapters.fake;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

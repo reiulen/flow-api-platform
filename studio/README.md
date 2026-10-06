@@ -52,6 +52,7 @@ npm run test:studio
 | `DVIDS_API_KEY`, `NARA_API_KEY`, `PEXELS_API_KEY`, `PIXABAY_API_KEY` | | sumber footage (NASA dan Wikimedia tanpa key) |
 | `STUDIO_MAP_PROVIDER`, `MAPTILER_KEY` | `maptiler` kalau key ada, selain itu `gibs` | citra satelit untuk peta: `maptiler`, `gibs` (NASA Blue Marble, sampai zoom 8), `s2cloudless` (Sentinel-2 2016, CC BY), `local` (folder tile sendiri) |
 | `STUDIO_ASSET_MAX_DOWNLOADS`, `STUDIO_ASSET_TIME_BUDGET_MIN` | otomatis, 30 | batas klip yang diunduh dan batas waktu tahap asset. Footage direncanakan dulu (`asset_plan.json`), baru klip yang direncanakan yang diunduh |
+| `STUDIO_LLM_MODEL_LIGHT` | Sonnet lewat API langsung, kosong lewat proxy | model ringan untuk perencanaan dan review footage, QC Flow, dan query riset. Lewat 9router isi id Sonnet-nya, misalnya `cc/claude-sonnet-4-6` |
 | `CHROME_EXECUTABLE_PATH` | Chrome di Mac | browser untuk render peta |
 | `STUDIO_GATE_G2/G3/G4` | `auto/auto/manual` | `auto` lolos kalau cek otomatis lolos, `manual` selalu menunggu manusia |
 

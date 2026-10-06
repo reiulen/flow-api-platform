@@ -20,10 +20,15 @@ export function loadConfig(overrides = {}) {
     llm: {
       provider: env.STUDIO_LLM_PROVIDER || 'anthropic',
       model: env.STUDIO_LLM_MODEL || 'claude-opus-5-5',
+      // Light model for mechanical stages (footage planning/review, Flow QC, search queries).
+      // Direct API: Sonnet by default. Behind a proxy set STUDIO_LLM_MODEL_LIGHT to its Sonnet id
+      // (9router: e.g. cc/claude-sonnet-4-6); unset there means the main model everywhere.
+      lightModel: env.STUDIO_LLM_MODEL_LIGHT === 'none' ? '' : (env.STUDIO_LLM_MODEL_LIGHT || (env.ANTHROPIC_BASE_URL ? '' : 'claude-sonnet-5-5')),
+      lightStages: env.STUDIO_LLM_LIGHT_STAGES ? list(env.STUDIO_LLM_LIGHT_STAGES) : null,
       // stage -> effort. Writing/reasoning stages get more effort than mechanical ones.
       effort: {
         topics: 'high', research: 'high', outline: 'high', script: 'xhigh',
-        visual: 'high', flowqc: 'medium', footage: 'medium', review: 'high', rank: 'low',
+        visual: 'high', flowqc: 'medium', flow_spec: 'medium', footage: 'medium', asset_plan: 'medium', review: 'high', script_edit: 'xhigh', rank: 'low',
       },
       researchMaxSearches: Number(env.STUDIO_RESEARCH_MAX_SEARCHES || 30),
     },

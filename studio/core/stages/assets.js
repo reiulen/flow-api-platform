@@ -389,15 +389,16 @@ export async function runAssets({ project, shotList, script = null, style, confi
     // Primary picks of every group, in parallel.
     await mapLimit(groups, 3, async (g) => { for (let n = 0; n < g.wanted; n++) if (!(await loadNext(g))) break; });
 
+    const reviewing = Boolean(llm) && !config.testMode;
     const groupOf = new Map(groups.flatMap((g) => g.shots.map((s) => [s.shot_id, g])));
     for (let i = 0; i < shotList.shots.length; i++) {
       const shot = shotList.shots[i];
       if (!FOOTAGE.includes(shot.visual_type) || !shot.need) continue;
       const g = groupOf.get(shot.shot_id) || groupOf.get(shot.shot_id.replace(/b$/, ''));
       const pool = () => (loaded.get(g.id) || []).filter((x) => x.asset && sharpEnough(x.asset));
-      let pick = pickRange({ pool: pool(), shot, used, style });
+      let pick = pickRange({ pool: pool(), shot, used, style, strict: reviewing });
       // Planned backups are fetched only when the clips already fetched cannot fill this shot.
-      while (!pick && (await loadNext(g))) pick = pickRange({ pool: pool(), shot, used, style });
+      while (!pick && (await loadNext(g))) pick = pickRange({ pool: pool(), shot, used, style, strict: reviewing });
       // A long hold with no long-enough source shot becomes two shots of the same sequence.
       if (!pick && shot.duration_s >= style.pacing.footage.min * 2) {
         const half = round(shot.duration_s / 2);
@@ -405,7 +406,7 @@ export async function runAssets({ project, shotList, script = null, style, confi
         shot.duration_s = half;
         shotList.shots.splice(i + 1, 0, second);
         groupOf.set(second.shot_id, g);
-        pick = pickRange({ pool: pool(), shot, used, style });
+        pick = pickRange({ pool: pool(), shot, used, style, strict: reviewing });
       }
       if (pick) {
         shot.asset_id = pick.asset.asset_id;
@@ -461,8 +462,10 @@ export async function runAssets({ project, shotList, script = null, style, confi
 // Picks a clean source range from the clips already fetched for this need: one continuous shot
 // inside the source, never reused in this project. Strong visual matches (relevance >= 2) win over
 // weak ones; within a level, real speed comes before a gentle documentary-safe slow-down.
-function pickRange({ pool, shot, used, style }) {
-  for (const minRelevance of [2, 1]) {
+// A shot whose narration names hardware (need.platform) only takes shots the visual review saw as
+// that platform (relevance >= 2) whenever review is available; context shots (1) are for generic needs.
+function pickRange({ pool, shot, used, style, strict = false }) {
+  for (const minRelevance of strict && shot.need?.platform ? [2] : [2, 1]) {
     for (const speed of [1, style.assets.min_speed]) {
       const need = shot.duration_s * speed + 0.2;
       for (const { asset, review, pick } of pool) {

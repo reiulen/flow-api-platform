@@ -87,6 +87,7 @@ const commands = {
       ok('hyperframes', !bad.length, bad.map((c) => `${c.name}: ${c.hint || c.detail}`).join('; '));
     } catch (err) { ok('hyperframes', false, err.message.slice(0, 120)); }
     ok('LLM provider', config.llm.provider !== 'anthropic' || Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN), `${config.llm.provider} ${config.llm.model}`);
+    ok('LLM light model', true, config.llm.lightModel ? `${config.llm.lightModel} for footage planning/review, Flow QC and search queries; ${config.llm.model} for writing` : `none: ${config.llm.model} runs every stage${process.env.ANTHROPIC_BASE_URL ? ' (set STUDIO_LLM_MODEL_LIGHT, e.g. cc/claude-sonnet-4-6, to save quota)' : ''}`);
     if (process.env.ANTHROPIC_BASE_URL) {
       ok('research search', searchConfigured(config), searchConfigured(config) ? `9router ${config.search.model} @ ${config.search.url}` : 'set STUDIO_SEARCH_MODEL to a search provider enabled in 9router (research refuses to run from model memory)');
     }

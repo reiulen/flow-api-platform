@@ -157,6 +157,45 @@ Claims available:
 ${research.claims.map((c) => `${c.claim_id} [${c.confidence}] ${c.text}`).join('\n')}`;
 }
 
+// S3b: one editor pass over the whole script, after every act is written. Acts are written one
+// after another; only here does anyone see the film as a whole.
+export function scriptEditPrompt({ outline, script, research, maxEdits }) {
+  const claimText = new Map(research.claims.map((c) => [c.claim_id, c.text]));
+  const body = script.segments.map((s, i) => {
+    const head = i === 0 || script.segments[i - 1].act !== s.act ? `\n## Act ${s.act} — ${outline.acts.find((a) => a.act === s.act)?.name || ''}\n` : '';
+    return `${head}${s.seg_id} [${s.purpose}/${s.density}/${s.mode}] claims: ${s.claims.join(', ') || '-'}\n${s.text}`;
+  }).join('\n');
+  const used = [...new Set(script.segments.flatMap((s) => s.claims))];
+  return `You are the story editor of a documentary. The narration below was written act by act; you are the first to read it as one film. Make it a film people watch to the end: a hook that grabs in the first seconds, momentum between acts, no repetition, and narration that sounds like a person talking, not a report being read.
+
+Title: ${outline.title}
+Central question: ${outline.central_question}
+Answer (revealed in act 7): ${outline.answer}
+
+Edit for, in this order:
+1. Hook: the first segments must make the stakes concrete in the first sentence, escalate, open a question the viewer needs answered, and promise the film will answer it. No throat-clearing, no setup before the stakes.
+2. Momentum: every act opens with a turn or a new question and ends with an open loop the next act pays off. Fix act openings that restart from zero and act endings that close everything.
+3. Payoffs: every question or promise raised is answered later. If one is never paid, fix the segment that should pay it (or soften the promise).
+4. Repetition: the same fact, number, image, phrase or sentence opening said twice anywhere in the film. Keep the stronger one, change the other.
+5. Rhythm: three or more segments in a row with the same sentence shape, length or density. Vary them: a long sentence that builds, a short one that lands.
+6. Spoken English: rewrite anything that reads like written prose: nested clauses, passive voice, noun piles, abbreviations a narrator would not say aloud. Use contractions where a person would.
+
+Hard rules for every edited segment:
+- Keep its meaning and its job in the film. Do not merge, split, add or remove segments; edit text only.
+- Never add a number, date, name, quote or fact that is not already in that segment. You may only use facts from that segment's claims (listed with each segment, texts below).
+- Keep the markup rules: [PAUSE 0.3-1.5], [BEAT] (max 2 per act), *emphasis*; max 55 words per segment; keep about the same length (±25%).
+- Never use greetings, "in this video", calls to action, or the banned phrases from the house rules.
+- At most ${maxEdits} edits. Change only what clearly improves the film; leave good segments alone.
+
+Script:
+${body}
+
+Claim texts:
+${used.map((id) => `${id}: ${claimText.get(id) || '?'}`).join('\n')}
+
+Return {"edits":[{"seg_id":"S-01-01","text":"...","reason":"hook: stakes first"}],"notes":["one line per problem you saw but could not fix by editing text"]}.`;
+}
+
 export function visualPrompt({ style, act, segments, research }) {
   const types = `REAL: real operational footage from official archives (best evidence, preferred whenever it exists).
 ARCHIVAL: historical footage or photos (development history, old generations, past decisions).

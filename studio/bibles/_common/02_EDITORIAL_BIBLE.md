@@ -103,6 +103,19 @@ Script ditulis dengan penanda yang dibaca tahap VO dan editing:
 [TONE: quiet]        quiet | normal | firm
 ```
 
+### Edit naskah utuh
+
+Act ditulis satu per satu, jadi setelah semua act jadi, ada satu putaran editor yang membaca naskah sebagai satu film (`runScriptEdit`, hasil di `script_edits.json`, draf asli di `script.draft.json`). Editor memperbaiki, berurutan:
+
+1. **Hook:** taruhannya konkret di kalimat pertama, lalu dinaikkan, membuka pertanyaan, dan menjanjikan jawaban.
+2. **Momentum:** setiap act dibuka dengan belokan atau pertanyaan baru dan ditutup dengan open loop yang dibayar act berikutnya.
+3. **Payoff:** setiap janji atau pertanyaan dijawab.
+4. **Pengulangan:** fakta, angka, gambaran, atau pembuka kalimat yang sama di dua tempat.
+5. **Ritme:** tiga segmen berturut-turut dengan bentuk kalimat yang sama.
+6. **Bahasa lisan:** kalimat yang terasa seperti tulisan.
+
+Pengaman: editor hanya boleh mengubah teks segmen, maksimal 30 edit. Edit ditolak kalau menambah angka atau nama yang tidak ada di segmen itu atau di klaimnya, melanggar markup, mengubah panjang lebih dari sekitar 35%, atau membuat act gagal lint. Kalau editor gagal, draf tetap dipakai.
+
 ## 5. Standar fakta
 
 ### Hierarki sumber

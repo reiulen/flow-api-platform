@@ -61,12 +61,17 @@ export function parseMotion(json) {
   }
 }
 
-export async function runVisualDirector({ llm, style, script, research }) {
+// checkpoint: { get(act), set(act, out) } keeps finished acts across a retry of this stage.
+export async function runVisualDirector({ llm, style, script, research, checkpoint = null }) {
   const result = { cold_open: [], segments: {} };
   for (const act of style.acts) {
     const segments = script.segments.filter((s) => s.act === act.act).map((s) => ({ ...s, words: spokenWords(s.text) }));
     if (!segments.length) continue;
-    const out = await llm.json({ stage: 'visual', schema: ActVisualOut, system: houseRules(style), prompt: visualPrompt({ style, act, segments, research }) });
+    let out = checkpoint?.get(act.act);
+    if (!out) {
+      out = await llm.json({ stage: 'visual', schema: ActVisualOut, system: houseRules(style), prompt: visualPrompt({ style, act, segments, research }) });
+      checkpoint?.set(act.act, out);
+    }
     if (act.act === 1) result.cold_open = out.cold_open.slice(0, 3);
     for (const seg of segments) {
       const got = out.segments.find((s) => s.seg_id === seg.seg_id);

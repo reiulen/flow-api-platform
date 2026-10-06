@@ -83,6 +83,11 @@ export function mockResponders() {
         })),
       };
     },
+    // Story editor: tightens the opening of the first segment.
+    script_edit: ({ prompt }) => {
+      const m = prompt.match(/^(S-01-01) \[[^\]]*\] claims: [^\n]*\n([^\n]+)/m);
+      return { edits: m ? [{ seg_id: m[1], text: `Now, ${m[2].charAt(0).toLowerCase()}${m[2].slice(1)}`, reason: 'hook' }] : [], notes: [] };
+    },
     // Footage planner: the first candidates of every group, as many as the prompt allows.
     asset_plan: ({ prompt }) => ({
       groups: prompt.split('\n### ').slice(1).map((block) => ({
