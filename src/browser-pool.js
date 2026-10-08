@@ -43,7 +43,15 @@ export class BrowserPool {
 
   async pageFor(account) {
     const existing = this.entries.get(account.id);
-    if (existing) return existing.page;
+    if (existing) {
+      try {
+        if (!existing.page.isClosed() && existing.context.pages().length > 0) {
+          return existing.page;
+        }
+      } catch {}
+      this.entries.delete(account.id);
+      try { await existing.context.close(); } catch {}
+    }
 
     if (this.launching.has(account.id)) {
       return this.launching.get(account.id);

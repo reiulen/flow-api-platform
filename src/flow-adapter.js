@@ -23,13 +23,52 @@ function extractMediaIds(contentsPayload) {
     const list = contentsPayload[index];
     if (Array.isArray(list)) {
       for (const item of list) {
-        if (Array.isArray(item) && typeof item[0] === 'string' && item[0].length > 10) {
-          ids.add(item[0]);
+        if (Array.isArray(item)) {
+          if (typeof item[0] === 'string' && item[0].length > 10) {
+            ids.add(item[0]);
+          }
+
+          if (Array.isArray(item[3])) {
+            for (const sub of item[3]) {
+              if (typeof sub === 'string' && /^[0-9a-f-]{36}$/i.test(sub)) {
+                ids.add(sub);
+              }
+            }
+          }
         }
       }
     }
   }
   return ids;
+}
+
+function extractMediaItems(contentsPayload) {
+  const items = [];
+  const seenMedia = new Set();
+  if (!contentsPayload || !Array.isArray(contentsPayload)) return items;
+  // Index 1 contains the cards in the project
+  const list = contentsPayload[1];
+  if (Array.isArray(list)) {
+    for (const item of list) {
+      if (Array.isArray(item) && typeof item[0] === 'string' && item[0].length > 10) {
+        const itemId = item[0];
+        let mediaId = itemId;
+        if (Array.isArray(item[3])) {
+          for (const sub of item[3]) {
+            if (typeof sub === 'string' && /^[0-9a-f-]{36}$/i.test(sub) && sub !== itemId) {
+              mediaId = sub;
+              break;
+            }
+          }
+        }
+        if (!seenMedia.has(mediaId)) {
+          seenMedia.add(mediaId);
+          items.push({ itemId, mediaId, prompt: item[3]?.[0] || null });
+        }
+      }
+    }
+  }
+  return items;
 }
 
 export class FlowAdapter {
@@ -66,7 +105,7 @@ export class FlowAdapter {
     if (id) {
       try {
         const check = await callRpc(page, RPC.contents, [`projects/${id}`, null, null, null, [1]], `/project/${id}`);
-        if (check) return id;
+        if (check && Array.isArray(check) && (check[1] || check[4])) return id;
       } catch {}
     }
 
@@ -143,12 +182,47 @@ export class FlowAdapter {
       }
     }
 
-    const promptBox = page.locator('[contenteditable="true"], textarea').filter({ visible: true }).first();
-    await promptBox.click().catch(() => {});
-    await promptBox.fill(job.request.prompt);
-    await page.waitForTimeout(400);
+    // Dismiss any existing snackbars cleanly before starting prompt entry
+    const oldSnackbar = page.locator('mat-snack-bar-container, simple-snack-bar, .error-message').first();
+    if (await oldSnackbar.isVisible().catch(() => false)) {
+      const dismissBtn = oldSnackbar.locator('button').first();
+      if (await dismissBtn.isVisible().catch(() => false)) {
+        await dismissBtn.click().catch(() => {});
+      } else {
+        await page.keyboard.press('Escape').catch(() => {});
+      }
+      await page.waitForTimeout(300);
+      if (await oldSnackbar.isVisible().catch(() => false)) {
+        await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+        await page.waitForTimeout(1000);
+      }
+    }
 
-    const button = page.locator('button[aria-label*="generation" i], button[aria-label*="Start" i], button:has-text("arrow_forward")')
+    const promptBox = page.locator('.ProseMirror, [contenteditable="true"], textarea').filter({ visible: true }).first();
+    await promptBox.click().catch(() => {});
+    await page.waitForTimeout(200);
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => {});
+    await page.keyboard.press('Backspace').catch(() => {});
+    await page.waitForTimeout(100);
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
+    const copied = await page.evaluate(async (text) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        return false;
+      }
+    }, job.request.prompt).catch(() => false);
+
+    if (copied) {
+      await promptBox.focus();
+      await page.keyboard.press(process.platform === 'darwin' ? 'Meta+V' : 'Control+V');
+    } else {
+      await page.keyboard.insertText(job.request.prompt);
+    }
+    await page.waitForTimeout(1200);
+
+    const button = page.locator('button.generate-icon-button, button[aria-label*="generation" i], button[aria-label*="Start" i], button[aria-label*="pembuatan" i], button:has-text("arrow_forward")')
       .or(page.getByRole('button', { name: /start generation|start creation|mulai pembuatan|generate|create/i }))
       .filter({ visible: true })
       .first();
@@ -159,14 +233,45 @@ export class FlowAdapter {
         throw new AppError(409, 'account_credits_exhausted', 'Kredit akun Flow habis');
       }
       await promptBox.press('Enter').catch(() => {});
-      await page.waitForTimeout(400);
+      await page.waitForTimeout(500);
+    }
+
+    if (!await button.isEnabled().catch(() => false)) {
+      // Give Angular / ProseMirror form validation up to 3 seconds to unblock
+      await button.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
     }
 
     if (!await button.isEnabled().catch(() => false)) {
       throw new AppError(409, 'generation_not_ready', 'Tombol generate belum siap di Flow');
     }
 
+    await button.hover().catch(() => {});
+    await page.waitForTimeout(250);
     await button.click();
+
+    // Check immediately for any instant error snackbar (within 600ms of clicking)
+    await page.waitForTimeout(600);
+    const instantToast = page.locator('.cdk-overlay-container mat-snack-bar-container, .cdk-overlay-container simple-snack-bar').first();
+    if (await instantToast.isVisible().catch(() => false)) {
+      const errText = (await instantToast.innerText().catch(() => '')).trim();
+      if (/failed|error|violate|policy|couldn't|tidak dapat|gagal|batas penggunaan|limit/i.test(errText)) {
+        throw new AppError(422, 'generation_failed_by_flow', `Google Flow menolak/gagal membuat video: ${errText}`);
+      }
+    }
+    await page.waitForTimeout(600);
+    const approveBtnPre = page.locator('button:has-text("Selalu setujui"), button:has-text("Setujui"), button:has-text("Always approve"), button:has-text("Approve")').first();
+    if (await approveBtnPre.isVisible().catch(() => false)) {
+      await approveBtnPre.click().catch(() => {});
+      await page.waitForTimeout(500);
+    }
+    // Dismiss or delete any preexisting failed cards on the canvas
+    const oldErrorCard = page.locator('div:has-text("Failed") button:has-text("delete"), div:has-text("Failed") button:has-text("delete_forever"), div:has-text("Gagal") button:has-text("delete"), div:has-text("Gagal") button:has-text("delete_forever"), div:has-text("Gagal") button[aria-label*="delete" i], div:has-text("Failed") button[aria-label*="delete" i]').first();
+    if (await oldErrorCard.isVisible().catch(() => false)) {
+      await oldErrorCard.click().catch(() => {});
+      await page.waitForTimeout(400);
+    }
+    const errorCardSelector = '[role="alert"], div:has-text("Failed"), div:has-text("Gagal"), mat-card:has-text("Failed"), mat-card:has-text("Gagal"), .error-card';
+    const baselineErrorCount = await page.locator(errorCardSelector).count().catch(() => 0);
     const checkpoint = {
       phase: 'submitted',
       accountId: account.id,
@@ -174,6 +279,7 @@ export class FlowAdapter {
       baselineHash,
       baselineUrls,
       baselineIds: [...baselineIds],
+      baselineErrorCount,
       submittedAt: new Date().toISOString(),
     };
     this.store.checkpoint(job.id, checkpoint);
@@ -253,10 +359,19 @@ export class FlowAdapter {
     const isVideo = job.type === 'video' || job.type === 'video_chain' || job.type === 'video_upscale' || request.type === 'video';
 
     // Dismiss any open sidebars (e.g. Creative Agent drawer)
-    const closeSidebarBtn = page.locator('button[aria-label*="Tutup" i], button[aria-label*="Close" i]').filter({ has: page.locator('mat-icon:has-text("close")') }).first();
-    if (await closeSidebarBtn.isVisible().catch(() => false)) {
+    const closeSidebarBtn = page.locator('button.header-action[aria-label="Close"], button.header-action[aria-label="Tutup"], button[aria-label="Close"], button[aria-label="Tutup"]')
+      .filter({ visible: true })
+      .first();
+    if (await closeSidebarBtn.isVisible({ timeout: 2500 }).catch(() => false)) {
       await closeSidebarBtn.click().catch(() => {});
-      await page.waitForTimeout(400);
+      await page.waitForTimeout(600);
+    }
+
+    // Dismiss credit banner if open so it doesn't obstruct anything
+    const closeCreditBanner = page.locator('button.credit-banner-dismiss, button[aria-label*="banner" i]').first();
+    if (await closeCreditBanner.isVisible().catch(() => false)) {
+      await closeCreditBanner.click().catch(() => {});
+      await page.waitForTimeout(200);
     }
 
     // Dismiss any open popovers or lingering menus
@@ -267,11 +382,26 @@ export class FlowAdapter {
     }
 
     // Turn off Agent mode chip if active so standard model & frames controls unhide
-    const agentChip = page.locator('button.agent-mode-chip-checked, button.agent-mode-chip[aria-checked="true"]').first();
-    if (await agentChip.isVisible().catch(() => false)) {
-      await agentChip.click().catch(() => {});
-      await page.waitForTimeout(500);
+    const agentChip = page.locator('.agent-mode-chip-checked, [aria-checked="true"].agent-mode-chip, button.agent-mode-chip')
+      .or(page.locator('button:has-text("Agent"), button:has-text("Agen")'))
+      .filter({ visible: true })
+      .first();
+    if (await agentChip.isVisible({ timeout: 2000 }).catch(() => false)) {
+      const isChecked = await agentChip.evaluate((el) => {
+        return el.classList.contains('agent-mode-chip-checked') ||
+          el.getAttribute('aria-checked') === 'true' ||
+          el.getAttribute('aria-pressed') === 'true' ||
+          /agent|agen/i.test(el.innerText.trim());
+      }).catch(() => false);
+      if (isChecked) {
+        await agentChip.click().catch(() => {});
+        await page.waitForTimeout(600);
+      }
     }
+
+    // Ensure prompt container is mounted before searching for settings trigger
+    const promptBoxPre = page.locator('.ProseMirror, [contenteditable="true"], textarea').first();
+    await promptBoxPre.waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
 
     const trigger = page.locator('button.settings-trigger-button, button[aria-label*="Settings trigger" i], button[aria-label*="Pemicu setelan" i]')
       .or(page.locator('button:has-text("Banana"), button:has-text("Veo"), button:has-text("Omni")'))
@@ -279,10 +409,14 @@ export class FlowAdapter {
       .filter({ visible: true })
       .first();
 
-    await trigger.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
+    await trigger.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
     if (!await trigger.isVisible().catch(() => false)) {
-      // Second attempt to ensure agent mode is off
-      const retryAgent = page.locator('button.agent-mode-chip').first();
+      // Second attempt: close drawer and click agent chip if still up
+      if (await closeSidebarBtn.isVisible().catch(() => false)) {
+        await closeSidebarBtn.click().catch(() => {});
+        await page.waitForTimeout(600);
+      }
+      const retryAgent = page.locator('.agent-mode-chip, button:has-text("Agent"), button:has-text("Agen")').first();
       if (await retryAgent.isVisible().catch(() => false)) {
         await retryAgent.click().catch(() => {});
         await page.waitForTimeout(600);
@@ -530,7 +664,8 @@ export class FlowAdapter {
   }
 
   async waitForResult(page, job, projectId, checkpoint) {
-    const deadline = Date.now() + this.config.jobTimeoutMs;
+    const maxWaitMs = job.type === 'image' ? 90_000 : this.config.jobTimeoutMs;
+    const deadline = Date.now() + maxWaitMs;
     const sourcePath = `/project/${projectId}`;
     const beforeHash = checkpoint.baselineHash;
     const beforeIds = new Set(checkpoint.baselineIds ?? []);
@@ -540,12 +675,39 @@ export class FlowAdapter {
     while (Date.now() < deadline) {
       await sleep(pollInterval);
 
-      // Immediate detection of Flow error toasts or safety policy rejections
-      const errorToast = page.locator('mat-snack-bar-container, [role="alert"], simple-snack-bar, .error-message').first();
+      // Auto-approve agent prompt if it appears during execution
+      const approveBtn = page.locator('button:has-text("Selalu setujui"), button:has-text("Setujui"), button:has-text("Always approve"), button:has-text("Approve")').first();
+      if (await approveBtn.isVisible().catch(() => false)) {
+        await approveBtn.click().catch(() => {});
+      }
+
+      // Immediate detection of Flow error toasts or safety policy rejections in CDK overlay
+      const errorToast = page.locator('.cdk-overlay-container mat-snack-bar-container, .cdk-overlay-container simple-snack-bar').first();
       if (await errorToast.isVisible().catch(() => false)) {
         const errorText = (await errorToast.innerText().catch(() => '')).trim();
         if (/failed|error|violate|policy|couldn't|tidak dapat|gagal/i.test(errorText)) {
+          const dismissBtn = errorToast.locator('button').first();
+          if (await dismissBtn.isVisible().catch(() => false)) {
+            await dismissBtn.click().catch(() => {});
+          } else {
+            await page.keyboard.press('Escape').catch(() => {});
+          }
+          await page.screenshot({ path: '/Users/reihanpraja/.gemini/antigravity-ide/brain/cff15285-550f-4c93-a2a4-ef71dcfe3172/scratch/latest_flow_error.png' }).catch(() => {});
           throw new AppError(422, 'generation_failed_by_flow', `Google Flow menolak/gagal membuat video: ${errorText}`);
+        }
+      }
+
+      // Detection of newly appeared error cards or usage limit banners appearing on the canvas
+      const errorCardSelector = '[role="alert"], div:has-text("Failed"), div:has-text("Gagal"), mat-card:has-text("Failed"), mat-card:has-text("Gagal"), .error-card';
+      const errorCards = page.locator(errorCardSelector);
+      const errCount = await errorCards.count().catch(() => 0);
+      if (errCount > (checkpoint.baselineErrorCount || 0)) {
+        const latestCard = errorCards.first();
+        const errText = (await latestCard.innerText().catch(() => '')).trim();
+        if (/failed|error|violate|policy|couldn't|tidak dapat|gagal|batas penggunaan|limit|unusual activity|aktivitas yang tidak biasa|usage limit|try again later/i.test(errText)) {
+          await page.screenshot({ path: '/Users/reihanpraja/.gemini/antigravity-ide/brain/cff15285-550f-4c93-a2a4-ef71dcfe3172/scratch/latest_flow_error.png' }).catch(() => {});
+          const isLimit = /batas penggunaan|limit|try again later|usage limit/i.test(errText);
+          throw new AppError(isLimit ? 429 : 422, isLimit ? 'rate_limit_exceeded' : 'generation_failed_by_flow', `Google Flow menolak/gagal membuat video: ${errText}`);
         }
       }
 
@@ -557,33 +719,52 @@ export class FlowAdapter {
       }
       if (!current) continue;
 
+      const currentItems = extractMediaItems(current);
+      const newItems = currentItems.filter((it) => !beforeIds.has(it.itemId) && !beforeIds.has(it.mediaId));
       const currentIds = extractMediaIds(current);
       const newIds = [...currentIds].filter((id) => !beforeIds.has(id));
 
-      if (newIds.length > 0) {
+      if (newItems.length > 0 || newIds.length > 0) {
         const publicUrls = [];
         const mediaItems = [];
         const isVideo = job.type === 'video' || job.type === 'video_chain' || job.type === 'video_upscale';
 
-        for (const newId of newIds) {
+        const maxWanted = Math.max(1, Number(job.request?.count) || 1);
+        const rawCandidates = newItems.length > 0 ? newItems : newIds.map((id) => ({ itemId: id, mediaId: id }));
+        const candidateItems = rawCandidates.slice(0, maxWanted);
+        const seenCleanUrls = new Set();
+
+        for (const item of candidateItems) {
           try {
-            const mediaData = await callRpc(page, RPC.media, [newId], sourcePath);
-            const foundUrls = urls(mediaData).filter((u) => /flow-content\.google/i.test(u));
-            if (foundUrls.length) {
-              const videoUrls = foundUrls.filter((u) => /flow-content\.google\/video\//i.test(u) || /\.mp4/i.test(u));
-              const imageUrls = foundUrls.filter((u) => /flow-content\.google\/image\//i.test(u));
+            let mediaData = await callRpc(page, RPC.media, [item.mediaId], sourcePath);
+            if (!mediaData || (Array.isArray(mediaData) && mediaData.length === 0)) {
+              if (item.itemId !== item.mediaId) {
+                mediaData = await callRpc(page, RPC.media, [item.itemId], sourcePath);
+              }
+            }
+            const allUrls = urls(mediaData);
+            const foundUrls = allUrls.filter((u) => /flow-content\.google|flow\.google\.com\/asb|googleusercontent\.com/i.test(u));
+            const candidateUrls = foundUrls.length ? foundUrls : allUrls.filter((u) => !/accounts\.google|gstatic\.com\/favicon/i.test(u));
+            if (candidateUrls.length) {
+              const videoUrls = candidateUrls.filter((u) => /video\//i.test(u) || /\.mp4/i.test(u));
+              const imageUrls = candidateUrls.filter((u) => /image\//i.test(u) || /\/asb\//i.test(u) || /\.(png|jpe?g|webp)/i.test(u));
 
               if (isVideo && videoUrls.length === 0) {
                 // Video is still rendering (only thumbnail image is available so far). Continue waiting!
                 continue;
               }
 
-              const primaryUrl = isVideo ? videoUrls[0] : (imageUrls[0] || foundUrls[0]);
+              const primaryUrl = isVideo ? videoUrls[0] : (imageUrls[0] || candidateUrls[0]);
               if (!primaryUrl) continue;
+
+              const cleanUrl = primaryUrl.split('?')[0];
+              if (seenCleanUrls.has(cleanUrl)) continue;
+              seenCleanUrls.add(cleanUrl);
 
               publicUrls.push(primaryUrl);
               mediaItems.push({
-                id: newId,
+                id: item.itemId,
+                mediaId: item.mediaId,
                 type: isVideo ? 'video' : 'image',
                 url: primaryUrl,
                 ...(videoUrls[0] ? { videoUrl: videoUrls[0] } : {}),
@@ -591,6 +772,25 @@ export class FlowAdapter {
               });
             }
           } catch {}
+        }
+
+        // DOM image fallback if RPC.media did not return URLs but image is visible on page
+        if (publicUrls.length === 0 && !isVideo) {
+          const domNewUrls = await page.evaluate(() => {
+            return Array.from(document.querySelectorAll('img.image, img'))
+              .map((i) => i.src)
+              .filter((s) => /flow\.google\.com\/asb|googleusercontent\.com|flow-content\.google/i.test(s));
+          }).catch(() => []);
+          for (const dUrl of domNewUrls) {
+            if (dUrl && !oldUrls.has(dUrl)) {
+              publicUrls.push(dUrl);
+              mediaItems.push({
+                id: candidateItems[0]?.itemId || 'dom-image',
+                type: 'image',
+                url: dUrl,
+              });
+            }
+          }
         }
 
         if (publicUrls.length > 0) {
@@ -606,6 +806,7 @@ export class FlowAdapter {
         }
       }
     }
+    await page.screenshot({ path: '/Users/reihanpraja/.gemini/antigravity-ide/brain/cff15285-550f-4c93-a2a4-ef71dcfe3172/scratch/timeout_screen.png' }).catch(() => {});
     throw new AppError(504, 'generation_timeout', 'Generation belum selesai sebelum timeout');
   }
 

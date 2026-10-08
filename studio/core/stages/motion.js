@@ -4,7 +4,7 @@ import { REPO_ROOT } from '../config.js';
 import { renderGeo } from '../geo.js';
 import { ensureDir, ffprobe, hash, mapLimit, round, run } from '../util.js';
 
-const OVERLAY_TEMPLATES = new Set(['stat', 'label']);
+const OVERLAY_TEMPLATES = new Set(['stat', 'label', 'subscribe']);
 const VENDOR = {
   'gsap.min.js': 'node_modules/gsap/dist/gsap.min.js',
   'd3-array.min.js': 'node_modules/d3-array/dist/d3-array.min.js',
@@ -51,17 +51,20 @@ export async function renderMotion({ config, style, template, data, duration }) 
   if (fs.existsSync(out)) return out;
 
   if (config.render.motionStub) return stubMotion(out, overlay, payload.duration, template);
-  const work = ensureDir(path.join(cacheDir, 'work', `${template}-${key}`));
+  const workId = `${template}-${key}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const work = ensureDir(path.join(cacheDir, 'work', workId));
   prepareVendor(work);
   fs.writeFileSync(path.join(work, 'common.css'), css);
   const filled = html.replaceAll('__DURATION__', String(payload.duration)).replace('__PAYLOAD__', JSON.stringify(payload));
   fs.writeFileSync(path.join(work, 'index.html'), filled);
-  const tmp = `${out}.part${overlay ? '.mov' : '.mp4'}`;
+  const tmp = path.join(work, `output${overlay ? '.mov' : '.mp4'}`);
   const args = ['render', '--quality', config.render.motionQuality, '--fps', String(style.canvas.fps), '--format', overlay ? 'mov' : 'mp4', '-o', tmp, work];
   await run(config.render.hyperframes, args, { cwd: work, timeoutMs: 20 * 60 * 1000, env: { HYPERFRAMES_TELEMETRY: '0', DO_NOT_TRACK: '1' } });
   const info = await ffprobe(tmp);
   if (Math.abs(info.duration - payload.duration) > 0.2) throw new Error(`motion ${template}: rendered ${info.duration}s, expected ${payload.duration}s`);
-  fs.renameSync(tmp, out);
+  if (!fs.existsSync(out)) {
+    try { fs.renameSync(tmp, out); } catch { fs.copyFileSync(tmp, out); }
+  }
   fs.rmSync(work, { recursive: true, force: true });
   return out;
 }
@@ -75,7 +78,8 @@ export async function runMotion({ project, shotList, style, config }) {
     }
   }
   for (const ov of shotList.overlays) {
-    jobs.push({ target: ov, field: 'motion_file', template: ov.kind === 'stat' ? 'stat' : 'label', data: ov.data, duration: ov.duration_s });
+    const template = ov.kind === 'stat' ? 'stat' : ov.kind === 'subscribe' ? 'subscribe' : 'label';
+    jobs.push({ target: ov, field: 'motion_file', template, data: ov.data, duration: ov.duration_s });
   }
   const failures = [];
   await mapLimit(jobs, Math.max(1, Math.floor(config.concurrency)), async (job) => {

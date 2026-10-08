@@ -1,0 +1,99 @@
+{
+  "genre": "ancient_history",
+  "style_name": "Illustrated Ancient History & Daily Life Documentary (Rome Unscrolled Aesthetic)",
+
+  "visual_mix": {
+    "footage": [0.0, 0.0],
+    "explainer": [0.10, 0.20],
+    "flow": [0.80, 1.0],
+    "flow_hard_max": 1.0
+  },
+
+  "black_beats": {
+    "min": 0,
+    "max": 0,
+    "duration_s": 0
+  },
+
+  "look": {
+    "footage_filter": "",
+    "grain": "",
+    "still_zoom": 0.07
+  },
+
+  "transitions": {
+    "same_sequence": "dissolve_short",
+    "between_sources_information": "dissolve_short",
+    "between_sources_cinematic": "dissolve",
+    "explainer_boundary": "dissolve_short",
+    "time_jump": "dissolve_slow",
+    "act_break": "page_turn",
+    "parchment_reveal": "parchment_reveal",
+    "slide_left": "slide_left",
+    "durations": {
+      "cut": 0,
+      "dissolve_short": 0.6,
+      "dissolve": 0.9,
+      "dissolve_slow": 1.4,
+      "page_turn": 0.8,
+      "page_turn_reverse": 0.8,
+      "slide_left": 0.8,
+      "slide_right": 0.8,
+      "parchment_reveal": 0.7,
+      "focus_blur": 0.6,
+      "wipe_left": 0.7,
+      "fade_black": 0.5,
+      "match_cut": 0
+    }
+  },
+
+  "colors": {
+    "terracotta": "#C85A32",
+    "roman_gold": "#E5A93C",
+    "sandstone": "#D8C5A5",
+    "pompeian_red": "#9E2A2B",
+    "olive": "#588157",
+    "shadow": "#1F1D1B"
+  },
+
+  "labels": {
+    "reconstruction": "HISTORICAL RECONSTRUCTION",
+    "illustrative": "DAILY LIFE ILLUSTRATION"
+  },
+
+  "flow": {
+    "model": "nano-banana-pro",
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "duration_s": 8,
+    "count": 1,
+    "character_guide": "Minimalist 2D cartoon stick-figure Roman character with smooth off-white round head, simple black dot eyes, thin clean stick limbs, wearing authentic coarse wool plebeian tunic and cloak with natural fabric folds",
+    "look": "Single continuous 16:9 widescreen frame. Single camera view. Clean 2D minimalist line-art illustration, Rome Unscrolled signature aesthetic, European comic ligne claire architectural style, authentic ancient Roman daily life. Characters are minimalist 2D cartoon stick figures with simple round heads, black dot eyes, and thin clean stick limbs wearing authentic Roman plebeian tunics and togas. Richly detailed architectural backdrops in warm terracotta, Mediterranean sandstone, olive greens, and warm oil lamp amber light. Completely matte texture. Absolutely NO comic book panels, NO multi-panel grids, NO split screens, NO borders.",
+    "avoid_extra": [
+      "comic panels", "comic strip", "multi-panel", "split screen", "grid layout",
+      "triptych", "comic borders", "multiple frames", "collage", "panel dividers",
+      "speech bubbles", "3D CGI render", "pixar 3D style", "anime", "photorealistic modern",
+      "blurry watercolor", "deformed extra limbs", "modern cars", "electricity",
+      "modern clothing", "plastic skin", "glowing neon", "camera jitter"
+    ]
+  },
+
+  "assets": {
+    "source_priority": ["library", "wikimedia", "nara", "pexels", "pixabay"]
+  },
+
+  "audio": {
+    "music_functions": ["dawn_intro", "street_market", "bathhouse", "military_grit", "tension", "night_reflection"]
+  },
+
+  "editorial": {
+    "voice": "Conversational, immersive, and vivid historical storytelling narrator. Speaks in the second-person 'you' or empathetic third-person. Contrasts the grand marble facade of ancient civilizations with the gritty, visceral reality of daily plebeian life (food, hygiene, rent, taboos, survival). Clear, relaxed, engaging pacing with dry, observant wit. Never academic jargon, never glorification.",
+    "rules": [
+      "Ground every scene in sensory, visceral details: the taste of bitter puls porridge, the stench of insula stairwells, the cold marble of public baths, the creak of wooden carts on basalt pavers.",
+      "Explain historical mechanisms: how grain subsidies (annona) worked, how insula landlords extorted tenants, how legionary rations were prepared, how aqueduct water was taxed.",
+      "Maintain character visual consistency: minimalist stick-figure characters with simple expressive faces, wearing historically accurate tunics, togas, and sandals against rich architectural backdrops.",
+      "Vary pacing with the 7-act structure: start with an immersive dawn wake-up hook, explore morning routines, public spaces, noon struggles, social contrasts, evening survival, and final reflections.",
+      "Never use generic AI cliches or empty superlatives."
+    ]
+  }
+}

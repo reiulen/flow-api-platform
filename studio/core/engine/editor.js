@@ -18,15 +18,21 @@ export function buildShotList({ script, vo, visual, style, seed, title }) {
   const breaths = [];
   let t = 0;
 
-  // Cold open: wordless atmosphere before the first line.
+  // Cold open / Hook lead-in: fast cinematic hook entrance before the first line.
+  const leadIn = typeof n.cold_open_s === 'number' ? n.cold_open_s : 0.8;
   const cold = visual.cold_open?.length ? visual.cold_open : [];
-  if (cold.length) {
-    const each = n.cold_open_s / cold.length;
+  if (leadIn > 2.0 && cold.length) {
+    const each = leadIn / cold.length;
     for (const [i, b] of cold.entries()) {
       spans.push({ start: t + i * each, end: t + (i + 1) * each, beat: { ...b, from_word: 0, claims: [] }, seg: null, act: 1, mode: 'CINEMATIC', purpose: 'C', density: 'low', key: `cold-${i}` });
     }
-    breaths.push({ start_s: 0, duration_s: n.cold_open_s, kind: 'cold_open' });
-    t = n.cold_open_s;
+    breaths.push({ start_s: 0, duration_s: leadIn, kind: 'cold_open' });
+    t = leadIn;
+  } else if (leadIn > 0) {
+    // YouTube Retention Best Practice: Start immediately (0.5s - 1.2s lead-in).
+    // The opening visual begins at t = 0 with opening sound design, and the first VO begins at leadIn.
+    breaths.push({ start_s: 0, duration_s: leadIn, kind: 'cold_open' });
+    t = leadIn;
   }
 
   let sinceBreath = 0;
@@ -41,7 +47,7 @@ export function buildShotList({ script, vo, visual, style, seed, title }) {
       const beats = visual.segments[seg.seg_id] || [];
       beats.forEach((beat, bi) => {
         const w = timing.words[Math.min(beat.from_word, timing.words.length - 1)];
-        const start = bi === 0 ? t : t + (w ? w.s : 0);
+        const start = bi === 0 ? (si === 0 && ai === 0 ? 0 : t) : t + (w ? w.s : 0);
         spans.push({ start, end: null, beat, seg, act: actNo, mode: seg.mode, purpose: seg.purpose, density: seg.density, key: `${seg.seg_id}-${bi}` });
       });
       t += timing.duration_s;
@@ -94,7 +100,8 @@ export function buildShotList({ script, vo, visual, style, seed, title }) {
   // Split spans into shots.
   const shots = [];
   let flowCount = 0;
-  const flowLimit = Math.floor((total * style.visual_mix.flow[1]) / style.flow.duration_s);
+  const isIllustrated = (style.visual_mix?.footage?.[1] || 0) === 0;
+  const flowLimit = isIllustrated ? Infinity : Math.floor((total * style.visual_mix.flow[1]) / style.flow.duration_s);
   for (const span of spans) {
     const dur = span.end - span.start;
     if (dur <= 0.05) continue;
@@ -108,25 +115,28 @@ export function buildShotList({ script, vo, visual, style, seed, title }) {
       const explainLen = Math.min(dur, p.explainer.max);
       if (explainLen >= 4) {
         shots.push(baseShot(span, span.start, explainLen, type, 'explainer', { motion: span.beat.motion }));
-        if (dur - explainLen > 0.05) pushFootage(shots, span, span.start + explainLen, dur - explainLen, 'REAL', rand, style);
+        if (dur - explainLen > 0.05) pushFootage(shots, span, span.start + explainLen, dur - explainLen, isIllustrated ? 'FLOW' : 'REAL', rand, style);
         continue;
       }
     }
-    if (type === 'FLOW' && flowCount < flowLimit) {
-      const usable = style.flow.duration_s - 1;
+    if (type === 'FLOW') {
+      const isAct1 = span.act === 1;
+      const act1Max = p.hook?.target ? p.hook.target : 3.5;
+      const usable = isAct1 ? act1Max : (style.flow?.duration_s ? (style.flow.duration_s - 1) : 7);
       const parts = Math.max(1, Math.ceil(dur / usable));
       for (let i = 0; i < parts; i++) {
         const len = dur / parts;
         const shot = baseShot(span, span.start + i * len, len, 'FLOW', len > p.footage.max ? 'hold' : 'footage', {
           flow: { reconstruction: Boolean(span.beat.flow?.reconstruction), spec: span.beat.flow || {} },
         });
-        shot.fallback_chain = ['REAL', 'ARCHIVAL'];
+        shot.fallback_chain = isIllustrated ? [] : ['REAL', 'ARCHIVAL'];
         shots.push(shot);
         flowCount += 1;
       }
       continue;
     }
-    pushFootage(shots, span, span.start, dur, FOOTAGE.has(type) ? type : 'REAL', rand, style);
+    const fallbackType = isIllustrated ? 'FLOW' : 'REAL';
+    pushFootage(shots, span, span.start, dur, FOOTAGE.has(type) ? type : fallbackType, rand, style);
   }
 
   // Ids, sequences and transitions.
@@ -142,7 +152,12 @@ export function buildShotList({ script, vo, visual, style, seed, title }) {
   });
 
   const overlays = buildOverlays({ shots, script, placements, voBySeg, style });
-  for (const shot of shots) delete shot._key;
+  for (const shot of shots) {
+    delete shot._key;
+    delete shot._seg_text;
+    delete shot._beat_summary;
+    delete shot._part;
+  }
 
   return ShotList.parse({
     duration_s: total,
@@ -161,17 +176,18 @@ function baseShot(span, start, duration, visualType, shotClass, extra = {}) {
     visual_type: visualType, shot_class: shotClass,
     need: span.beat?.need, asset_id: null, asset_range: null, flow_file: null, motion_file: null,
     transition_in: 'cut', label: null, fallback_chain: visualType === 'REAL' ? ['ARCHIVAL', 'FLOW'] : visualType === 'ARCHIVAL' ? ['REAL', 'FLOW'] : [],
-    _key: span.key, ...extra,
+    _key: span.key, _seg_text: span.seg?.text || '', _beat_summary: span.beat?.summary || '', ...extra,
   };
 }
 
 // Footage spans become several shots. Cinematic spans hold longer; information spans cut at footage pace.
 function pushFootage(shots, span, start, dur, type, rand, style) {
   const p = style.pacing;
+  const isHook = span.act === 1;
   const cinematic = span.mode === 'CINEMATIC' || span.purpose === 'C' || span.purpose === 'R';
-  const target = cinematic ? (p.hold.min + p.hold.max) / 2 * 0.75 : p.footage.target;
-  const max = cinematic ? p.hold.max : p.footage.max;
-  const min = cinematic ? p.footage.max : p.footage.min;
+  const target = isHook ? (p.hook?.target || 3.0) : (cinematic ? (p.hold.min + p.hold.max) / 2 * 0.75 : p.footage.target);
+  const max = isHook ? (p.hook?.max || 4.5) : (cinematic ? p.hold.max : p.footage.max);
+  const min = isHook ? (p.hook?.min || 1.8) : (cinematic ? p.footage.max : p.footage.min);
   let parts = Math.max(1, Math.round(dur / target));
   while (parts > 1 && dur / parts < min) parts -= 1;
   while (dur / parts > max) parts += 1;
@@ -182,7 +198,11 @@ function pushFootage(shots, span, start, dur, type, rand, style) {
   weights.forEach((w, i) => {
     const len = i === parts - 1 ? start + dur - t : (dur * w) / sum;
     const shotClass = cinematic ? (len > p.hold.max * 0.9 ? 'hero' : 'hold') : len < p.footage.min ? 'fast' : 'footage';
-    shots.push(baseShot(span, t, len, type, shotClass, { _part: i }));
+    const isFlow = type === 'FLOW';
+    shots.push(baseShot(span, t, len, type, shotClass, {
+      _part: i,
+      ...(isFlow ? { flow: { reconstruction: Boolean(span.beat?.flow?.reconstruction), spec: span.beat?.flow || {} }, fallback_chain: [] } : {}),
+    }));
     t += len;
   });
 }
@@ -202,11 +222,68 @@ function transitionFor(prev, shot, style, actBreaks) {
   const tr = style.transitions;
   if (!prev) return 'fade_black';
   if (shot.shot_class === 'black' || prev.shot_class === 'black') return 'fade_black';
-  if (actBreaks.has(shot.act) && prev.act !== shot.act) return 'fade_black';
-  if (prev._key === shot._key) return tr.same_sequence;
-  if (EXPLAINER.has(prev.visual_type) || EXPLAINER.has(shot.visual_type)) return tr.explainer_boundary;
-  if ((prev.visual_type === 'ARCHIVAL') !== (shot.visual_type === 'ARCHIVAL')) return tr.time_jump;
-  return shot.mode === 'INFORMATION' ? tr.between_sources_information : tr.between_sources_cinematic;
+
+  // 1. Act Break / Chapter Turning (storybook page turn)
+  if (actBreaks.has(shot.act) && prev.act !== shot.act) {
+    return tr.act_break || 'page_turn';
+  }
+
+  // 2. Same Sequence
+  if (prev._key === shot._key) {
+    if (shot.mode === 'CINEMATIC' || shot.purpose === 'R' || shot.purpose === 'C') {
+      return tr.same_sequence_cinematic || tr.same_sequence || 'dissolve_short';
+    }
+    return tr.same_sequence || 'cut';
+  }
+
+  // 3. Explainer Boundaries (charts, maps, diagrams)
+  if (EXPLAINER.has(prev.visual_type) || EXPLAINER.has(shot.visual_type)) {
+    return tr.explainer_boundary || 'dissolve_short';
+  }
+
+  // 4. Content & Narration-Aware Creative Transitions
+  const text = `${shot._seg_text || ''} ${shot._beat_summary || ''} ${shot.need?.subject || ''} ${shot.need?.action || ''}`.toLowerCase();
+
+  // A. Time Jumps / Dawn-to-dusk / Century to century
+  if (
+    (prev.visual_type === 'ARCHIVAL') !== (shot.visual_type === 'ARCHIVAL') ||
+    text.includes('century') || text.includes('centuries') || text.includes('years later') ||
+    text.includes('generations') || text.includes('decades') || text.includes('dawn') ||
+    text.includes('dusk') || text.includes('night fell') || text.includes('morning came') ||
+    text.includes('sun rose') || text.includes('when monuments crumbled') || text.includes('history')
+  ) {
+    return tr.time_jump || 'dissolve_slow';
+  }
+
+  // B. Document, Contract, Legal, Scientific Study, or Ledger reveals
+  if (
+    text.includes('contract') || text.includes('lease') || text.includes('tabula') ||
+    text.includes('written') || text.includes('record') || text.includes('eviction') ||
+    text.includes('praetor') || text.includes('court') || text.includes('debt') ||
+    text.includes('law') || text.includes('fine') || text.includes('decree') ||
+    text.includes('receipt') || text.includes('sesterce') || text.includes('denarii') ||
+    text.includes('study') || text.includes('pubmed') || text.includes('journal') ||
+    text.includes('data') || text.includes('calculator') || text.includes('calorie')
+  ) {
+    return tr.parchment_reveal || 'page_turn';
+  }
+
+  // C. Physical Location Shift / Walking through streets / Gym rack change
+  if (
+    text.includes('walk') || text.includes('street') || text.includes('market') ||
+    text.includes('suburba') || text.includes('forum') || text.includes('bathhouse') ||
+    text.includes('stepped out') || text.includes('outside') || text.includes('alley') ||
+    text.includes('neighborhood') || text.includes('district') || text.includes('gym') ||
+    text.includes('rack') || text.includes('bench') || text.includes('platform') ||
+    text.includes('kitchen') || text.includes('locker')
+  ) {
+    return tr.slide_left || 'page_turn';
+  }
+
+  // D. Default between sources (Information vs Cinematic)
+  return shot.mode === 'INFORMATION'
+    ? (tr.between_sources_information || 'dissolve_short')
+    : (tr.between_sources_cinematic || 'dissolve');
 }
 
 // Number cards: at the word that states the number, never over an explainer, rate-limited.
@@ -231,6 +308,24 @@ function buildOverlays({ shots, script, placements, voBySeg, style }) {
   }
   for (const shot of shots) {
     if (shot.label) overlays.push({ overlay_id: `OV-${String(overlays.length + 1).padStart(3, '0')}`, kind: 'label', shot_id: shot.shot_id, start_s: round(shot.start_s), duration_s: round(shot.duration_s), data: { text: shot.label }, motion_file: null });
+  }
+  // YouTube Subscribe CTA around video midpoint (during Act 4 or roughly 45%-55% mark)
+  const lastShot = shots.at(-1);
+  const midPoint = (lastShot ? lastShot.start_s + lastShot.duration_s : 0) * 0.5;
+  if (midPoint > 60) {
+    const candidates = shots.filter((s) => s.start_s >= midPoint - 60 && s.start_s <= midPoint + 60 && s.shot_class !== 'black' && !EXPLAINER.has(s.visual_type));
+    const targetShot = candidates.sort((a, b) => b.duration_s - a.duration_s)[0];
+    if (targetShot) {
+      overlays.push({
+        overlay_id: `OV-${String(overlays.length + 1).padStart(3, '0')}`,
+        kind: 'subscribe',
+        shot_id: targetShot.shot_id,
+        start_s: round(targetShot.start_s),
+        duration_s: round(Math.min(targetShot.duration_s, 5.5)),
+        data: { channel: 'ROME UNSCROLLED' },
+        motion_file: null,
+      });
+    }
   }
   return overlays;
 }

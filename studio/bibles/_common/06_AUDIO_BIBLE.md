@@ -34,6 +34,8 @@ Jeda dari script (`[PAUSE]`, `[BEAT]`) dikirim ke Inworld sebagai tag `<break ti
 
 Narasi dikirim per ±90 dtk (beberapa segmen sekaligus) lalu dipotong lagi per segmen. Di antara segmen dipasang break 3,0 dtk (±3,5 dtk hening), lebih panjang dari jeda mana pun di script, jadi titik potong ditemukan dari audio saja, bukan dari tebakan posisi kata (yang meleset pada kalimat penuh angka seperti "60-0061" atau "APQ-188"). Jeda di akhir segmen dilebur ke break itu lalu dikembalikan ke ujung segmen setelah dipotong, jadi `[BEAT]` penutup tidak hilang. Diuji di run B-52: dengan cara lama 7 dari 17 potongan gagal dipotong; potongan tersulit dengan cara baru terpotong bersih dan ditranskripsi ulang persis sesuai teksnya.
 
+Narasi dikirim per ±90 dtk (beberapa segmen sekaligus) lalu dipotong lagi per segmen. Di antara segmen dipasang break 3,0 dtk (±3,5 dtk hening), lebih panjang dari jeda mana pun di script, jadi titik potong ditemukan dari audio saja, bukan dari tebakan posisi kata (yang meleset pada kalimat penuh angka seperti "60-0061" atau "APQ-188"). Jeda di akhir segmen dilebur ke break itu lalu dikembalikan ke ujung segmen setelah dipotong, jadi `[BEAT]` penutup tidak hilang. Diuji di run B-52: dengan cara lama 7 dari 17 potongan gagal dipotong; potongan tersulit dengan cara baru terpotong bersih dan ditranskripsi ulang persis sesuai teksnya.
+
 ### Target ritme [v0.1]
 
 Lihat `02` §4: narasi 80–88% durasi, jeda ≥ 1 dtk 2–4 per menit, dan narasi tanpa jeda maks 30 dtk.

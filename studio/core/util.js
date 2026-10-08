@@ -65,6 +65,7 @@ export function run(cmd, args, { cwd, env, timeoutMs = 0, input } = {}) {
     child.stdout.on('data', (d) => { stdout += d; });
     child.stderr.on('data', (d) => { stderr += d; });
     child.on('error', reject);
+    if (child.stdin) child.stdin.on('error', () => {});
     child.on('close', (code) => {
       clearTimeout(timer);
       if (code === 0) resolve({ stdout, stderr });

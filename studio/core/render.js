@@ -3,7 +3,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ensureDir, ffprobe, hash, mapLimit, round, run } from './util.js';
 
-const XFADE = { dissolve_short: 'fade', dissolve: 'fade', dissolve_slow: 'fade', fade_black: 'fadeblack', match_cut: 'fade' };
+const XFADE = {
+  dissolve_short: 'fade',
+  dissolve: 'fade',
+  dissolve_slow: 'fadeslow',
+  page_turn: 'smoothleft',
+  page_turn_reverse: 'smoothright',
+  slide_left: 'smoothleft',
+  slide_right: 'smoothright',
+  parchment_reveal: 'fadewhite',
+  focus_blur: 'hblur',
+  wipe_left: 'wipeleft',
+  fade_black: 'fadeblack',
+  match_cut: 'fade',
+};
 
 // Every clip is normalized to the same canvas, rate and codec, carrying extra tail frames
 // for the dissolve into the next clip.
@@ -23,16 +36,23 @@ async function normalizeClip(clip, next, edl, style, outDir, threads, preset) {
     args.push('-loop', '1', '-framerate', String(fps), '-t', String(len), '-i', clip.src);
     const frames = Math.round(len * fps);
     const z = style.look.still_zoom;
-    vf = `scale=${W * 2}:${H * 2}:force_original_aspect_ratio=increase,crop=${W * 2}:${H * 2},zoompan=z='1+${z}*on/${frames}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${W}x${H}:fps=${fps}`;
+    vf = `scale=${W * 2}:${H * 2}:force_original_aspect_ratio=increase,crop=${W * 2}:${H * 2},zoompan=z='1+${z}*on/${frames}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${W * 2}x${H * 2}:fps=${fps},scale=${W}:${H}:flags=lanczos`;
   } else {
     const info = await ffprobe(clip.src);
     const speed = clip.speed || 1;
-    const available = Math.max(0, info.duration - clip.src_in) / speed;
-    args.push('-ss', String(clip.src_in), '-t', String(round(len * speed + 0.1, 3)), '-i', clip.src);
-    vf = `${speed !== 1 ? `setpts=PTS/${speed},` : ''}scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${fps}`;
-    if (available < len - 0.05) vf += `,tpad=stop_mode=clone:stop_duration=${round(len - available + 0.1)}`;
+    const durAvail = Math.max(0.1, info.duration - (clip.src_in || 0));
+    // If the video clip is shorter than the shot window, re-time or loop seamlessly so it NEVER freezes on a static frame
+    const effectiveSpeed = (durAvail >= 2 && durAvail / len >= 0.5) ? Math.min(speed, durAvail / len) : speed;
+    const available = durAvail / effectiveSpeed;
+    if (available < len - 0.05) {
+      args.push('-stream_loop', '-1');
+    }
+    args.push('-ss', String(clip.src_in || 0), '-t', String(round(len * effectiveSpeed + 0.1, 3)), '-i', clip.src);
+    vf = `${effectiveSpeed !== 1 ? `setpts=PTS/${effectiveSpeed},` : ''}scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${fps}`;
   }
-  const chain = [`[0:v]${vf},setsar=1${clip.look ? `,${style.look.footage_filter},${style.look.grain}` : ''},trim=duration=${len},setpts=PTS-STARTPTS,format=yuv420p[base]`];
+  const lookFilters = clip.look ? [style.look?.footage_filter, style.look?.grain].filter(Boolean) : [];
+  const lookPart = lookFilters.length ? `,${lookFilters.join(',')}` : '';
+  const chain = [`[0:v]${vf},setsar=1${lookPart},trim=duration=${len},setpts=PTS-STARTPTS,format=yuv420p[base]`];
   let last = 'base';
   clip.overlays.forEach((ov, i) => {
     args.push('-i', ov.src);
@@ -53,8 +73,12 @@ async function normalizeClip(clip, next, edl, style, outDir, threads, preset) {
 async function assemble(normalized, clips, edl, workDir, threads, preset, crf) {
   const groups = [];
   let cur = [];
+  const MAX_GROUP_SIZE = 16;
   clips.forEach((clip, i) => {
-    if (cur.length >= 24 && clip.transition_in.type === 'cut') { groups.push(cur); cur = []; }
+    if ((cur.length >= 8 && clip.transition_in?.type === 'cut') || cur.length >= MAX_GROUP_SIZE) {
+      groups.push(cur);
+      cur = [];
+    }
     cur.push(i);
   });
   if (cur.length) groups.push(cur);
@@ -80,7 +104,7 @@ async function assemble(normalized, clips, edl, workDir, threads, preset, crf) {
     }
     chain.push(`[${label}]trim=duration=${round(consumed, 3)},setpts=PTS-STARTPTS,format=yuv420p[v]`);
     args.push('-filter_complex', chain.join(';'), '-map', '[v]', '-r', String(edl.fps), '-c:v', 'libx264', '-preset', preset, '-crf', String(crf), '-g', String(edl.fps * 2), '-pix_fmt', 'yuv420p');
-    if (threads) args.push('-threads', String(threads));
+    args.push('-threads', String(threads || 4));
     args.push(out);
     await run('ffmpeg', args, { timeoutMs: 60 * 60 * 1000 });
     parts.push(out);
@@ -198,6 +222,20 @@ async function renderAudio(plan, style, workDir, nat = null) {
     chain.push(`${natLabels.join('')}amix=inputs=${natLabels.length}:normalize=0:duration=longest,atrim=duration=${plan.duration_s}[nat]`);
     mixInputs.push('[nat]');
   }
+  // SFX cues (e.g. Subscribe click)
+  const sfxLabels = [];
+  for (const s of (plan.sfx || [])) {
+    if (!fs.existsSync(s.file)) continue;
+    args.push('-i', s.file);
+    const ms = Math.round(s.at_s * 1000);
+    chain.push(`[${n}:a]aresample=48000,aformat=channel_layouts=stereo,volume=${s.gain_db ?? -4}dB,adelay=${ms}|${ms},apad=whole_dur=${plan.duration_s}[sfx${n}]`);
+    sfxLabels.push(`[sfx${n}]`);
+    n += 1;
+  }
+  if (sfxLabels.length) {
+    chain.push(`${sfxLabels.join('')}amix=inputs=${sfxLabels.length}:normalize=0:duration=longest,atrim=duration=${plan.duration_s}[sfx]`);
+    mixInputs.push('[sfx]');
+  }
   chain.push(`${mixInputs.join('')}amix=inputs=${mixInputs.length}:normalize=0:duration=longest,atrim=duration=${plan.duration_s},aformat=channel_layouts=stereo[mix]`);
   const script = path.join(workDir, 'audio.filter');
   fs.writeFileSync(script, chain.join(';\n'));
@@ -263,6 +301,47 @@ export async function buildNatTrack(edl, style, workDir, concurrency = 2) {
   return nat;
 }
 
+function formatSrtTime(seconds) {
+  const s = Math.max(0, Number(seconds) || 0);
+  const hrs = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = Math.floor(s % 60);
+  const ms = Math.floor((s - Math.floor(s)) * 1000);
+  return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+}
+
+export function generateSrt({ script, vo, shotList }) {
+  if (!script?.segments || !vo?.segments) return '';
+  const voBySeg = new Map(vo.segments.map((s) => [s.seg_id, s]));
+  const posBySeg = new Map((shotList?.vo_placements || []).map((p) => [p.seg_id, p.start_s]));
+  const lines = [];
+  let index = 1;
+
+  for (const seg of script.segments) {
+    const timing = voBySeg.get(seg.seg_id);
+    const startS = posBySeg.get(seg.seg_id);
+    if (!timing || startS == null) continue;
+
+    const words = timing.words || [];
+    if (!words.length) {
+      lines.push(`${index++}\n${formatSrtTime(startS)} --> ${formatSrtTime(startS + timing.duration_s)}\n${seg.text.replace(/\[[^\]]*\]/g, '').trim()}\n`);
+      continue;
+    }
+
+    const chunkSize = 6;
+    for (let i = 0; i < words.length; i += chunkSize) {
+      const chunk = words.slice(i, i + chunkSize);
+      const cueStart = startS + (chunk[0].s || 0);
+      const cueEnd = startS + (chunk[chunk.length - 1].e || chunk[chunk.length - 1].s + 0.5);
+      const text = chunk.map((w) => w.w).join(' ').trim();
+      if (text) {
+        lines.push(`${index++}\n${formatSrtTime(cueStart)} --> ${formatSrtTime(cueEnd)}\n${text}\n`);
+      }
+    }
+  }
+  return lines.join('\n');
+}
+
 export async function renderProject({ project, edl, audioPlan, style, config, name = 'rough' }) {
   const workDir = ensureDir(project.file('renders', 'work'));
   const clipDir = ensureDir(path.join(workDir, 'clips'));
@@ -274,6 +353,20 @@ export async function renderProject({ project, edl, audioPlan, style, config, na
   const existing = fs.readdirSync(renders).filter((f) => f.startsWith(`${name}_v`)).length;
   const out = path.join(renders, `${name}_v${existing + 1}.mp4`);
   await run('ffmpeg', ['-y', '-v', 'error', '-i', video, '-i', audio, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '320k', '-shortest', '-movflags', '+faststart', out]);
+
+  // Export synchronized SRT subtitles alongside the master video
+  try {
+    const script = project.read('script.json', undefined);
+    const vo = project.read('vo_timing.json', undefined);
+    const shotList = project.read('shotlist.final.json', undefined) || project.read('shotlist.plan.json', undefined);
+    if (script && vo) {
+      const srtContent = generateSrt({ script, vo, shotList });
+      if (srtContent) {
+        fs.writeFileSync(path.join(renders, `${name}_v${existing + 1}.srt`), srtContent, 'utf8');
+      }
+    }
+  } catch {}
+
   return out;
 }
 

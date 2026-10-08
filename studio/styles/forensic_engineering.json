@@ -1,0 +1,96 @@
+{
+  "genre": "forensic_engineering",
+  "style_name": "Forensic Engineering & System Catastrophes (2D Cinematic Storybook Stickman)",
+
+  "acts": [
+    { "act": 1, "name": "The Paradox Hook", "share": 0.08, "mode": "CINEMATIC", "goal": "Open with an extreme paradox or the critical minute before total system failure. Hook with a jarring micro-detail." },
+    { "act": 2, "name": "The Fragile Routine", "share": 0.18, "mode": "INFORMATION", "goal": "Introduce the everyday technician stickman performing standard operating procedures while catastrophic tension builds." },
+    { "act": 3, "name": "The Mechanical Domino", "share": 0.54, "mode": "INFORMATION", "goal": "Deconstruct the failure sequence step-by-step. Exact shear stress, rusted valves, circuit overloads explained with everyday analogies." },
+    { "act": 4, "name": "The Cold Epilogue", "share": 0.20, "mode": "CINEMATIC", "goal": "Chilling aftermath, costly structural lessons, and the unsettling realization that this fragile system still operates around us today." }
+  ],
+
+  "visual_mix": {
+    "footage": [0.0, 0.0],
+    "explainer": [0.15, 0.25],
+    "flow": [0.75, 1.0],
+    "flow_hard_max": 1.0
+  },
+
+  "black_beats": {
+    "min": 0,
+    "max": 0,
+    "duration_s": 0
+  },
+
+  "look": {
+    "footage_filter": "",
+    "grain": "",
+    "still_zoom": 0.02
+  },
+
+  "transitions": {
+    "same_sequence": "cut",
+    "between_sources_information": "dissolve_short",
+    "between_sources_cinematic": "dissolve_short",
+    "explainer_boundary": "dissolve_short",
+    "time_jump": "dissolve_short",
+    "act_break": "dissolve",
+    "durations": {
+      "cut": 0,
+      "dissolve_short": 0.6,
+      "dissolve": 1.0,
+      "dissolve_slow": 1.5,
+      "fade_black": 0.5,
+      "match_cut": 0
+    }
+  },
+
+  "colors": {
+    "safety_amber": "#E5A93C",
+    "rust_iron": "#A74328",
+    "damp_concrete": "#6C757D",
+    "industrial_navy": "#1B263B",
+    "brass": "#C9A227",
+    "dark_steel": "#0D1B2A"
+  },
+
+  "labels": {
+    "reconstruction": "SYSTEM ANATOMY RECONSTRUCTION",
+    "illustrative": "FORENSIC PROCESS DIAGRAM"
+  },
+
+  "flow": {
+    "model": "nano-banana-pro",
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "duration_s": 8,
+    "count": 1,
+    "character_guide": "Minimalist stickman technician character with smooth off-white round head, simple black dot eyes, thin black stick limbs, wearing matte yellow safety hardhat and bright orange safety vest with realistically draped cloth folds",
+    "look": "Wide 2D cinematic storybook illustration, hand-painted matte digital art, European graphic novel aesthetic (bande dessinée / ligne claire), uncluttered composition, generous negative space, atmospheric depth. Minimalist stickman technician character with smooth off-white round head, simple black dot eyes, thin black stick limbs, wearing matte yellow safety hardhat and bright orange safety vest with realistically draped cloth folds. Industrial environment: rusted machine valves, analog gauge dials, damp reinforced concrete walls, single local warm light source from an amber indicator beacon or hanging tungsten work lamp. Single continuous 16:9 widescreen frame. Single camera view. Absolutely NO comic book panels, NO multi-panel grids, NO split screens, NO borders.",
+    "avoid_extra": [
+      "3d render", "cgi", "photorealism", "glossy plastic", "hyperdetailed textures",
+      "excessive particles", "lens flare", "neon glare", "cluttered background", "shiny skin",
+      "volumetric chaos", "comic panels", "comic strip", "multi-panel", "split screen",
+      "grid layout", "triptych", "comic borders", "multiple frames", "collage",
+      "panel dividers", "speech bubbles", "anime"
+    ]
+  },
+
+  "assets": {
+    "source_priority": ["library"]
+  },
+
+  "audio": {
+    "music_functions": ["tension", "clock_ticking", "investigation", "ominous_drone", "aftermath_reflection"]
+  },
+
+  "editorial": {
+    "voice": "Investigative, technical forensic interrogator with quiet, measured deadpan wit. Pacing is deliberate and relaxed with dramatic silent pauses right after delivering crucial microscopic failure numbers (bolt millimeters, steam PSI, fatigue micro-fractures). Never uses generic sensationalism or hyperbole. Explains mechanical dominos with visceral physical clarity.",
+    "rules": [
+      "Zero fluff: start in second 1 with the critical micro-anomaly (a vibrating 12mm bolt, an overlooked pressure gauge needle, a 4-degree oil temperature spike).",
+      "Micro-substance: cite exact engineering schematics, metallurgical micro-cracks, and specific manual log entries.",
+      "Everyday analogies: break down complex physics (cavitation, hydrogen embrittlement, harmonic resonance) into relatable physical mechanics.",
+      "4-Act structure: The Paradox Hook -> The Fragile Routine -> The Mechanical Domino -> The Cold Epilogue."
+    ]
+  }
+}

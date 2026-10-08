@@ -27,7 +27,8 @@ export class JobWorker {
         projectKey: job.request.projectKey ?? null,
       });
       if (!account) {
-        this.store.failJob(job.id, { code: 'no_healthy_account', message: 'Tidak ada akun Flow siap' }, new Date(Date.now() + 30_000).toISOString());
+        this.store.unclaimJob(job.id);
+        await delay(1500);
         continue;
       }
       this.store.assignJobAccount(job.id, account.id);
@@ -44,10 +45,15 @@ export class JobWorker {
       } catch (error) {
         if (error.code === 'action_required') this.store.markAccount(account.id, 'action_required', 0);
         if (error.code === 'account_credits_exhausted') { this.store.markExhausted(account.id); success = true; }
+        const isRateLimit = error.code === 'rate_limit_exceeded' || /batas penggunaan|terlalu banyak|rate.*limit/i.test(error.message || '');
         const retryable = error.code !== 'action_required' && !String(error.code).startsWith('invalid_');
         const backoff = new Date(Date.now() + Math.min(300_000, 5000 * 2 ** job.attempts) + Math.floor(Math.random() * 1000)).toISOString();
-        this.store.failJob(job.id, { code: error.code ?? 'worker_error', message: error.message }, retryable ? backoff : null);
-      } finally { this.store.releaseAccount(account.id, success); }
+        const nextAvailable = isRateLimit ? new Date().toISOString() : backoff;
+        this.store.failJob(job.id, { code: error.code ?? 'worker_error', message: error.message }, retryable ? nextAvailable : null);
+      } finally {
+        const isRateLimit = !success && (/batas penggunaan|terlalu banyak|rate.*limit/i.test(job.error_json || ''));
+        this.store.releaseAccount(account.id, success, isRateLimit ? 60 : 5);
+      }
     }
   }
 

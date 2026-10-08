@@ -120,17 +120,18 @@ export class Store {
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
 
-  releaseAccount(id, success) {
+  releaseAccount(id, success, circuitMinutes = 5) {
     const ts = now();
     if (success) {
       this.db.prepare(`UPDATE accounts SET active_jobs=MAX(0,active_jobs-1),consecutive_failures=0,
         health_score=MIN(100,health_score+2),updated_at=? WHERE id=?`).run(ts, id);
     } else {
-      const circuitUntil = new Date(Date.now() + 5 * 60_000).toISOString();
+      const circuitUntil = new Date(Date.now() + circuitMinutes * 60_000).toISOString();
+      const threshold = circuitMinutes > 5 ? 1 : 3;
       this.db.prepare(`UPDATE accounts SET active_jobs=MAX(0,active_jobs-1),consecutive_failures=consecutive_failures+1,
         health_score=MAX(0,health_score-15),
-        circuit_open_until=CASE WHEN consecutive_failures+1>=3 THEN ? ELSE circuit_open_until END,
-        updated_at=? WHERE id=?`).run(circuitUntil, ts, id);
+        circuit_open_until=CASE WHEN consecutive_failures+1>=? THEN ? ELSE circuit_open_until END,
+        updated_at=? WHERE id=?`).run(threshold, circuitUntil, ts, id);
     }
   }
   assignJobAccount(jobId, accountId) {
@@ -213,10 +214,9 @@ export class Store {
       if (existing) {
         if (['failed', 'cancelled'].includes(existing.state)) {
           this.db.prepare('UPDATE jobs SET idempotency_key=NULL WHERE id=?').run(existing.id);
+        } else if (existing.type !== input.type || existing.request_json !== json(input.request)) {
+          throw new AppError(409, 'idempotency_conflict', 'Idempotency-Key telah digunakan dengan parameter berbeda');
         } else {
-          if (existing.type !== input.type || existing.request_json !== json(input.request)) {
-            throw new AppError(409, 'idempotency_conflict', 'Idempotency-Key sudah dipakai untuk request berbeda');
-          }
           return { job: jobView(existing), reused: true };
         }
       }
@@ -259,6 +259,11 @@ export class Store {
       this.addEvent(row.id, 'running', { workerId, attempt: row.attempts + 1 });
       return this.getJob(row.id);
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+  }
+
+  unclaimJob(id) {
+    const ts = now();
+    this.db.prepare(`UPDATE jobs SET state='queued',worker_id=NULL,lease_until=NULL,attempts=MAX(0, attempts-1),updated_at=? WHERE id=?`).run(ts, id);
   }
 
   finishJob(id, result) {

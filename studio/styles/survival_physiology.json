@@ -1,0 +1,96 @@
+{
+  "genre": "survival_physiology",
+  "style_name": "Extreme Survival Physiology (2D Cinematic Storybook Stickman)",
+
+  "acts": [
+    { "act": 1, "name": "The Paradox Hook", "share": 0.08, "mode": "CINEMATIC", "goal": "Begin at the biological tipping point: the moment blood shunts inward or oxygen saturation plunges. An eerie paradox of the human body." },
+    { "act": 2, "name": "The Fragile Routine", "share": 0.18, "mode": "INFORMATION", "goal": "The solitary explorer stickman enduring the quiet routine in extreme terrain, unaware of the subtle biological cascade beginning." },
+    { "act": 3, "name": "The Biological Domino", "share": 0.54, "mode": "INFORMATION", "goal": "Microscopic breakdown of physiological failure: cellular glycolysis, vasoconstriction, paradoxical undressing, alveolar collapse step by step." },
+    { "act": 4, "name": "The Cold Epilogue", "share": 0.20, "mode": "CINEMATIC", "goal": "The haunting quiet of human survival limits, forensic autopsy deductions, and the terrifying biological boundary between life and death." }
+  ],
+
+  "visual_mix": {
+    "footage": [0.0, 0.0],
+    "explainer": [0.15, 0.25],
+    "flow": [0.75, 1.0],
+    "flow_hard_max": 1.0
+  },
+
+  "black_beats": {
+    "min": 0,
+    "max": 0,
+    "duration_s": 0
+  },
+
+  "look": {
+    "footage_filter": "",
+    "grain": "",
+    "still_zoom": 0.02
+  },
+
+  "transitions": {
+    "same_sequence": "cut",
+    "between_sources_information": "dissolve_short",
+    "between_sources_cinematic": "dissolve_short",
+    "explainer_boundary": "dissolve_short",
+    "time_jump": "dissolve_short",
+    "act_break": "dissolve",
+    "durations": {
+      "cut": 0,
+      "dissolve_short": 0.6,
+      "dissolve": 1.0,
+      "dissolve_slow": 1.5,
+      "fade_black": 0.5,
+      "match_cut": 0
+    }
+  },
+
+  "colors": {
+    "ice_blue": "#8ECAE6",
+    "deep_frost": "#219EBC",
+    "lantern_amber": "#FB8500",
+    "snow_shadow": "#2B2D42",
+    "blood_crimson": "#9E2A2B",
+    "twilight_slate": "#1E222A"
+  },
+
+  "labels": {
+    "reconstruction": "PHYSIOLOGICAL CASCADE RECONSTRUCTION",
+    "illustrative": "BIOLOGICAL THRESHOLD DIAGRAM"
+  },
+
+  "flow": {
+    "model": "nano-banana-pro",
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "duration_s": 8,
+    "count": 1,
+    "character_guide": "Minimalist stickman explorer character with smooth off-white round head, simple black dot eyes, thin black stick limbs, wearing a thick heavy fur-trimmed parka jacket with realistic cloth drape folds",
+    "look": "Wide 2D cinematic storybook illustration, hand-painted matte digital art, European graphic novel aesthetic (bande dessinée / ligne claire), uncluttered composition, generous negative space, atmospheric depth. Minimalist stickman explorer character with smooth off-white round head, shivering simple black dot eyes, thin black stick limbs, wearing a thick heavy fur-trimmed parka jacket with realistic cloth drape folds, holding a warm glowing copper hurricane lantern. Environment: dusk snow mountain ridge, gentle whisper of blowing snow fog, warm golden lantern light casting long shadows across untouched blue snow. Single continuous 16:9 widescreen frame. Single camera view. Absolutely NO comic book panels, NO multi-panel grids, NO split screens, NO borders.",
+    "avoid_extra": [
+      "3d render", "cgi", "photorealism", "glossy plastic", "hyperdetailed textures",
+      "excessive particles", "lens flare", "neon glare", "cluttered background", "shiny skin",
+      "volumetric chaos", "comic panels", "comic strip", "multi-panel", "split screen",
+      "grid layout", "triptych", "comic borders", "multiple frames", "collage",
+      "panel dividers", "speech bubbles", "anime"
+    ]
+  },
+
+  "assets": {
+    "source_priority": ["library"]
+  },
+
+  "audio": {
+    "music_functions": ["ice_drone", "heartbeat_slow", "wind_ambient", "biological_tension", "quiet_epilogue"]
+  },
+
+  "editorial": {
+    "voice": "Cold, clinical, yet intensely intimate medical-investigative narrator. Speaks in a calm, lowered register with deliberate silent pauses when core body temperature drops by a single decimal. Never rushes. Deadpan observational delivery with zero panic.",
+    "rules": [
+      "Micro-substance: cite cellular chemistry, core temperature thresholds in Celsius/Fahrenheit, milliequivalents of electrolyte shift, and heart rate decelerations.",
+      "Visceral sensory reality: the metallic taste of severe hypoxia, the silent numbness of freezing nerve fibers, the deceptive warmth of terminal paradoxical undressing.",
+      "Analogies: compare metabolic heat dissipation to a leaking radiator, arterial constriction to a closed river dam.",
+      "4-Act structure: The Paradox Hook -> The Fragile Routine -> The Biological Domino -> The Cold Epilogue."
+    ]
+  }
+}

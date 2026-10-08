@@ -233,8 +233,9 @@ export async function renderGeo({ config, style, data, duration, out }) {
 
     const geo = style.geo || {};
     const filters = ['format=yuv420p'];
-    if (geo.grain !== false) filters.unshift(style.look.grain);
+    if (geo.grain !== false && style.look?.grain) filters.unshift(style.look.grain);
     ffmpeg = spawn('ffmpeg', ['-y', '-v', 'error', '-f', 'image2pipe', '-framerate', String(spec.fps), '-c:v', 'mjpeg', '-i', '-', '-vf', filters.join(','), '-c:v', 'libx264', '-preset', config.render.preset || 'medium', '-crf', '16', '-pix_fmt', 'yuv420p', '-r', String(spec.fps), tmp]);
+    ffmpeg.stdin.on('error', () => {});
     let ffErr = '';
     ffmpeg.stderr.on('data', (d) => { ffErr += d; });
     const done = new Promise((resolve, reject) => ffmpeg.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg ${code}: ${ffErr.slice(-500)}`)))));

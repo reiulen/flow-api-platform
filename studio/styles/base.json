@@ -20,7 +20,8 @@
     "breathing_every_s": 240,
     "breathing_s": [3, 6],
     "act_break_s": [3, 6],
-    "cold_open_s": 12,
+    "cold_open_s": 0.8,
+    "hook_lead_in_s": 0.8,
     "pause_default_s": 0.6,
     "beat_s": 2.0,
     "banned_phrases": [
@@ -33,6 +34,7 @@
 
   "pacing": {
     "asl_target": [7, 10],
+    "hook": { "min": 2.0, "target": 3.0, "max": 4.5 },
     "footage": { "min": 3.0, "target": 5.0, "max": 7.0 },
     "fast": { "min": 1.5, "max": 3.0 },
     "hold": { "min": 7.0, "max": 15.0 },
@@ -47,10 +49,10 @@
   },
 
   "visual_mix": {
-    "footage": [0.45, 0.55],
-    "explainer": [0.3, 0.4],
-    "flow": [0.05, 0.15],
-    "flow_hard_max": 0.2
+    "footage": [0.0, 0.5],
+    "explainer": [0.2, 0.4],
+    "flow": [0.4, 1.0],
+    "flow_hard_max": 1.0
   },
 
   "transitions": {

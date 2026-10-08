@@ -1,0 +1,204 @@
+{
+  "generated_at": "2026-10-07T20:03:56.410Z",
+  "genre": "ancient_history",
+  "candidates": [
+    {
+      "topic_id": "T-006",
+      "title": "Why Did Rome's Richest Man Run a Fire Brigade That Let Your House Burn?",
+      "central_question": "How did a city of wooden-floored tenements fight fires, and how did a private fire brigade turn a neighbour's disaster into profit?",
+      "angle": "Start in a smoky stairwell with a bucket chain and a clerk haggling. Plutarch says Crassus bought burning buildings cheaply and then put out the fire. Then show Augustus's fix: the vigiles, a paramilitary fire watch with night patrols, hooks, buckets and fire-prevention rules.",
+      "scores": {
+        "contradiction": 5,
+        "mechanism": 5,
+        "footage": 1,
+        "sources": 4,
+        "relevance": 4,
+        "visualization": 5,
+        "risk": 4,
+        "hype": 5
+      },
+      "footage_evidence": [
+        "archive probe \"Roman insula fire night, vigiles barracks, Subura\": 0 results",
+        "Vigiles barracks (Excubitorium) in Trastevere",
+        "Insula remains at Ostia (Casa di Diana) and Herculaneum",
+        "Inscriptions naming the cohorts of vigiles"
+      ],
+      "key_sources": [
+        "Plutarch, Life of Crassus 2",
+        "Cassius Dio 55.26 (Augustus founds the vigiles)",
+        "Juvenal, Satires 3 (fire, collapse and noise in the insulae)",
+        "Digest 1.15 (duties of the praefectus vigilum)"
+      ],
+      "risks": [
+        "Plutarch's Crassus story is a hostile anecdote, so present it as reported by Plutarch rather than as audited fact",
+        "Do not overstate how effective the vigiles were; large fires such as 64 AD still happened"
+      ],
+      "total": 41
+    },
+    {
+      "topic_id": "T-002",
+      "title": "Why Was It Cheaper to Ship Grain Across the Sea Than to Haul It 300 Miles by Cart?",
+      "central_question": "Why did Rome's overland transport cost so much that a cart of wheat could double in price on a long road?",
+      "angle": "Break down the ox-cart: the load limit, the feed the oxen ate along the way, the axle grease and wear, tolls and breakdowns. Then compare it with a grain ship wallowing into Ostia. The empire's roads are famous, but its economy depended on water.",
+      "scores": {
+        "contradiction": 5,
+        "mechanism": 5,
+        "footage": 1,
+        "sources": 4,
+        "relevance": 4,
+        "visualization": 5,
+        "risk": 3,
+        "hype": 4
+      },
+      "footage_evidence": [
+        "archive probe \"Roman ox cart basalt road, Ostia grain ship\": 0 results",
+        "Ruts and paving of Roman roads, for example the Via Appia basalt pavers",
+        "Ostia Antica warehouses (horrea) and port complex",
+        "Roman wagon reconstructions and cart-part finds from Roman Britain and the Rhine frontier"
+      ],
+      "key_sources": [
+        "Diocletian's Price Edict (301 AD), transport rates",
+        "Cato, De Agri Cultura, on carts and draft animals",
+        "Columella, De Re Rustica",
+        "Duncan-Jones, The Economy of the Roman Empire (transport cost analysis)"
+      ],
+      "risks": [
+        "The commonly quoted '300 miles doubles the price' is a modern calculation from late-antique rates, so state its dating clearly",
+        "Price Edict figures are maximum prices, not actual market prices"
+      ],
+      "total": 40
+    },
+    {
+      "topic_id": "T-004",
+      "title": "Were Roman Soldiers Really Paid in Salt?",
+      "central_question": "Where does the 'salary comes from salt' story come from, and what did a legionary's pay actually look like after deductions?",
+      "angle": "Debunk the popular myth with Pliny's etymology and then show the real mechanics: pay in coin, with stoppages for food, boots, hay and the unit's burial club. One surviving pay record shows how little cash a soldier actually held.",
+      "scores": {
+        "contradiction": 5,
+        "mechanism": 4,
+        "footage": 1,
+        "sources": 4,
+        "relevance": 4,
+        "visualization": 4,
+        "risk": 3,
+        "hype": 5
+      },
+      "footage_evidence": [
+        "archive probe \"Roman legionary paymaster, wax tablet, army camp tent\": 0 results",
+        "Papyrus pay and account records from Roman military units (Fink, Roman Military Records on Papyrus)",
+        "Roman legionary coin hoards and fort excavations",
+        "Tombstones of legionaries and standard-bearers"
+      ],
+      "key_sources": [
+        "Pliny the Elder, Natural History 31.89 (salt and salarium)",
+        "Fink, Roman Military Records on Papyrus (pay and stoppage accounts, including Papyrus Gen. Lat. 1)",
+        "Tacitus, Annals 1.17 (mutineer complaints about pay and deductions)",
+        "Speidel and Campbell on Roman army pay"
+      ],
+      "risks": [
+        "No ancient source confirms soldiers were paid in salt, so the video must present the myth as unproven rather than assert the opposite too strongly",
+        "Pay figures vary by era and unit, so pin them to a specific date such as the Domitianic rate"
+      ],
+      "total": 40
+    },
+    {
+      "topic_id": "T-005",
+      "title": "Why Did Romans Collect Pee on Street Corners?",
+      "central_question": "How did the smell of Rome become a business, and who profited from it?",
+      "angle": "Marble baths on one side and clay jars at street corners on the other. Follow a jar of urine from a Subura corner to the fuller's workshop, where it was used to clean wool and togas, and then to the emperor Vespasian, who taxed it.",
+      "scores": {
+        "contradiction": 5,
+        "mechanism": 4,
+        "footage": 1,
+        "sources": 4,
+        "relevance": 3,
+        "visualization": 5,
+        "risk": 4,
+        "hype": 5
+      },
+      "footage_evidence": [
+        "archive probe \"Roman fullonica Pompeii, street corner amphora, Subura alley\": 0 results",
+        "Pompeii fullonica of Stephanus and other fullers' workshops",
+        "Fullers' treading stalls and vats at Pompeii and Ostia",
+        "Pompeii and Ostia public latrine remains"
+      ],
+      "key_sources": [
+        "Suetonius, Vespasian 23 (the urine tax)",
+        "Pliny the Elder, Natural History 28 and 35 (fuller's earth and urine use)",
+        "Martial, Epigrams (street and laundry details)",
+        "Flohr, The World of the Fullo"
+      ],
+      "risks": [
+        "The scale of the urine tax and the exact collection process are debated, so keep claims to what the sources support",
+        "Keep the tone observational rather than crude"
+      ],
+      "total": 38.5
+    },
+    {
+      "topic_id": "T-001",
+      "title": "How Did a Roman Fort at the Edge of the Empire Get Its Beer and Socks?",
+      "central_question": "How did one frontier fort at Vindolanda get beer, grain, socks and spare sandals across muddy northern roads?",
+      "angle": "Follow a single wooden tablet request, such as the beer complaint or the parcel of socks and underpants, back up the supply chain: the local brewer, the grain contractor, the ox-cart driver and the clerk who tracked it. Imperial roads meet the reality of mud, delays and a soldier asking for a clean pair of socks.",
+      "scores": {
+        "contradiction": 4,
+        "mechanism": 5,
+        "footage": 1,
+        "sources": 5,
+        "relevance": 4,
+        "visualization": 5,
+        "risk": 4,
+        "hype": 4
+      },
+      "footage_evidence": [
+        "archive probe \"Vindolanda fort granary, wooden barracks, muddy road\": 0 results",
+        "Vindolanda excavations: granaries, barracks and the commanding officer's residence",
+        "Surviving Vindolanda leather shoes and textile finds",
+        "Hadrian's Wall fort layouts and supply roads such as the Stanegate"
+      ],
+      "key_sources": [
+        "Vindolanda Tablets, including the Masclus letter to Cerialis asking for beer",
+        "Vindolanda Tablet II.343 (Octavius to Candidus on grain and cartage)",
+        "Vindolanda Tablet II.346 (letter accompanying a parcel of socks, sandals and underpants)",
+        "Bowman, Life and Letters on the Roman Frontier"
+      ],
+      "risks": [
+        "Tablet numbers and translations must be checked against the Vindolanda Tablets Online edition before scripting",
+        "Tablets are fragmentary, so avoid extrapolating one fort's supply system to the whole empire"
+      ],
+      "total": 38
+    },
+    {
+      "topic_id": "T-003",
+      "title": "How Did Rome Hand Out Free Grain to 200,000 People With Clay Tokens and No Spreadsheets?",
+      "central_question": "How did the annona dole identify, register and feed a city of citizens without databases?",
+      "angle": "Walk through a recipient's month: the token (tessera), the queue, the granary clerk and the sack of wheat that still had to be milled and baked at home. Caesar had cut the rolls from 320,000 to 150,000 and Augustus capped them at around 200,000, so the question is who got in, who got cut and who profited from the paperwork.",
+      "scores": {
+        "contradiction": 4,
+        "mechanism": 5,
+        "footage": 1,
+        "sources": 4,
+        "relevance": 5,
+        "visualization": 5,
+        "risk": 4,
+        "hype": 4
+      },
+      "footage_evidence": [
+        "archive probe \"Roman granary queue, Porticus Minucia, Ostia horrea\": 0 results",
+        "Ostia horrea and the Horrea Galbana remains in Rome",
+        "Surviving lead and bone tesserae in museum collections",
+        "Reliefs of grain unloading from Ostia and Portus"
+      ],
+      "key_sources": [
+        "Suetonius, Divus Julius 41 (dole rolls cut from 320,000 to 150,000)",
+        "Cassius Dio 55.10 (Augustus and the number of recipients)",
+        "Augustus, Res Gestae (grain distributions)",
+        "Rickman, The Corn Supply of Ancient Rome"
+      ],
+      "risks": [
+        "Recipient counts differ between sources and periods, so scope the video to named reigns",
+        "Avoid claiming the dole fed the whole city; it did not, since many residents were not recipients"
+      ],
+      "total": 37.5
+    }
+  ]
+}

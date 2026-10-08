@@ -1,0 +1,20 @@
+[
+  {
+    "file": "click.wav",
+    "name": "Mouse Click",
+    "function": "click",
+    "tags": ["click", "mouse", "ui", "subscribe"]
+  },
+  {
+    "file": "page_turn.wav",
+    "name": "Parchment Page Turn",
+    "function": "transition",
+    "tags": ["page", "paper", "turn", "storybook", "transition"]
+  },
+  {
+    "file": "whoosh_soft.wav",
+    "name": "Soft Airy Whoosh",
+    "function": "transition",
+    "tags": ["whoosh", "soft", "dissolve", "air", "transition"]
+  }
+]

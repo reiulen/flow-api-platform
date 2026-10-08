@@ -36,6 +36,17 @@ const PICTOS = {
   missile: 'M12 1.5l3 5v11.5l2.5 3.5h-11L9 18V6.5z',
 };
 
+// 24x24 pictograms for icon grids.
+const PICTOS = {
+  person: 'M12 2.5a4 4 0 1 1 0 8a4 4 0 0 1 0-8zM4.5 22v-3.5a6 6 0 0 1 6-6h3a6 6 0 0 1 6 6V22z',
+  barrel: 'M6 2.5h12v2.2H6zM5 5.6h14v12.8H5zM6 19.3h12v2.2H6zM5 9.6h14v1.2H5zM5 13.2h14v1.2H5z',
+  coin: 'M12 2a10 10 0 1 1 0 20a10 10 0 0 1 0-20zM12 5.5a6.5 6.5 0 1 0 0 13a6.5 6.5 0 0 0 0-13z',
+  ship: 'M2.5 15h19l-3.2 5.5H5.7zM6.5 10h11v4h-11zM10.5 5.5h3V10h-3z',
+  plane: 'M12 1.5l1.8 7.2 8.2 4.3v2.2l-8.2-2.4-.8 6 3 2.2v1.5L12 21.4l-4 1.1V21l3-2.2-.8-6-8.2 2.4V13l8.2-4.3z',
+  tank: 'M2.5 14h19v5.5h-19zM6 9.5h10v4.5H6zM16 11h6.5v1.6H16z',
+  missile: 'M12 1.5l3 5v11.5l2.5 3.5h-11L9 18V6.5z',
+};
+
 // Diagonal stripes in a role colour over a light wash of it, as a MapLibre pattern image.
 function hatchImage(hex) {
   const n = 24;
@@ -269,6 +280,84 @@ const builders = {
     ui.appendChild(el);
     plates.push(el);
     return (t) => placePlate(el, [e.lon, e.lat], prog(t, e.at, 1.1), [0, 0], 'center');
+  },
+
+  // Pictogram grid next to a place: `count` icons in the role colour out of `total`
+  // ("35 MILLION PEOPLE, 19.6 MILLION CITIZENS"). Icons appear one by one.
+  icons(e) {
+    const el = document.createElement('div');
+    el.className = 'info';
+    el.dataset.nudge = '0';
+    el.style.setProperty('--c', color(e.role));
+    el.style.opacity = '0';
+    const cols = Math.min(10, e.total);
+    el.innerHTML = `${e.label ? '<div class="k"></div>' : ''}<div class="grid" style="grid-template-columns: repeat(${cols}, 24px)"></div>${e.value ? '<div class="v"></div>' : ''}`;
+    if (e.label) el.querySelector('.k').textContent = e.label;
+    if (e.value) el.querySelector('.v').textContent = e.value;
+    const grid = el.querySelector('.grid');
+    const cells = Array.from({ length: e.total }, (_, k) => {
+      const s = svg('svg', grid, { viewBox: '0 0 24 24' });
+      svg('path', s, { d: PICTOS[e.icon] || PICTOS.person, fill: k < e.count ? color(e.role) : '#ffffff', 'fill-rule': 'evenodd', opacity: 0 });
+      return s.firstChild;
+    });
+    ui.appendChild(el);
+    plates.push(el);
+    return (t) => {
+      placePlate(el, [e.lon, e.lat], prog(t, e.at, 0.6), [0, 0], 'center');
+      cells.forEach((c, k) => {
+        const p = prog(t, e.at + 0.3 + (e.dur * k) / e.total, 0.25);
+        c.setAttribute('opacity', String(p * (k < e.count ? 1 : 0.35)));
+      });
+    };
+  },
+
+  // Share of a whole as a pie that sweeps in, with the number under it ("-95%").
+  pie(e) {
+    const R = 52;
+    const el = document.createElement('div');
+    el.className = 'pie';
+    el.dataset.nudge = '0';
+    el.style.setProperty('--c', color(e.role));
+    el.style.opacity = '0';
+    el.innerHTML = `${e.label ? '<div class="k"></div>' : ''}<svg width="${R * 2 + 8}" height="${R * 2 + 8}" viewBox="${-R - 4} ${-R - 4} ${R * 2 + 8} ${R * 2 + 8}"></svg><div class="v"></div>`;
+    if (e.label) el.querySelector('.k').textContent = e.label;
+    el.querySelector('.v').textContent = e.value;
+    const s = el.querySelector('svg');
+    svg('circle', s, { r: R, fill: '#f2f2f2', stroke: 'rgba(0,0,0,0.5)', 'stroke-width': 2 });
+    const wedge = svg('path', s, { fill: color(e.role) });
+    ui.appendChild(el);
+    plates.push(el);
+    return (t) => {
+      placePlate(el, [e.lon, e.lat], prog(t, e.at, 0.5), [0, 0], 'center');
+      const a = 2 * Math.PI * (e.percent / 100) * ease(prog(t, e.at + 0.3, e.dur));
+      if (a <= 0.001) { wedge.setAttribute('d', ''); return; }
+      if (a >= 2 * Math.PI - 0.001) { wedge.setAttribute('d', `M0,${-R}A${R},${R} 0 1 1 0,${R}A${R},${R} 0 1 1 0,${-R}Z`); return; }
+      const x = R * Math.sin(a); const y = -R * Math.cos(a);
+      wedge.setAttribute('d', `M0,0L0,${-R}A${R},${R} 0 ${a > Math.PI ? 1 : 0} 1 ${x},${y}Z`);
+    };
+  },
+
+  // Boxed vector map of another place in a corner of the frame.
+  inset(e) {
+    const el = document.createElement('div');
+    el.className = 'inset';
+    el.style.setProperty('--c', color(e.role));
+    el.style.width = `${e.w}px`; el.style.height = `${e.h}px`;
+    const margin = 56;
+    el.style[e.position.includes('t') ? 'top' : 'bottom'] = `${margin}px`;
+    el.style[e.position.includes('l') ? 'left' : 'right'] = `${margin}px`;
+    el.style.opacity = '0';
+    el.innerHTML = `<svg width="${e.w}" height="${e.h}" viewBox="0 0 ${e.w} ${e.h}"></svg>${e.label ? '<div class="k"></div>' : ''}`;
+    if (e.label) el.querySelector('.k').textContent = e.label;
+    const s = el.querySelector('svg');
+    svg('path', s, { d: e.land, fill: '#5b4a37', stroke: 'rgba(255,255,255,0.55)', 'stroke-width': 0.8 });
+    if (e.hi) svg('path', s, { d: e.hi, fill: spec.fills[e.role] || color(e.role), 'fill-opacity': 0.85, stroke: lighten(color(e.role), 0.4), 'stroke-width': 1.4 });
+    ui.appendChild(el);
+    return (t) => {
+      const p = easeOut(prog(t, e.at, 0.7));
+      el.style.opacity = String(p);
+      el.style.transform = `scale(${0.94 + 0.06 * p})`;
+    };
   },
 
   // Pictogram grid next to a place: `count` icons in the role colour out of `total`

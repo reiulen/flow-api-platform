@@ -14,6 +14,14 @@ const TopicsOut = z.object({
   })),
 });
 
+// An angle that walks through attacking something gets refused downstream and is off-brand anyway;
+// such a topic is scored as risky so the automatic pick passes it over.
+const ATTACK_ANGLE = /kill[- ]?chains?|find,? fix,? (and )?track|track(ing)?,? (and )?target(ing)?|targeting (data|cycle|solution)|guidance (system|seeker)s?|seekers?\b|how\b[\w\s'-]{0,40}?\b(to|could|would|can|might) (defeat|evade|sink|shoot down|penetrate|jam|spoof|blind)|weak (spot|point)s? to exploit/i;
+export function attackAngle(text) {
+  const m = String(text || '').match(ATTACK_ANGLE);
+  return m ? m[0] : '';
+}
+
 export function topicTotal(s) {
   return s.contradiction * 2 + s.mechanism * 1.5 + s.footage * 2 + s.sources * 1.5 + s.relevance + s.visualization + (s.hype ?? 3) * 2.5 - s.risk * 1.5;
 }
@@ -51,6 +59,11 @@ export async function scoutTopics({ llm, style, genre, count = 8, exclude = [], 
         else if (found < 10) scores.footage = Math.min(scores.footage, 3);
       }
     }
+    const attack = attackAngle(`${c.title} ${c.central_question} ${c.angle}`);
+    if (attack) {
+      scores.risk = Math.max(scores.risk, 4);
+      c.risks = [...c.risks, `angle walks through an attack ("${attack}"); reframe around geography, money and decisions`];
+    }
     candidates.push({
       topic_id: `T-${String(i + 1).padStart(3, '0')}`, title: c.title, central_question: c.central_question, angle: c.angle,
       scores, footage_evidence: evidence, key_sources: c.key_sources, risks: c.risks, total: round(topicTotal(scores), 2),
@@ -60,10 +73,12 @@ export async function scoutTopics({ llm, style, genre, count = 8, exclude = [], 
   return Topics.parse({ generated_at: nowIso(), genre, candidates });
 }
 
-// Automated G1: pick the best unused topic that clears the footage bar.
+// Automated G1: pick the best unused topic that clears the footage bar (or history illustration bar).
 export function pickTopic(topics, used = []) {
+  const isIllustrated = ['ancient_history', 'frontier_logistics', 'forensic_engineering', 'survival_physiology', 'shadow_economics', 'fitness_essay'].includes(topics.genre) || topics.genre?.includes('history');
   const usedSet = new Set(used.map((t) => t.toLowerCase()));
-  const usable = topics.candidates.filter((c) => !usedSet.has(c.title.toLowerCase()) && c.scores.footage >= 3 && c.scores.risk <= 3);
+  const minFootage = isIllustrated ? 1 : 3;
+  const usable = topics.candidates.filter((c) => !usedSet.has(c.title.toLowerCase()) && c.scores.footage >= minFootage && c.scores.risk <= 3);
   // High click appeal first; a lower-hype topic only when nothing else clears the bars.
   return usable.find((c) => (c.scores.hype ?? 3) >= 4) || usable[0] || null;
 }
@@ -81,7 +96,7 @@ const ResearchOut = z.object({
 export async function runResearch({ llm, style, brief, config }) {
   const system = houseRules(style);
   const { text, sources } = await llm.research({ stage: 'research', system, prompt: researchPrompt({ brief }), maxSearches: config.llm.researchMaxSearches });
-  const out = await llm.json({ stage: 'research', schema: ResearchOut, system, prompt: researchExtractPrompt({ brief, notes: text, sources }) });
+  const out = await llm.json({ stage: 'research', schema: ResearchOut, system, prompt: researchExtractPrompt({ brief, notes: text, sources }), maxTokens: 64000 });
   // Only URLs the search actually returned count; anything else was written from memory.
   const found = new Set(sources.map((s) => normalizeUrl(s.url)));
   const research = Research.parse({
@@ -283,7 +298,10 @@ export function lintAct(segments, { style, research, budget, actNo }) {
   const problems = [];
   const claimIds = new Set(research.claims.map((c) => c.claim_id));
   const words = segments.reduce((n, s) => n + countWords(s.text), 0);
-  if (words < budget * 0.85 || words > budget * 1.15) problems.push({ msg: `act has ${words} words, budget is ${budget} (±10%)`, hard: words < budget * 0.6 || words > budget * 1.5 });
+  const isHistory = style.genre?.includes('history') || style.genre === 'ancient_history';
+  const hardMin = isHistory ? budget * 0.45 : budget * 0.6;
+  const hardMax = isHistory ? budget * 1.75 : budget * 1.5;
+  if (words < budget * 0.85 || words > budget * 1.15) problems.push({ msg: `act has ${words} words, budget is ${budget} (±10%)`, hard: words < hardMin || words > hardMax });
   let infoRun = 0;
   let beats = 0;
   for (const s of segments) {

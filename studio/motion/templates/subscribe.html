@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<script src="vendor/gsap.min.js"></script>
+<link rel="stylesheet" href="common.css" />
+<style>
+  #container {
+    position: absolute;
+    right: 120px;
+    bottom: 90px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: rgba(18, 18, 22, 0.88);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 1px rgba(255, 255, 255, 0.2);
+    padding: 12px 24px;
+    border-radius: 9999px;
+    transform: translateY(40px);
+    opacity: 0;
+  }
+  #avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #c85a32, #e5a93c);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: -0.02em;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+  #info {
+    display: flex;
+    flex-direction: column;
+    margin-right: 8px;
+  }
+  #title {
+    font-family: "Oswald", sans-serif;
+    font-weight: 600;
+    font-size: 20px;
+    color: #ffffff;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  #sub {
+    font-family: "Inter Tight", sans-serif;
+    font-weight: 500;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.6);
+  }
+  #btn-subscribe {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #cc0000;
+    color: #ffffff;
+    font-family: "Inter Tight", sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    padding: 8px 18px;
+    border-radius: 9999px;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(204, 0, 0, 0.4);
+    transform-origin: center center;
+  }
+  #btn-subscribe.subscribed {
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.9);
+    box-shadow: none;
+  }
+  #bell-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.8);
+    transform-origin: top center;
+  }
+  #bell-btn.active {
+    color: #e5a93c;
+    background: rgba(229, 169, 60, 0.15);
+  }
+  #cursor {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0;
+    filter: drop-shadow(0 2px 5px rgba(0,0,0,0.5));
+  }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="__DURATION__">
+  <section id="scene" class="clip" data-start="0" data-duration="__DURATION__">
+    <div id="container">
+      <div id="avatar">R</div>
+      <div id="info">
+        <span id="title">ROME UNSCROLLED</span>
+        <span id="sub">Ancient History Documentary</span>
+      </div>
+      <div id="btn-subscribe">
+        <svg id="sub-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z"/>
+        </svg>
+        <span id="sub-text">SUBSCRIBE</span>
+      </div>
+      <div id="bell-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Mouse Cursor -->
+    <svg id="cursor" viewBox="0 0 24 24" fill="white" stroke="#121216" stroke-width="1.5">
+      <path d="M3 3l7 18 3-7 7-3L3 3z"/>
+    </svg>
+  </section>
+</div>
+
+<script>
+  const P = __PAYLOAD__;
+  const D = P.duration;
+  const root = document.getElementById('root');
+  if (P.colors) {
+    for (const [k, v] of Object.entries(P.colors)) root.style.setProperty(`--${k}`, v);
+  }
+  if (P.data?.channel) {
+    document.getElementById('title').textContent = P.data.channel;
+    document.getElementById('avatar').textContent = P.data.channel.charAt(0);
+  }
+  if (P.data?.subtitle) {
+    document.getElementById('sub').textContent = P.data.subtitle;
+  }
+
+  const container = document.getElementById('container');
+  const btnSub = document.getElementById('btn-subscribe');
+  const subText = document.getElementById('sub-text');
+  const bellBtn = document.getElementById('bell-btn');
+  const cursor = document.getElementById('cursor');
+
+  const tl = gsap.timeline({ paused: true });
+
+  // 1. Container slides in smoothly
+  tl.to(container, { y: 0, opacity: 1, duration: 0.6, ease: 'power3.out' }, 0.2);
+
+  // 2. Cursor appears from below right and moves towards Subscribe button
+  tl.set(cursor, { x: 1820, y: 1020, opacity: 0 }, 0.8)
+    .to(cursor, { opacity: 1, duration: 0.2 }, 0.8)
+    .to(cursor, { x: 1610, y: 948, duration: 0.7, ease: 'power2.out' }, 0.9);
+
+  // 3. Click down on Subscribe button (SFX matches this timestamp: ~1.8s)
+  tl.to(cursor, { scale: 0.85, duration: 0.1, ease: 'power1.in' }, 1.75)
+    .to(btnSub, { scale: 0.94, duration: 0.1, ease: 'power1.in' }, 1.75)
+    .to(cursor, { scale: 1, duration: 0.12, ease: 'power1.out' }, 1.85)
+    .to(btnSub, { scale: 1, duration: 0.12, ease: 'power1.out' }, 1.85)
+    .call(() => {
+      btnSub.classList.add('subscribed');
+      subText.textContent = 'SUBSCRIBED';
+    }, null, 1.85);
+
+  // 4. Cursor moves to Bell button
+  tl.to(cursor, { x: 1734, y: 948, duration: 0.5, ease: 'power2.inOut' }, 2.2);
+
+  // 5. Click on Bell button (~2.8s)
+  tl.to(cursor, { scale: 0.85, duration: 0.1, ease: 'power1.in' }, 2.75)
+    .to(bellBtn, { scale: 0.9, duration: 0.1, ease: 'power1.in' }, 2.75)
+    .to(cursor, { scale: 1, duration: 0.12, ease: 'power1.out' }, 2.85)
+    .to(bellBtn, { scale: 1, duration: 0.12, ease: 'power1.out' }, 2.85)
+    .call(() => {
+      bellBtn.classList.add('active');
+    }, null, 2.85)
+    // Bell shake
+    .to(bellBtn, { rotation: 18, duration: 0.08, yoyo: true, repeat: 3, ease: 'power1.inOut' }, 2.88)
+    .to(bellBtn, { rotation: 0, duration: 0.08 }, 3.15);
+
+  // 6. Cursor fades out
+  tl.to(cursor, { opacity: 0, y: '+=20', duration: 0.35, ease: 'power2.in' }, 3.3);
+
+  // 7. Container smoothly exits before duration ends
+  tl.to(container, { y: 30, opacity: 0, duration: 0.5, ease: 'power2.in' }, Math.max(3.8, D - 0.6));
+
+  window.__timelines = window.__timelines || {};
+  window.__timelines['main'] = tl;
+</script>
+</body>
+</html>

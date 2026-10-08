@@ -68,6 +68,7 @@ export function parseMotion(json) {
 
 // checkpoint: { get(act), set(act, out) } keeps finished acts across a retry of this stage.
 export async function runVisualDirector({ llm, style, script, research, checkpoint = null }) {
+  const isIllustrated = (style.visual_mix?.footage?.[1] || 0) === 0;
   const result = { cold_open: [], segments: {} };
   for (const act of style.acts) {
     const segments = script.segments.filter((s) => s.act === act.act).map((s) => ({ ...s, words: spokenWords(s.text) }));
@@ -77,14 +78,19 @@ export async function runVisualDirector({ llm, style, script, research, checkpoi
       out = await llm.json({ stage: 'visual', schema: ActVisualOut, system: houseRules(style), prompt: visualPrompt({ style, act, segments, research }) });
       checkpoint?.set(act.act, out);
     }
-    if (act.act === 1) result.cold_open = out.cold_open.slice(0, 3);
+    if (act.act === 1) {
+      result.cold_open = (out.cold_open || []).slice(0, 3).map((co) => ({
+        ...co,
+        visual_type: isIllustrated ? 'FLOW' : co.visual_type,
+      }));
+    }
     for (const seg of segments) {
       const got = out.segments.find((s) => s.seg_id === seg.seg_id);
       const beats = (got?.beats || [])
-        .map((b) => normalizeBeat(b, seg.words.length))
+        .map((b) => normalizeBeat(b, seg.words.length, isIllustrated))
         .sort((a, b) => a.from_word - b.from_word)
         .filter((b, i, arr) => i === 0 || b.from_word > arr[i - 1].from_word);
-      if (!beats.length) beats.push(defaultBeat(seg));
+      if (!beats.length) beats.push(defaultBeat(seg, isIllustrated));
       beats[0].from_word = 0;
       result.segments[seg.seg_id] = beats;
     }
@@ -92,21 +98,24 @@ export async function runVisualDirector({ llm, style, script, research, checkpoi
   return result;
 }
 
-function normalizeBeat(b, wordCount) {
+function normalizeBeat(b, wordCount, isIllustrated = false) {
   const beat = { ...b, from_word: Math.max(0, Math.min(wordCount - 1, b.from_word)) };
+  if (isIllustrated && (beat.visual_type === 'REAL' || beat.visual_type === 'ARCHIVAL')) {
+    beat.visual_type = 'FLOW';
+  }
   if (b.visual_type === 'MAP' || b.visual_type === 'TECH') {
     const motion = parseMotion(b.motion_json);
     const fits = motion && (b.visual_type === 'MAP' ? motion.template === 'map' : motion.template !== 'map');
     if (fits) beat.motion = motion;
-    else beat.visual_type = 'REAL';
+    else beat.visual_type = isIllustrated ? 'FLOW' : 'REAL';
   }
   delete beat.motion_json;
   return beat;
 }
 
-function defaultBeat(seg) {
+function defaultBeat(seg, isIllustrated = false) {
   return {
-    from_word: 0, visual_type: 'REAL', claims: [],
+    from_word: 0, visual_type: isIllustrated ? 'FLOW' : 'REAL', claims: [],
     need: { subject: seg.words.slice(0, 8).join(' '), platform: '', action: '', mood: [], era: '', query_terms: [] },
     flow: { reconstruction: false, composition: '', camera: '', lighting: '', motion: '', constraints: [] },
   };

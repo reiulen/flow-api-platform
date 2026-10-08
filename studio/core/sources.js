@@ -65,11 +65,15 @@ export const adapters = {
         if (aPref !== bPref) return bPref ? 1 : -1;
         return (b.height || 0) - (a.height || 0);
       });
-      const best = sensible.find((f) => (f.height || 0) <= targetHeight && (f.height || 0) >= minH)
+      // A 1080p master of a long package can be 200 MB at ~1 MB/s; 720p is a fair trade when it is huge.
+      const preferMax = cfg?.assets?.preferredMaxBytes || 120 * 1024 * 1024;
+      const inRange = sensible.filter((f) => (f.height || 0) <= targetHeight && (f.height || 0) >= minH);
+      const best = inRange.find((f) => !f.size || f.size <= preferMax)
+        || inRange[0]
         || sensible[0]
         || files.find((f) => !f.size || f.size <= maxBytes);
       if (!best) throw new Error(`dvids: no suitable mp4 file under ${Math.round(maxBytes / 1024 / 1024)}MB`);
-      return { url: best.src, width: best.width || 0, height: best.height || 0, duration_s: Number(r.duration || 0) };
+      return { url: best.src, width: best.width || 0, height: best.height || 0, duration_s: Number(r.duration || 0), size: best.size || 0 };
     },
   },
 
@@ -230,7 +234,8 @@ export async function download(c, resolved, dest, config = {}) {
       '-filter_complex', '[0][1][2]concat=n=3:v=1:a=0,format=yuv420p', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', dest]);
     return dest;
   }
-  const timeoutMs = config?.assets?.downloadTimeoutMs || 90000;
+  // Big files get time for ~0.5 MB/s instead of being cut off near the end and thrown away.
+  const timeoutMs = Math.max(config?.assets?.downloadTimeoutMs || 90000, ((resolved.size || 0) / (512 * 1024)) * 1000);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const tmp = `${dest}.part`;

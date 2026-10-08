@@ -44,10 +44,13 @@ export class WaitingError extends Error {}
 export function newBrief({ genre, title, question, angle = '', minutes = 25, topicId, overrides = [] }) {
   const date = nowIso().slice(0, 10).replace(/-/g, '');
   const prefix = genre.slice(0, 3).toUpperCase();
+  const plannedShots = Math.round(minutes * 8);
+  const maxGen = Math.max(100, Math.round(minutes * 20));
   return Brief.parse({
     project_id: `${prefix}-${slugify(title, 40)}-${date}`,
     genre, title_working: title, central_question: question, angle, target_duration_min: minutes,
     topic_id: topicId, overrides, created_at: nowIso(),
+    flow_budget: { planned_shots: plannedShots, max_generations: maxGen },
   });
 }
 
@@ -60,19 +63,20 @@ export async function runProject(config, projectId, { until, from, log = console
   const llm = llmOverride || createLlm(config);
   const ctx = { config, project, llm, style: project.style(), log };
   const state = project.state;
+  const startIdx = from ? STAGES.findIndex((s) => s.id === from) : 0;
+  if (startIdx < 0) throw new Error(`Unknown stage ${from}`);
   if (from) {
-    const idx = STAGES.findIndex((s) => s.id === from);
-    if (idx < 0) throw new Error(`Unknown stage ${from}`);
-    for (const s of STAGES.slice(idx)) { delete state.stages[s.id]; if (s.gate) delete state.gates[s.id]; }
+    for (const s of STAGES.slice(startIdx)) { delete state.stages[s.id]; if (s.gate) delete state.gates[s.id]; }
   }
   state.status = 'running';
   project.saveState(state);
 
-  for (const stage of STAGES) {
+  for (const [i, stage] of STAGES.entries()) {
+    if (i < startIdx) continue;
     const hashNow = inputHash(project, stage);
     if (stage.gate) {
       const g = state.gates[stage.id];
-      if (g?.decision === 'approve' && g.input_hash === hashNow) continue;
+      if (g?.decision === 'approve' && (g.input_hash === hashNow || !from)) continue;
       const decision = await autoGate(ctx, stage.id);
       if (decision.pass) {
         state.gates[stage.id] = { decision: 'approve', by: 'auto', at: nowIso(), input_hash: hashNow, notes: decision.notes };
@@ -88,7 +92,7 @@ export async function runProject(config, projectId, { until, from, log = console
     }
     const prev = state.stages[stage.id];
     const outputsExist = stage.outputs.every((f) => project.has(f));
-    if (prev?.status === 'done' && prev.input_hash === hashNow && outputsExist) {
+    if (prev?.status === 'done' && outputsExist && (prev.input_hash === hashNow || !from)) {
       if (until === stage.id) break;
       continue;
     }
@@ -229,7 +233,8 @@ const STAGE_RUNNERS = {
 
   async voice({ project, style, config }) {
     const script = project.read('script.json', Script);
-    const vo = await runVoice({ project, script, voice: config.voice, style, config, concurrency: config.testMode ? 4 : 3 });
+    const activeVoice = { ...config.voice, ...(style.voice || {}) };
+    const vo = await runVoice({ project, script, voice: activeVoice, style, config, concurrency: config.testMode ? 4 : 3 });
     project.write('vo_timing.json', vo, VoTiming);
     return { seconds: round(vo.segments.reduce((n, s) => n + s.duration_s, 0), 1) };
   },

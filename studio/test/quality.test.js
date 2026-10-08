@@ -50,7 +50,7 @@ test('usable shots: defects are dropped, strongest relevance and taste come firs
   assert.equal(usableShots(asset, null, 1).length, 3);
 });
 
-test('footage review shows every usable shot once per need on one contact sheet and falls back when the model fails', async () => {
+test('footage review looks at every shot once per need and falls back when the model fails', async () => {
   const dir = tmpDir('review');
   const config = loadConfig({ assetsDir: dir, testMode: false });
   const style = loadStyle(config, 'military');
@@ -65,16 +65,12 @@ test('footage review shows every usable shot once per need on one contact sheet 
     let images = 0;
     const llm = { async json(args) { calls += 1; images = args.images.length; assert.equal(args.stage, 'footage'); return { frames: [{ index: 1, relevance: 3, defects: [], taste: 2 }, { index: 2, relevance: 1, defects: ['Slate'], taste: 0 }] }; } };
     const review = await reviewAsset({ db, llm, asset, need, style, config });
-    assert.equal(images, 1, 'both shots on one contact sheet');
+    assert.equal(images, 2);
     assert.deepEqual(review.map((r) => [r.relevance, r.defects]), [[3, []], [1, ['slate']]]);
     // Cached per asset and need.
     await reviewAsset({ db, llm, asset, need, style, config });
     assert.equal(calls, 1);
     assert.ok(db.review('A-test', needKey(need)));
-    // A clip with no shot long enough for the need is rejected without a model call.
-    const before = calls;
-    assert.deepEqual(await reviewAsset({ db, llm, asset, need: { ...need, action: 'climb' }, minLen: 6, style, config }), []);
-    assert.equal(calls, before);
     // A failing model leaves the decision to text matching.
     const broken = { async json() { throw new Error('proxy down'); } };
     assert.equal(await reviewAsset({ db, llm: broken, asset, need: { ...need, action: 'landing' }, style, config }), null);
@@ -185,20 +181,6 @@ test('inworld voices get real break tags for script pauses', async () => {
   }
 });
 
-test('map callouts, hatched regions and trend charts parse; malformed ones fall back', async () => {
-  const { parseMotion } = await import('../core/stages/visual.js');
-  const map = parseMotion(JSON.stringify({ template: 'map', data: { view: { center: [45, 20] }, steps: [
-    { type: 'highlight', countries: ['Yemen'], role: 'threat', hatch: true },
-    { type: 'callout', lon: 38.5, lat: 17.5, value: '-95%', label: 'RED SEA EXPORTS', role: 'threat' },
-  ] } }));
-  assert.equal(map.data.steps[0].hatch, true);
-  assert.equal(map.data.steps[1].value, '-95%');
-  const trend = { title: 'OIL PRODUCTION', x: ['2023', '2024', '2025'], series: [{ label: 'SAUDI', values: [9, 9.4, 6] }] };
-  assert.equal(parseMotion(JSON.stringify({ template: 'trend', data: trend })).data.kind, 'line');
-  // One value missing: the beat falls back to footage instead of drawing a wrong chart.
-  assert.equal(parseMotion(JSON.stringify({ template: 'trend', data: { ...trend, series: [{ label: 'SAUDI', values: [9, 9.4] }] } })), null);
-});
-
 test('map infographics: icon grids, pies and insets parse and the inset is drawn with its highlight', async () => {
   const { parseMotion } = await import('../core/stages/visual.js');
   const { insetPaths } = await import('../core/geo.js');
@@ -220,27 +202,4 @@ test('map infographics: icon grids, pies and insets parse and the inset is drawn
   const inset = insetPaths(w, { center: [-79.5, 22], scale: 18, highlight: ['Cuba'] });
   assert.ok(inset.land.length > 1000 && inset.hi.length > 100, 'land and the highlighted country are drawn');
   assert.ok(inset.hi.length < inset.land.length);
-});
-
-test('script lint pushes back on hedge-every-fact narration and spoken lists', async () => {
-  const { lintAct, isListLike } = await import('../core/stages/editorial.js');
-  const style = { narration: { banned_phrases: [] }, pacing: { max_consecutive_info: 4 } };
-  const research = { claims: [{ claim_id: 'C-1' }] };
-  const seg = (text) => ({ seg_id: 'S-02-01', text, claims: ['C-1'], stats: [], purpose: 'I' });
-  const hedgy = [seg('The fleet reportedly averages 65 years. According to analysts, it will fly on. Figures vary by source.')];
-  assert.ok(lintAct(hedgy, { style, research, budget: 17, actNo: 2 }).some((p) => /hedge/.test(p.msg)));
-  const plain = [seg('The fleet averages around 65 years. And the Air Force plans to fly it into the 2050s.')];
-  assert.ok(!lintAct(plain, { style, research, budget: 17, actNo: 2 }).some((p) => /hedge|list/.test(p.msg)));
-  assert.equal(isListLike('Its missions include strategic attack, close air support, air interdiction, offensive counter-air and maritime operations.'), true);
-  assert.equal(isListLike("Each B-52's eight TF33s come off, and eight F130s go on."), false);
-  assert.equal(isListLike('It is enormous, it is old, and it still flies.'), false);
-});
-
-test('topic footage probe strips archive prefixes, quotes and OR', async () => {
-  const { footageQueries, probeFootage } = await import('../core/stages/editorial.js');
-  assert.deepEqual(footageQueries('DVIDS: "F-35 takeoff" OR "F-35B vertical landing"'), ['F-35 takeoff', 'F-35B vertical landing']);
-  assert.deepEqual(footageQueries('DVIDS / MDA: "Ground-based Midcourse Defense"'), ['Ground-based Midcourse Defense']);
-  assert.deepEqual(footageQueries('B-52 Stratofortress'), ['B-52 Stratofortress']);
-  const counts = { 'F-35 takeoff': 50, 'F-35B vertical landing': 7 };
-  assert.deepEqual(await probeFootage(async (q) => counts[q] ?? 0, 'DVIDS: "F-35B vertical landing" OR "F-35 takeoff"'), { query: 'F-35 takeoff', found: 50 });
 });

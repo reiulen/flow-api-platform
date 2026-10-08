@@ -8,7 +8,10 @@ export const PURPOSES = ['E', 'I', 'C', 'T', 'R'];
 export const DENSITIES = ['low', 'medium', 'high'];
 export const TONES = ['quiet', 'normal', 'firm'];
 export const CONFIDENCE = ['confirmed', 'reported', 'estimated', 'disputed'];
-export const TRANSITIONS = ['cut', 'dissolve_short', 'dissolve', 'dissolve_slow', 'fade_black', 'match_cut'];
+export const TRANSITIONS = [
+  'cut', 'dissolve_short', 'dissolve', 'dissolve_slow', 'fade_black', 'match_cut',
+  'page_turn', 'page_turn_reverse', 'slide_left', 'slide_right', 'parchment_reveal', 'focus_blur', 'wipe_left'
+];
 export const LICENSES = ['public_domain', 'open_commercial', 'stock_licensed', 'share_alike', 'non_commercial', 'editorial_only', 'fair_use_candidate', 'unknown'];
 export const MOTION_TEMPLATES = ['map', 'process', 'compare', 'trend', 'ranking', 'stat', 'chapter', 'title', 'label'];
 
@@ -69,14 +72,14 @@ export const Outline = z.object({
   answer: z.string(),
   title: z.string(),
   acts: z.array(z.object({
-    act: z.number().int().min(1).max(7), name: z.string(), target_s: z.number(), goal: z.string(),
+    act: z.number().int().min(1).max(10), name: z.string(), target_s: z.number(), goal: z.string(),
     beats: z.array(Beat).min(1), exit_tension: z.string(),
-  })).length(7),
+  })).min(1).max(10),
 });
 
 export const Segment = z.object({
   seg_id: id,
-  act: z.number().int().min(1).max(7),
+  act: z.number().int().min(1).max(10),
   beat_id: z.string(),
   text: z.string().min(1),
   claims: z.array(z.string()).default([]),
@@ -142,7 +145,7 @@ export const Shot = z.object({
 });
 
 export const Overlay = z.object({
-  overlay_id: id, kind: z.enum(['stat', 'label']), shot_id: z.string(), start_s: z.number(), duration_s: z.number(),
+  overlay_id: id, kind: z.enum(['stat', 'label', 'subscribe']), shot_id: z.string(), start_s: z.number(), duration_s: z.number(),
   data: z.record(z.string(), z.any()), motion_file: z.string().nullable().default(null),
 });
 

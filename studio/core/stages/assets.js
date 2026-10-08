@@ -190,6 +190,8 @@ export function usableShots(asset, review, minRelevance) {
   return [...shots].sort((a, b) => (b.relevance - a.relevance) || (b.taste - a.taste) || ((b.out - b.in) - (a.out - a.in)));
 }
 
+
+
 export function scoreCandidate(c, need, style) {
   const text = tokens(`${c.title} ${c.description} ${(c.tags || []).join(' ')}`);
   const bag = new Set(text);
@@ -320,6 +322,16 @@ export async function runAssets({ project, shotList, script = null, research = n
   const started = Date.now();
   try {
     const groups = groupNeeds(shotList, script, config);
+    if (!groups.length) {
+      log('assets: no footage needs; skipping asset search/download stage');
+      const planOut = {
+        generated_at: nowIso(),
+        budget: { downloads: 0 },
+        totals: { groups: 0, candidates_considered: 0, planned: 0, downloaded_new: 0, reviewed: 0, minutes: 0, time_budget_reached: false, used_assets: 0, unused_fetched: 0, motion_added: 0, flow_added: 0 },
+        groups: [],
+      };
+      return { shotList, plan: planOut, report: { generated_at: nowIso(), flow_added: 0, motion_added: 0, totals: planOut.totals, shots: [] } };
+    }
     const label = (list) => list.map((x, k) => ({ ...x, cid: `c${k + 1}` }));
     // Videos first; a few public-domain photos ride along as backups (leaders, signings, crowds,
     // hardware), shown with a slow push-in like the reference films do.
@@ -489,7 +501,7 @@ export async function runAssets({ project, shotList, script = null, research = n
 
 // ---------- motion fill-in ----------
 
-const FillOut = z.object({ shots: z.array(z.object({ shot_id: z.string(), motion: z.any().nullable().default(null), reason: z.string().default('') })) });
+const FillOut = z.object({ shots: z.array(z.object({ shot_id: z.string(), motion: z.union([z.string(), z.record(z.string(), z.any())]).nullable().default(null), reason: z.string().default('') })) });
 const numbersOf = (text) => (String(text).match(/\d[\d,]*(?:\.\d+)?/g) || []).map((n) => Number(n.replace(/,/g, '')));
 
 // The numbers a motion graphic states as facts (not coordinates, zoom levels or icon counts).

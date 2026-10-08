@@ -1,0 +1,108 @@
+{
+  "genre": "fitness_essay",
+  "style_name": "Fitness & Hypertrophy Essay (The Buff Scholar)",
+
+  "voice": {
+    "provider": "inworld",
+    "voice": "Edward",
+    "model": "inworld-tts-2"
+  },
+
+  "acts": [
+    { "act": 1, "name": "The Permabulk Delusion", "share": 0.08, "mode": "CINEMATIC", "goal": "Open with the absurd reality of the dirty bulk: the scale is skyrocketing, the face is round, but not a single gram of new contractile tissue is actually being built." },
+    { "act": 2, "name": "The Biological Ceiling", "share": 0.14, "mode": "INFORMATION", "goal": "Break down the physiological cap of Muscle Protein Synthesis (MPS), the ~3g leucine trigger, and why myofibrillar protein synthesis has a hard biological ceiling." },
+    { "act": 3, "name": "The Caloric Paradox", "share": 0.16, "mode": "INFORMATION", "goal": "Expose the arithmetic of natural hypertrophy: why surplus calories above +200-300 kcal cannot accelerate protein accretion and only spill into adipose tissue." },
+    { "act": 4, "name": "The Visceral Cascade", "share": 0.18, "mode": "INFORMATION", "goal": "The devastating metabolic snowball: visceral adipose accumulation, adipocyte hyperplasia, and systemic low-grade inflammation." },
+    { "act": 5, "name": "The Hormonal Reversal", "share": 0.16, "mode": "CINEMATIC", "goal": "The endocrine nightmare: aromatase enzyme in excess fat tissue converting free testosterone to estradiol, suppressing LH, and wrecking insulin sensitivity." },
+    { "act": 6, "name": "The Diet Catastrophe", "share": 0.14, "mode": "INFORMATION", "goal": "The inevitable 9-month cut: aggressive caloric deficits, elevated cortisol, loss of hard-earned contractile tissue, and ending up looking identical to day one." },
+    { "act": 7, "name": "The Cold Reality Protocol", "share": 0.14, "mode": "CINEMATIC", "goal": "The quiet, unglamorous truth of natural muscle growth: 200-300 kcal lean surplus, agonizing patience, progressive mechanical tension, and ditching the ego." }
+  ],
+
+  "visual_mix": {
+    "footage": [0.0, 0.0],
+    "explainer": [0.15, 0.30],
+    "flow": [0.70, 1.0],
+    "flow_hard_max": 1.0
+  },
+
+  "black_beats": {
+    "min": 0,
+    "max": 0,
+    "duration_s": 0
+  },
+
+  "look": {
+    "footage_filter": "",
+    "grain": "",
+    "still_zoom": 0.07
+  },
+
+  "transitions": {
+    "same_sequence": "cut",
+    "between_sources_information": "dissolve_short",
+    "between_sources_cinematic": "dissolve_short",
+    "explainer_boundary": "dissolve_short",
+    "time_jump": "slide_left",
+    "act_break": "page_turn",
+    "durations": {
+      "cut": 0,
+      "dissolve_short": 0.5,
+      "dissolve": 0.8,
+      "dissolve_slow": 1.2,
+      "slide_left": 0.4,
+      "page_turn": 0.6,
+      "fade_black": 0.4
+    }
+  },
+
+  "colors": {
+    "neon_volt": "#CCFF00",
+    "iron_slate": "#14161A",
+    "surface_dark": "#1E2229",
+    "chalk_white": "#F4F5F8",
+    "hypertrophy_crimson": "#FF3366",
+    "visceral_amber": "#FF9900",
+    "steel_blue": "#3A86FF",
+    "muted_gray": "#8A94A6"
+  },
+
+  "labels": {
+    "reconstruction": "PHYSIOLOGICAL CASCADE RECONSTRUCTION",
+    "illustrative": "METABOLIC THRESHOLD BREAKDOWN"
+  },
+
+  "flow": {
+    "model": "nano-banana-pro",
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "duration_s": 8,
+    "count": 1,
+    "character_guide": "Minimalist stickman character with smooth off-white round head, simple black dot eyes, thin black stick limbs, wearing rectangular reading glasses, an athletic sleeper build with wide shoulders, a dark vintage washed gym tank top, and a thick leather weightlifting belt around the waist",
+    "look": "Wide 2D cinematic storybook illustration, hand-painted matte digital art, European graphic novel aesthetic (bande dessinée / ligne claire), clean minimalist chalk and iron gym atmosphere, barbell racks, vintage wooden lifting platform, warm directional overhead lighting casting dramatic shadows, dust motes in light beams, generous negative space. Absolutely NO comic book panels, NO multi-panel grids, NO split screens, NO borders.",
+    "avoid_extra": [
+      "3d render", "cgi", "photorealism", "glossy plastic", "hyperdetailed textures",
+      "excessive particles", "lens flare", "neon glare", "cluttered background", "shiny skin",
+      "volumetric chaos", "comic panels", "comic strip", "multi-panel", "split screen",
+      "grid layout", "triptych", "comic borders", "multiple frames", "collage",
+      "panel dividers", "speech bubbles", "anime"
+    ]
+  },
+
+  "assets": {
+    "source_priority": ["library", "pexels", "pixabay"]
+  },
+
+  "audio": {
+    "music_functions": ["lofi_gym_beat", "boom_bap_cynical", "synth_tension", "reality_check_outro"]
+  },
+
+  "editorial": {
+    "voice": "Inworld Edward. Fast-talking, streetwise, emphatic, cynical, and deeply knowledgeable sports science investigator. Speaks with confident deadpan irony, dropping hard micro-physiology data (myofibrillar protein synthesis, glycogen saturation, visceral adipose aromatase) while roasting gym bro myths with zero sugarcoating. Energetic and punchy, never sluggish.",
+    "rules": [
+      "Micro-substance: cite peer-reviewed hypertrophy thresholds (e.g., fractional synthetic rate in %/hr, leucine threshold at ~3g, calorie surplus above 250-350 kcal shunting directly into adipocytes, aromatase enzyme activity in visceral fat).",
+      "Visceral humor & analogies: compare dirty bulking to ordering 10,000 bricks for a house when only 2 bricklayers are on site; compare visceral fat to an internal estrogen factory sabotaging your gains.",
+      "Deadpan street-smart delivery: direct reality checks, zero corporate fluff, zero generic motivational speeches ('Grind never stops').",
+      "4-Act structure: The Permabulk Delusion -> The Biological Ceiling -> The Visceral Cascade -> The Cold Reality Check."
+    ]
+  }
+}

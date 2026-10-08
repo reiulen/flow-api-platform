@@ -1,9 +1,15 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const STUDIO_ROOT = path.resolve(here, '..');
 export const REPO_ROOT = path.resolve(STUDIO_ROOT, '..');
+
+const envPath = path.join(REPO_ROOT, '.env');
+if (fs.existsSync(envPath) && typeof process.loadEnvFile === 'function') {
+  try { process.loadEnvFile(envPath); } catch {}
+}
 
 const env = process.env;
 const list = (value, fallback) => (value ? value.split(',').map((s) => s.trim()).filter(Boolean) : fallback);
@@ -63,7 +69,7 @@ export function loadConfig(overrides = {}) {
 
     flow: {
       mode: env.STUDIO_FLOW_MODE || 'direct', // direct | queue | off
-      baseUrl: env.STUDIO_FLOW_BASE_URL || `http://127.0.0.1:${env.PORT || 3000}`,
+      baseUrl: env.STUDIO_FLOW_BASE_URL || `http://127.0.0.1:${env.PORT || 8787}`,
       apiKey: env.FLOW_API_KEY || '',
       pollMs: Number(env.STUDIO_FLOW_POLL_MS || 15000),
       timeoutMs: Number(env.STUDIO_FLOW_TIMEOUT_MS || 30 * 60 * 1000),
@@ -88,6 +94,7 @@ export function loadConfig(overrides = {}) {
     assets: {
       maxDurationSeconds: Number(env.STUDIO_ASSET_MAX_DURATION_S || 900),
       maxDownloadBytes: Number(env.STUDIO_ASSET_MAX_DOWNLOAD_MB || 300) * 1024 * 1024,
+      preferredMaxBytes: Number(env.STUDIO_ASSET_PREFERRED_MAX_MB || 120) * 1024 * 1024,
       downloadTimeoutMs: Number(env.STUDIO_ASSET_DOWNLOAD_TIMEOUT_MS || 90000),
       sceneScanMaxSeconds: Number(env.STUDIO_ASSET_SCENE_SCAN_S || 300),
       preferredHeight: Number(env.STUDIO_ASSET_PREFERRED_HEIGHT || 1080),

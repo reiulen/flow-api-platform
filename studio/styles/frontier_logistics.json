@@ -1,0 +1,96 @@
+{
+  "genre": "frontier_logistics",
+  "style_name": "Obscure Frontier Logistics (2D Cinematic Storybook Stickman)",
+
+  "acts": [
+    { "act": 1, "name": "The Paradox Hook", "share": 0.08, "mode": "CINEMATIC", "goal": "A striking historical paradox: how an entire empire hinged on a daily delivery of salted lard, grain rations, or iron nails at a remote stone outpost." },
+    { "act": 2, "name": "The Fragile Routine", "share": 0.18, "mode": "INFORMATION", "goal": "The solitary plebeian or legionary stickman in the damp morning cold, grinding bitter puls or counting wax-sealed transport chits." },
+    { "act": 3, "name": "The Logistical Domino", "share": 0.54, "mode": "INFORMATION", "goal": "Deconstruct the micro-mechanisms of ancient survival: grain transport loss on river barges, ox-cart axle wear, rent extortion in tenement insulae, marching rations." },
+    { "act": 4, "name": "The Cold Epilogue", "share": 0.20, "mode": "CINEMATIC", "goal": "The quiet endurance of common human labor: when monuments crumbled, it was the logistical records on wooden tablets that survived." }
+  ],
+
+  "visual_mix": {
+    "footage": [0.0, 0.0],
+    "explainer": [0.10, 0.20],
+    "flow": [0.80, 1.0],
+    "flow_hard_max": 1.0
+  },
+
+  "black_beats": {
+    "min": 0,
+    "max": 0,
+    "duration_s": 0
+  },
+
+  "look": {
+    "footage_filter": "",
+    "grain": "",
+    "still_zoom": 0.02
+  },
+
+  "transitions": {
+    "same_sequence": "cut",
+    "between_sources_information": "dissolve_short",
+    "between_sources_cinematic": "dissolve_short",
+    "explainer_boundary": "dissolve_short",
+    "time_jump": "dissolve_short",
+    "act_break": "dissolve",
+    "durations": {
+      "cut": 0,
+      "dissolve_short": 0.6,
+      "dissolve": 1.0,
+      "dissolve_slow": 1.5,
+      "fade_black": 0.5,
+      "match_cut": 0
+    }
+  },
+
+  "colors": {
+    "terracotta": "#C85A32",
+    "roman_gold": "#E5A93C",
+    "sandstone": "#D8C5A5",
+    "pompeian_red": "#9E2A2B",
+    "olive": "#588157",
+    "shadow": "#1F1D1B"
+  },
+
+  "labels": {
+    "reconstruction": "HISTORICAL LOGISTICS RECONSTRUCTION",
+    "illustrative": "DAILY LIFE MICRO-DIAGRAM"
+  },
+
+  "flow": {
+    "model": "nano-banana-pro",
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "duration_s": 8,
+    "count": 1,
+    "character_guide": "Minimalist 2D cartoon stick-figure frontier soldier or plebeian character with smooth off-white round head, simple black dot eyes, thin clean stick limbs, wearing authentic coarse wool tunic and cloak with natural fabric folds",
+    "look": "Wide 2D cinematic storybook illustration, hand-painted matte digital art, European graphic novel aesthetic (bande dessinée / ligne claire), Rome Unscrolled signature art style, uncluttered composition, generous negative space, atmospheric depth. Minimalist stickman frontier soldier or plebeian character with smooth off-white round head, simple black dot eyes, thin black stick limbs, wearing a simple rough coarse-weave wool tunic or cloak with realistically draped fabric folds, holding a wooden spear or wax tablet. Environment: weathered ancient stone wall with fine mortar cracks, dim flickering wall oil lamp casting warm amber glow, arched Roman aqueduct silhouetted in distant dawn haze. Single continuous 16:9 widescreen frame. Single camera view. Absolutely NO comic book panels, NO multi-panel grids, NO split screens, NO borders.",
+    "avoid_extra": [
+      "3d render", "cgi", "photorealism", "glossy plastic", "hyperdetailed textures",
+      "excessive particles", "lens flare", "neon glare", "cluttered background", "shiny skin",
+      "volumetric chaos", "comic panels", "comic strip", "multi-panel", "split screen",
+      "grid layout", "triptych", "comic borders", "multiple frames", "collage",
+      "panel dividers", "speech bubbles", "anime"
+    ]
+  },
+
+  "assets": {
+    "source_priority": ["library"]
+  },
+
+  "audio": {
+    "music_functions": ["dawn_intro", "street_market", "military_grit", "tension", "night_reflection"]
+  },
+
+  "editorial": {
+    "voice": "Immersive, contemplative, and vivid micro-history narrator. Speaks with empathetic, deadpan observation and unhurried pacing. Delivers quiet, rhythmic pauses after revealing the absurd bureaucratic micro-realities of empire maintenance.",
+    "rules": [
+      "Micro-substance: cite real Roman papyri or Vindolanda wooden ink tablets, exact modius grain measurements, sesterce prices, and calorie tallies of legionary posca vinegar water.",
+      "Visceral sensory reality: the grease of unwashed wool cloaks, the freezing dampness of basalt cobblestones, the clinking of iron mule shoes at 4 AM.",
+      "Zero fluff: no broad historical summaries. Begin directly with a soldier shivering over an unpaid salt chit or an eviction notice on an insula door.",
+      "4-Act structure: The Paradox Hook -> The Fragile Routine -> The Logistical Domino -> The Cold Epilogue."
+    ]
+  }
+}

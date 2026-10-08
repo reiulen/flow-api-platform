@@ -5,7 +5,6 @@ import { AssetDb } from './assets.js';
 import { hash, readJson, round, seededRandom } from '../util.js';
 
 const FOOTAGE = new Set(['REAL', 'ARCHIVAL', 'NEWS', 'FLOW']);
-// Natural sound comes only from real footage; generated clips carry invented audio.
 const NAT = new Set(['REAL', 'ARCHIVAL', 'NEWS']);
 
 // S10a: shot list -> EDL. Shots without media are covered by their neighbours so the timeline never
@@ -19,7 +18,7 @@ export function buildEdl({ project, shotList, style, config }) {
   const items = [];
   try {
     for (const shot of shotList.shots) {
-      const media = mediaFor(shot, db, project, config);
+      const media = mediaFor(shot, db, project, config, style);
       if (!media) {
         repairs.push({ shot_id: shot.shot_id, at_s: shot.start_s, visual_type: shot.visual_type });
         const last = items.at(-1);
@@ -94,25 +93,53 @@ function fillGap(gap, prev, next) {
   gap.duration_s = d;
 }
 
-function mediaFor(shot, db, project, config) {
-  if (shot.shot_class === 'black' && !shot.motion_file) return { kind: 'black', room: Infinity };
+function mediaFor(shot, db, project, config, style = {}) {
+  if (shot.shot_class === 'black' && !shot.motion_file) {
+    if (style.black_beats?.max === 0) return null;
+    return { kind: 'black', room: Infinity };
+  }
   if (shot.motion_file) return { kind: 'motion', src: path.join(project.dir, shot.motion_file), room: 0 };
-  if (shot.visual_type === 'FLOW' && shot.flow_file) {
-    const r = shot.asset_range;
-    return { kind: 'video', src: path.join(project.dir, shot.flow_file), src_in: r?.in || 0, room: r ? Math.max(0, r.out - r.in - shot.duration_s) : 0 };
+  if (shot.visual_type === 'FLOW') {
+    if (shot.flow_file && fs.existsSync(path.join(project.dir, shot.flow_file))) {
+      const r = shot.asset_range;
+      return { kind: 'video', src: path.join(project.dir, shot.flow_file), src_in: r?.in || 0, room: Infinity };
+    }
+    const flowDir = path.join(project.dir, 'flow');
+    if (fs.existsSync(flowDir)) {
+      const files = fs.readdirSync(flowDir).filter((f) => f.endsWith('.mp4')).sort();
+      if (files.length) {
+        const idNum = Number((shot.shot_id || '0').replace(/\D/g, '')) || 0;
+        const pick = files[idNum % files.length];
+        return { kind: 'video', src: path.join(flowDir, pick), src_in: 0, room: Infinity };
+      }
+    }
   }
   if (shot.asset_id) {
     const asset = db.byId(shot.asset_id);
-    if (!asset?.file) return null;
-    const src = path.join(config.assetsDir, asset.file);
-    if (!fs.existsSync(src)) return null;
-    if (asset.kind === 'image') return { kind: 'image', src, room: Infinity };
-    const r = shot.asset_range;
-    const speed = r?.speed || 1;
-    const end = r ? r.out : 0;
-    const seg = r && asset.segments.find((s) => s.in <= r.in + 0.05 && s.out >= end - 0.05);
-    return { kind: 'video', src, src_in: r?.in || 0, speed, room: seg ? Math.max(0, (seg.out - end) / speed) : 0 };
+    if (asset?.file) {
+      const src = path.join(config.assetsDir, asset.file);
+      if (fs.existsSync(src)) {
+        if (asset.kind === 'image') return { kind: 'image', src, room: Infinity };
+        const r = shot.asset_range;
+        const speed = r?.speed || 1;
+        const end = r ? r.out : 0;
+        const seg = r && asset.segments.find((s) => s.in <= r.in + 0.05 && s.out >= end - 0.05);
+        return { kind: 'video', src, src_in: r?.in || 0, speed, room: seg ? Math.max(0, (seg.out - end) / speed) : 0 };
+      }
+    }
   }
+
+  // Illustrated / Flow fallback: ensure 100% visual coverage so no shot is ever blank
+  const flowDir = path.join(project.dir, 'flow');
+  if (fs.existsSync(flowDir)) {
+    const files = fs.readdirSync(flowDir).filter((f) => f.endsWith('.mp4')).sort();
+    if (files.length) {
+      const idNum = Number((shot.shot_id || '0').replace(/\D/g, '')) || 0;
+      const pick = files[idNum % files.length];
+      return { kind: 'video', src: path.join(flowDir, pick), src_in: 0, room: Infinity };
+    }
+  }
+
   return null;
 }
 
@@ -124,7 +151,16 @@ function loadLibrary(config, kind) {
   return readJson(file).map((t) => ({ ...t, file: path.resolve(path.dirname(file), t.file) })).filter((t) => fs.existsSync(t.file));
 }
 
-const ACT_FUNCTION = { 1: 'investigation', 2: 'scale', 3: 'engineering', 4: 'engineering', 5: 'threat', 6: 'action', 7: 'ending' };
+function musicFunctionForAct(actNo, totalActs, style) {
+  const custom = style.audio?.music_functions;
+  if (Array.isArray(custom) && custom.length > 0) {
+    const idx = Math.min(custom.length - 1, Math.max(0, Math.floor(((actNo - 1) / Math.max(1, totalActs - 1)) * (custom.length - 1))));
+    return custom[idx];
+  }
+  const defaultFunctions = ['investigation', 'scale', 'engineering', 'threat', 'action', 'ending'];
+  const idx = Math.min(defaultFunctions.length - 1, Math.max(0, Math.floor(((actNo - 1) / Math.max(1, totalActs - 1)) * (defaultFunctions.length - 1))));
+  return defaultFunctions[idx];
+}
 
 export function buildAudioPlan({ project, shotList, vo, script, style, config }) {
   const a = style.audio;
@@ -168,7 +204,7 @@ export function buildAudioPlan({ project, shotList, vo, script, style, config })
   if (tracks.length) {
     const used = new Set();
     for (const span of actSpans) {
-      const fn = ACT_FUNCTION[span.act] || 'engineering';
+      const fn = musicFunctionForAct(span.act, actSpans.length, style);
       const pool = tracks.filter((t) => t.function === fn && !used.has(t.file));
       const options = pool.length ? pool : tracks.filter((t) => !used.has(t.file)).concat(tracks);
       // Seeded per project: deterministic for one film, but films do not all share the same cues.
@@ -211,5 +247,41 @@ export function buildAudioPlan({ project, shotList, vo, script, style, config })
     }
   }
 
-  return AudioPlan.parse({ duration_s: total, vo: voTrack, music, ambience, sfx: [], vo_regions: regions, no_music: noMusic, key: hash(voTrack) });
+  const sfx = [];
+  const sfxClick = path.join(config.libraryDir, 'sfx', 'click.wav');
+  const sfxPage = path.join(config.libraryDir, 'sfx', 'page_turn.wav');
+  const sfxWhoosh = path.join(config.libraryDir, 'sfx', 'whoosh_soft.wav');
+
+  // 0. Opening Sound Design: Cinematic whoosh/impact at frame 0 to immediately seize viewer attention
+  if (fs.existsSync(sfxWhoosh)) {
+    sfx.push({ file: sfxWhoosh, at_s: 0.0, gain_db: -8 });
+  }
+
+  // 1. Subscribe overlay clicks
+  if (fs.existsSync(sfxClick)) {
+    for (const ov of (shotList.overlays || [])) {
+      if (ov.kind === 'subscribe') {
+        sfx.push({ file: sfxClick, at_s: round(ov.start_s + 1.8), gain_db: -4 });
+        sfx.push({ file: sfxClick, at_s: round(ov.start_s + 2.85), gain_db: -4 });
+      }
+    }
+  }
+
+  // 2. Creative Transition SFX: storybook page turns & atmospheric whooshes
+  let lastSfxAt = -Infinity;
+  for (const shot of shotList.shots) {
+    if (shot.start_s <= 1.0) continue;
+    const t = shot.transition_in;
+    if (shot.start_s - lastSfxAt < 3.5) continue; // Debounce so SFX don't crowd each other
+
+    if ((t === 'page_turn' || t === 'parchment_reveal' || t === 'slide_left') && fs.existsSync(sfxPage)) {
+      sfx.push({ file: sfxPage, at_s: round(shot.start_s - 0.05), gain_db: -12 });
+      lastSfxAt = shot.start_s;
+    } else if ((t === 'dissolve_slow' || t === 'dissolve') && fs.existsSync(sfxWhoosh) && (shot.mode === 'CINEMATIC' || shot.purpose === 'R')) {
+      sfx.push({ file: sfxWhoosh, at_s: round(shot.start_s - 0.15), gain_db: -15 });
+      lastSfxAt = shot.start_s;
+    }
+  }
+
+  return AudioPlan.parse({ duration_s: total, vo: voTrack, music, ambience, sfx, vo_regions: regions, no_music: noMusic, key: hash(voTrack) });
 }

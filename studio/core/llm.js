@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
+import { jsonrepair } from 'jsonrepair';
 import { searchConfigured, searchResearch } from './search.js';
 
 // One interface for every stage:
@@ -8,11 +9,14 @@ import { searchConfigured, searchResearch } from './search.js';
 //   research({ stage, system, prompt, maxSearches }) -> { text, sources[] } using server-side web search
 export function createLlm(config) {
   if (config.llm.provider === 'mock') return createMockLlm(config.llm.mock || {});
+  if (config.llm.provider === 'nine_router' || config.llm.provider === 'gemini') return createNineRouterLlm(config);
   if (config.llm.provider === 'anthropic') return createAnthropicLlm(config);
   throw new Error(`Unknown STUDIO_LLM_PROVIDER: ${config.llm.provider}`);
 }
 
 class RefusalError extends Error {}
+
+export const SAFETY_RETRY = `The previous attempt at this request was declined. Do the same task at public documentary level, the way RealLifeLore covers war: geography, budgets, decisions, politics and consequences. Leave out any detail about how to find, track, target, guide, defeat or evade a weapon, platform or force, even where the input contains it or asks for it. Everything else in the task stays the same.`;
 
 // Writing and judgement (topics, outline, script, story editor, visual director, editorial review)
 // run on the main model. Reading and checking run on the light model when one is set: research
@@ -30,6 +34,14 @@ function createAnthropicLlm(config) {
   const effortFor = (stage) => config.llm.effort[stage] || config.llm.effort[stage.split('-')[0]] || 'high';
   // A light model the endpoint does not know is dropped once, not retried on every call.
   async function streamWithFallback(opts, stage) {
+    const first = await streamOnce(opts, stage);
+    if (first.stop_reason !== 'refusal') return first;
+    // A refusal is usually one detail in the input (a source page, an angle) pulling toward
+    // operational territory. Retry once with the safety lens restated; a second refusal stands.
+    console.log(`[llm] ${stage} declined; retrying once at public documentary level`);
+    return streamOnce({ ...opts, system: [...(opts.system || []), { type: 'text', text: SAFETY_RETRY }] }, stage);
+  }
+  async function streamOnce(opts, stage) {
     try {
       return await client.beta.messages.stream(opts).finalMessage();
     } catch (err) {
@@ -142,7 +154,7 @@ function createAnthropicLlm(config) {
 
   // Plain text completion through the proxy (no tools, no proxy-incompatible options).
   async function writeText(sys, prompt, stage) {
-    const final = await streamWithFallback({ model: modelFor(stage), max_tokens: 32000, system: system(sys), messages: [{ role: 'user', content: prompt }] }, stage);
+    const final = await streamWithFallback({ model: modelFor(stage), max_tokens: 64000, system: system(sys), messages: [{ role: 'user', content: prompt }] }, stage);
     if (final.stop_reason === 'refusal') throw new RefusalError(`${stage}: model declined`);
     return final.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
   }
@@ -150,15 +162,196 @@ function createAnthropicLlm(config) {
   return llm;
 }
 
+function createNineRouterLlm(config) {
+  const baseUrl = config.search?.url || process.env.NINE_ROUTER_BASE_URL?.replace(/\/v1\/?$/, '') || 'http://127.0.0.1:20128';
+  const apiKey = config.search?.key || process.env.NINE_ROUTER_API_KEY || '';
+  const model = config.llm.model || 'gemini/gemini-3.5-flash-lite';
+  const lightModel = config.llm.lightModel || model;
+  const lightStages = config.llm.lightStages ? new Set(config.llm.lightStages) : LIGHT_STAGES;
+  const modelFor = (stage) => (lightModel && lightStages.has(stage) ? lightModel : model);
+
+  async function queryChat({ stage, sys, prompt, images = [], maxTokens = 32000 }) {
+    const activeModel = modelFor(stage);
+    const messages = [];
+    if (sys) messages.push({ role: 'system', content: sys });
+
+    const userContent = [];
+    userContent.push({ type: 'text', text: prompt });
+    for (const file of images) {
+      if (fs.existsSync(file)) {
+        const data = fs.readFileSync(file).toString('base64');
+        const mime = file.endsWith('.png') ? 'image/png' : 'image/jpeg';
+        userContent.push({ type: 'image_url', image_url: { url: `data:${mime};base64,${data}` } });
+      }
+    }
+    messages.push({ role: 'user', content: userContent.length === 1 ? prompt : userContent });
+
+    const timeoutMs = Number(process.env.NINE_ROUTER_TIMEOUT_MS) || 300000;
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: activeModel,
+        messages,
+        max_tokens: maxTokens,
+        temperature: 0.2,
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`9router ${activeModel} -> ${res.status}: ${errText.slice(0, 300)}`);
+    }
+
+    const text = await res.text();
+    if (text.includes('data:')) {
+      let accumulated = '';
+      for (const line of text.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const payload = trimmed.slice(5).trim();
+        if (payload === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(payload);
+          accumulated += parsed.choices?.[0]?.delta?.content || '';
+        } catch {}
+      }
+      if (accumulated) return accumulated;
+    }
+
+    try {
+      const parsed = JSON.parse(text);
+      return parsed.choices?.[0]?.message?.content || text;
+    } catch {
+      return text;
+    }
+  }
+
+  const llm = {
+    name: `nine_router:${model}`,
+
+    async json({ stage, system: sys, prompt, schema, images = [], maxTokens = 32000 }) {
+      const format = betaZodOutputFormat(schema);
+      const schemaStr = JSON.stringify(format.schema, null, 2);
+      const jsonPrompt = `${prompt}\n\nIMPORTANT: You MUST return ONLY a valid JSON object strictly matching this JSON Schema:\n${schemaStr}\nOutput pure JSON without any markdown code fences or conversational commentary.`;
+      let problem = '';
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const p = attempt === 0 ? jsonPrompt : `${jsonPrompt}\n\nPrevious attempt failed: ${problem}. Fix and return ONLY a valid JSON object conforming strictly to the JSON Schema.`;
+        const text = await queryChat({ stage, sys, prompt: p, images, maxTokens });
+        const rawData = parseJsonLoose(text);
+        if (rawData === undefined) {
+          problem = `the reply is not valid JSON (${text.slice(0, 120)})`;
+        } else {
+          const data = normalizeJsonData(rawData);
+          const parsed = schema.safeParse(data);
+          if (parsed.success) return parsed.data;
+          problem = `the reply failed validation: ${parsed.error.issues.slice(0, 8).map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ')}`;
+        }
+      }
+      throw new Error(`${stage}: ${problem}`);
+    },
+
+    async research({ stage, system: sys, prompt, maxSearches = 30 }) {
+      if (!searchConfigured(config)) throw new Error(`${stage}: web search is not configured`);
+      return searchResearch({ config, json: llm.json, write: (s, p) => queryChat({ stage: s, sys: '', prompt: p }), stage, system: sys, prompt, maxPages: maxSearches });
+    },
+  };
+
+  return llm;
+}
+
 // JSON from a reply that may carry code fences or stray prose around it; undefined when there is none.
 export function parseJsonLoose(text) {
+  if (!text || typeof text !== 'string') return undefined;
   try { return JSON.parse(text); } catch {}
+  
+  // 1. Try markdown fence
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fence) { try { return JSON.parse(fence[1].trim()); } catch {} }
-  const first = text.indexOf('{');
-  const last = text.lastIndexOf('}');
-  if (first !== -1 && last > first) { try { return JSON.parse(text.slice(first, last + 1)); } catch {} }
+  if (fence) {
+    const raw = fence[1].trim();
+    try { return JSON.parse(raw); } catch {}
+    try { return JSON.parse(jsonrepair(raw)); } catch {}
+  }
+  
+  // 2. Try slice between first { and last }
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    const candidate = text.slice(firstBrace, lastBrace + 1);
+    try { return JSON.parse(candidate); } catch {}
+    try { return JSON.parse(jsonrepair(candidate)); } catch {}
+  }
+
+  // 3. Try slice between first [ and last ]
+  const firstBracket = text.indexOf('[');
+  const lastBracket = text.lastIndexOf(']');
+  if (firstBracket !== -1 && lastBracket > firstBracket) {
+    const candidate = text.slice(firstBracket, lastBracket + 1);
+    try { return JSON.parse(candidate); } catch {}
+    try { return JSON.parse(jsonrepair(candidate)); } catch {}
+  }
+
+  // 4. Fallback to jsonrepair on entire string only if it resolves to an object or array
+  try {
+    const repaired = JSON.parse(jsonrepair(text));
+    if (repaired && typeof repaired === 'object') return repaired;
+  } catch {}
+
   return undefined;
+}
+
+export function normalizeJsonData(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(normalizeJsonData);
+  const out = { ...obj };
+  if (Array.isArray(out.text)) out.text = out.text.join(' ');
+  if (out.cold_open === undefined) out.cold_open = [];
+  if (Array.isArray(out.segments)) {
+    out.segments = out.segments.map((s) => {
+      if (s && typeof s === 'object') {
+        const seg = { ...s };
+        if (Array.isArray(seg.text)) seg.text = seg.text.join(' ');
+        if (!Array.isArray(seg.claims)) seg.claims = [];
+        if (!Array.isArray(seg.pron)) seg.pron = [];
+        if (!Array.isArray(seg.stats)) seg.stats = [];
+        if (Array.isArray(seg.beats)) {
+          seg.beats = seg.beats.map((b) => {
+            if (b && typeof b === 'object') {
+              const beat = { ...b };
+              if (beat.from_word !== undefined) beat.from_word = Math.round(Number(beat.from_word) || 0);
+              if (beat.motion_json && typeof beat.motion_json === 'object') {
+                beat.motion_json = JSON.stringify(beat.motion_json);
+              } else if (typeof beat.motion_json !== 'string') {
+                beat.motion_json = '';
+              }
+              if (!Array.isArray(beat.claims)) beat.claims = [];
+              if (!beat.need || typeof beat.need !== 'object') {
+                beat.need = { subject: '', platform: '', action: '', mood: [], era: '', query_terms: [] };
+              } else {
+                if (!Array.isArray(beat.need.mood)) beat.need.mood = [];
+                if (!Array.isArray(beat.need.query_terms)) beat.need.query_terms = [];
+              }
+              if (!beat.flow || typeof beat.flow !== 'object') {
+                beat.flow = { reconstruction: false, composition: '', camera: '', lighting: '', motion: '', constraints: [] };
+              } else {
+                if (!Array.isArray(beat.flow.constraints)) beat.flow.constraints = [];
+                beat.flow.reconstruction = Boolean(beat.flow.reconstruction);
+              }
+              return beat;
+            }
+            return b;
+          });
+        }
+        return seg;
+      }
+      return s;
+    });
+  }
+  return out;
 }
 
 // Deterministic provider for tests and dry runs. `responders[stage](args)` returns the object.

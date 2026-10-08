@@ -111,7 +111,23 @@ export async function searchResearch({ config, json, write, stage, system, promp
 
   const read = [...pages.values()].filter((p) => p.text);
   if (read.length < 5) throw new Error(`${stage}: web search returned only ${read.length} readable pages; check STUDIO_SEARCH_MODEL and the 9router search provider`);
-  const corpus = read.map((p, i) => `[S${i + 1}] ${p.title}\nURL: ${p.url}\n${p.text}`).join('\n\n---\n\n');
-  const text = await write(system, `${prompt}\n\nYou cannot browse. Use only the source texts below and cite every fact inline with its source URL. Never cite a URL that is not listed below. When sources disagree, say so.\n\n${corpus}`);
-  return { text, sources: read.map((p) => ({ url: p.url, title: p.title })) };
+  const used = [];
+  // One refused page must not sink the whole research: on a refusal the batch is halved, and a
+  // single page the model still declines is left out.
+  const notes = async (batch) => {
+    const corpus = batch.map((p) => `[${p.title}]\nURL: ${p.url}\n${p.text}`).join('\n\n---\n\n');
+    try {
+      const text = await write(system, `${prompt}\n\nYou cannot browse. Use only the source texts below and cite every fact inline with its source URL. Never cite a URL that is not listed below. When sources disagree, say so. Keep to what a public documentary would say: leave out operational targeting, weapon-employment or evasion details.\n\n${corpus}`);
+      used.push(...batch);
+      return [text];
+    } catch (err) {
+      if (!/declined/.test(err.message)) throw err;
+      if (batch.length === 1) { console.log(`[research] left out a source the model declined: ${batch[0].url}`); return []; }
+      const half = Math.ceil(batch.length / 2);
+      return [...(await notes(batch.slice(0, half))), ...(await notes(batch.slice(half)))];
+    }
+  };
+  const parts = await notes(read);
+  if (used.length < 5) throw new Error(`${stage}: only ${used.length} sources could be summarised; the model declined the rest`);
+  return { text: parts.join('\n\n'), sources: used.map((p) => ({ url: p.url, title: p.title })) };
 }

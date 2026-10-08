@@ -3,8 +3,8 @@
   "style_name": "Cinematic Military Engineering Documentary",
 
   "visual_mix": {
-    "footage": [0.5, 0.6],
-    "flow": [0.05, 0.12]
+    "footage": [0.0, 0.6],
+    "flow": [0.1, 1.0]
   },
 
   "colors": {

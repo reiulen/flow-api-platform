@@ -1,0 +1,95 @@
+{
+  "genre": "shadow_economics",
+  "style_name": "Shadow Economics & Resource Cartels (2D Cinematic Storybook Stickman)",
+
+  "acts": [
+    { "act": 1, "name": "The Paradox Hook", "share": 0.08, "mode": "CINEMATIC", "goal": "A staggering economic paradox: why a beach is vanishing overnight, or why an empty oil tanker is worth more dead than alive. Hook with a quiet maritime or customs anomaly." },
+    { "act": 2, "name": "The Fragile Routine", "share": 0.18, "mode": "INFORMATION", "goal": "The lone investigator stickman inspecting a mundane shipping manifest or harbor gate under rainy streetlamps while a shadow cartel moves billions." },
+    { "act": 3, "name": "The Supply Chain Domino", "share": 0.54, "mode": "INFORMATION", "goal": "Deconstruct the illicit logistics network: shell company jurisdictions, AIS transponder spoofing, river dredgers, forged bills of lading." },
+    { "act": 4, "name": "The Cold Epilogue", "share": 0.20, "mode": "CINEMATIC", "goal": "The unpunished reality: how the legal economy quietly relies on the shadow commodity to survive, and how it touches everyday consumer goods." }
+  ],
+
+  "visual_mix": {
+    "footage": [0.0, 0.0],
+    "explainer": [0.15, 0.25],
+    "flow": [0.75, 1.0],
+    "flow_hard_max": 1.0
+  },
+
+  "black_beats": {
+    "min": 0,
+    "max": 0,
+    "duration_s": 0
+  },
+
+  "look": {
+    "footage_filter": "",
+    "grain": "",
+    "still_zoom": 0.02
+  },
+
+  "transitions": {
+    "same_sequence": "cut",
+    "between_sources_information": "dissolve_short",
+    "between_sources_cinematic": "dissolve_short",
+    "explainer_boundary": "dissolve_short",
+    "time_jump": "dissolve_short",
+    "act_break": "dissolve",
+    "durations": {
+      "cut": 0,
+      "dissolve_short": 0.6,
+      "dissolve": 1.0,
+      "dissolve_slow": 1.5,
+      "fade_black": 0.5,
+      "match_cut": 0
+    }
+  },
+
+  "colors": {
+    "trench_beige": "#D4C5B9",
+    "wet_asphalt": "#1F2421",
+    "harbor_sodium": "#F4A261",
+    "ocean_black": "#0B132B",
+    "cargo_rust": "#9E2A2B",
+    "fog_grey": "#8D99AE"
+  },
+
+  "labels": {
+    "reconstruction": "CARTEL LOGISTICS RECONSTRUCTION",
+    "illustrative": "SUPPLY CHAIN FLOW DIAGRAM"
+  },
+
+  "flow": {
+    "model": "nano-banana-pro",
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "duration_s": 8,
+    "count": 1,
+    "character_guide": "Minimalist stickman investigator character with smooth off-white round head, simple black dot eyes, thin black stick limbs, wearing a simple beige trench coat with natural fabric folds and a simple dark fedora hat",
+    "look": "Wide 2D cinematic storybook illustration, hand-painted matte digital art, European graphic novel aesthetic (bande dessinée / ligne claire noir), uncluttered composition, generous negative space, atmospheric depth. Minimalist stickman investigator character with smooth off-white round head, simple black dot eyes, thin black stick limbs, wearing a simple beige trench coat with natural fabric folds and a simple dark fedora hat. Environment: night industrial container terminal dock, towering dark silhouette of an unflagged cargo freighter in rainy black water, sodium harbor light reflections on wet cracked pavement. Single continuous 16:9 widescreen frame. Single camera view. Absolutely NO comic book panels, NO multi-panel grids, NO split screens, NO borders.",
+    "avoid_extra": [
+      "3d render", "cgi", "photorealism", "glossy plastic", "hyperdetailed textures",
+      "excessive particles", "lens flare", "neon glare", "cluttered background", "shiny skin",
+      "volumetric chaos", "comic panels", "comic strip", "multi-panel", "split screen",
+      "grid layout", "triptych", "comic borders", "multiple frames", "collage",
+      "panel dividers", "speech bubbles", "anime"
+    ]
+  },
+
+  "assets": {
+    "source_priority": ["library"]
+  },
+
+  "audio": {
+    "music_functions": ["noir_night", "rain_ambient", "foghorn", "financial_suspense", "cartel_aftermath"]
+  },
+
+  "editorial": {
+    "voice": "Cynical, sharp, investigative noir narrator. Speaks with understated authority and biting, deadpan wit. Paces sentences evenly, pausing calmly when revealing astronomical dollar amounts or counterfeit shipping tonnages.",
+    "rules": [
+      "Micro-substance: cite real ship IMO numbers, specific customs tariff codes, maritime port registry flags of convenience, and dollar margin spreads per ton.",
+      "No glamorization: depict shadow cartels as ruthless, unglamorous logistics operations run on spreadsheets, bribes, and rusted barges.",
+      "4-Act structure: The Paradox Hook -> The Fragile Routine -> The Supply Chain Domino -> The Cold Epilogue."
+    ]
+  }
+}

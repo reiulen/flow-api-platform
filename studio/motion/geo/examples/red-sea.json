@@ -131,6 +131,14 @@
       "value": "-95%",
       "label": "Red Sea exports",
       "role": "threat"
+    },
+    {
+      "type": "callout",
+      "lon": 38.5,
+      "lat": 17.5,
+      "value": "-95%",
+      "label": "Red Sea exports",
+      "role": "threat"
     }
   ]
 }
