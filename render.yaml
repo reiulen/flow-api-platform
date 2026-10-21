@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: flow-api-platform
+    env: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: FLOW_HEADLESS
+        value: "true"
+      - key: FLOW_EMBEDDED_WORKER
+        value: "true"
+      - key: FLOW_API_KEY
+        generateValue: true
+      - key: FLOW_MASTER_KEY
+        sync: false

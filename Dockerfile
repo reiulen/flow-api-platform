@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV NODE_ENV=production \
     DOCKER=true \
     HOST=0.0.0.0 \
-    PORT=7860 \
+    PORT=10000 \
     FLOW_HEADLESS=true \
     FLOW_EMBEDDED_WORKER=true \
     CHROME_EXECUTABLE_PATH=/usr/bin/chromium \
@@ -39,12 +39,12 @@ COPY package.json ./
 # Create data and profiles directories
 RUN mkdir -p /app/data /app/profiles && chmod 700 /app/data /app/profiles
 
-# Expose default ports (7860 for Hugging Face Spaces, 8787 for standard self-hosted)
-EXPOSE 7860 8787
+# Expose default ports (10000 for Render, 8787 for local, 7860 for Hugging Face)
+EXPOSE 10000 8787 7860
 
 # Healthcheck endpoint
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://127.0.0.1:${PORT:-7860}/healthz || exit 1
+  CMD curl -f http://127.0.0.1:${PORT:-10000}/healthz || exit 1
 
 # Launch the server
 CMD ["node", "src/server.js"]

@@ -74,6 +74,13 @@ export class BrowserPool {
             '--disable-blink-features=AutomationControlled',
             '--disable-crash-reporter',
             ...(isHeadless ? ['--headless=new', '--hide-scrollbars', '--mute-audio'] : []),
+            ...(process.platform === 'linux' ? [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--disable-gpu',
+              '--disable-software-rasterizer',
+            ] : []),
           ],
         });
         context.setDefaultTimeout(45_000);
