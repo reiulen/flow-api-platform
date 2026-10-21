@@ -14,6 +14,7 @@ export class Store {
     this.db = new DatabaseSync(path.join(dataDir, 'flow-api.sqlite'));
     this.db.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;');
     this.migrate();
+    this.resetOrphanedJobsOnBoot();
     this.reconcileLeases();
   }
 
@@ -72,11 +73,19 @@ export class Store {
     if (!columns.includes(column)) this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
 
-  reconcileLeases() {
+  resetOrphanedJobsOnBoot() {
     const ts = now();
     this.db.prepare(`UPDATE jobs SET state=CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'retrying' END,
       worker_id=NULL,lease_until=NULL,available_at=?,updated_at=?
       WHERE state='running'`).run(ts, ts);
+    this.db.prepare(`UPDATE accounts SET active_jobs=0`).run();
+  }
+
+  reconcileLeases() {
+    const ts = now();
+    this.db.prepare(`UPDATE jobs SET state=CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'retrying' END,
+      worker_id=NULL,lease_until=NULL,available_at=?,updated_at=?
+      WHERE state='running' AND (lease_until IS NULL OR lease_until < ?)`).run(ts, ts, ts);
     this.db.prepare(`UPDATE jobs SET state='failed',completed_at=COALESCE(completed_at, ?) WHERE state='retrying' AND attempts >= max_attempts`).run(ts);
     this.db.prepare(`UPDATE accounts SET active_jobs=(SELECT COUNT(*) FROM jobs
       WHERE jobs.account_id=accounts.id AND jobs.state='running')`).run();
@@ -92,17 +101,21 @@ export class Store {
     if (typeof options === 'string' || options == null) options = { preferredId: options };
     const policy = this.getRouting();
     const binding = options.projectKey ? this.getProjectBinding(options.projectKey) : null;
-    const preferredId = options.preferredId ?? binding?.accountId ?? null;
-    const allowFailover = options.strictPreferred ? false : (binding ? binding.allowFailover : policy.autoFailover);
+    let preferredId = options.preferredId ?? binding?.accountId ?? null;
+    const excludeIds = Array.isArray(options.excludeIds) ? options.excludeIds.filter(Boolean) : [];
+    if (preferredId && excludeIds.includes(preferredId)) {
+      preferredId = null;
+    }
+    const allowFailover = options.strictPreferred && preferredId ? false : (binding ? binding.allowFailover : policy.autoFailover);
     const strategy = options.strategy ?? policy.strategy;
     const minCredits = options.minCredits ?? policy.minCredits;
     const ts = now();
     this.db.exec('BEGIN IMMEDIATE');
     try {
-      const eligible = `status='ready' AND active_jobs<max_concurrency
+      const eligibleBase = `status='ready' AND active_jobs<max_concurrency
         AND (circuit_open_until IS NULL OR circuit_open_until<=?)
         AND (credits_remaining IS NULL OR credits_remaining>=?)`;
-      let row = preferredId ? this.db.prepare(`SELECT * FROM accounts WHERE id=? AND ${eligible}`).get(preferredId, ts, minCredits) : null;
+      let row = preferredId ? this.db.prepare(`SELECT * FROM accounts WHERE id=? AND ${eligibleBase}`).get(preferredId, ts, minCredits) : null;
       if (!row && preferredId && !allowFailover) { this.db.exec('COMMIT'); return null; }
       if (!row) {
         const order = strategy === 'exhaust_first'
@@ -110,7 +123,24 @@ export class Store {
           : strategy === 'round_robin'
             ? 'COALESCE(last_used_at, created_at) ASC'
             : '(active_jobs*100 + (100-health_score)) ASC, COALESCE(credits_remaining, 999999999) DESC, updated_at ASC';
-        row = this.db.prepare(`SELECT * FROM accounts WHERE ${eligible} ORDER BY ${order} LIMIT 1`).get(ts, minCredits);
+        
+        // Try accounts not in excludeIds first
+        if (excludeIds.length > 0) {
+          const placeholders = excludeIds.map(() => '?').join(',');
+          row = this.db.prepare(`SELECT * FROM accounts WHERE ${eligibleBase} AND id NOT IN (${placeholders}) ORDER BY ${order} LIMIT 1`).get(ts, minCredits, ...excludeIds);
+          // If no eligible account because of circuit cooldown, check other accounts not in excludeIds before falling back to excluded accounts
+          if (!row) {
+            row = this.db.prepare(`SELECT * FROM accounts WHERE status='ready' AND active_jobs<max_concurrency AND (credits_remaining IS NULL OR credits_remaining>=?) AND id NOT IN (${placeholders}) ORDER BY COALESCE(circuit_open_until, '') ASC, COALESCE(last_used_at, created_at) ASC LIMIT 1`).get(minCredits, ...excludeIds);
+          }
+        }
+        // Fallback to any eligible account ONLY if all ready accounts were excluded
+        if (!row) {
+          row = this.db.prepare(`SELECT * FROM accounts WHERE ${eligibleBase} ORDER BY ${order} LIMIT 1`).get(ts, minCredits);
+        }
+        // Fallback to any ready account if all are temporarily under circuit cooldown
+        if (!row) {
+          row = this.db.prepare(`SELECT * FROM accounts WHERE status='ready' AND active_jobs<max_concurrency AND (credits_remaining IS NULL OR credits_remaining>=?) ORDER BY COALESCE(circuit_open_until, '') ASC, COALESCE(last_used_at, created_at) ASC LIMIT 1`).get(minCredits);
+        }
       }
       if (!row) { this.db.exec('COMMIT'); return null; }
       this.db.prepare('UPDATE accounts SET active_jobs=active_jobs+1,last_used_at=?,updated_at=? WHERE id=?').run(ts, ts, row.id);
@@ -120,18 +150,18 @@ export class Store {
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
 
-  releaseAccount(id, success, circuitMinutes = 5) {
+  releaseAccount(id, success, circuitMinutes = 0) {
     const ts = now();
     if (success) {
       this.db.prepare(`UPDATE accounts SET active_jobs=MAX(0,active_jobs-1),consecutive_failures=0,
         health_score=MIN(100,health_score+2),updated_at=? WHERE id=?`).run(ts, id);
     } else {
-      const circuitUntil = new Date(Date.now() + circuitMinutes * 60_000).toISOString();
-      const threshold = circuitMinutes > 5 ? 1 : 3;
+      const cooldownMins = Number(circuitMinutes) || 0;
+      const circuitUntil = cooldownMins > 0 ? new Date(Date.now() + cooldownMins * 60_000).toISOString() : null;
       this.db.prepare(`UPDATE accounts SET active_jobs=MAX(0,active_jobs-1),consecutive_failures=consecutive_failures+1,
-        health_score=MAX(0,health_score-15),
-        circuit_open_until=CASE WHEN consecutive_failures+1>=? THEN ? ELSE circuit_open_until END,
-        updated_at=? WHERE id=?`).run(threshold, circuitUntil, ts, id);
+        health_score=MAX(0,health_score-5),
+        circuit_open_until=?,
+        updated_at=? WHERE id=?`).run(circuitUntil, ts, id);
     }
   }
   assignJobAccount(jobId, accountId) {
@@ -271,8 +301,12 @@ export class Store {
     this.db.prepare(`UPDATE jobs SET state='completed',result_json=?,error_json=NULL,lease_until=NULL,updated_at=?,completed_at=? WHERE id=?`).run(json(result), ts, ts, id);
     this.addEvent(id, 'completed', null);
   }
+  updateJobRequest(id, request) {
+    this.db.prepare('UPDATE jobs SET request_json=?, updated_at=? WHERE id=?').run(json(request), now(), id);
+  }
   failJob(id, error, retryAt = null) {
     const job = this.getJob(id);
+    if (!job) return;
     const retry = retryAt && job.attempts < job.maxAttempts;
     const state = retry ? 'retrying' : (error.code === 'action_required' ? 'action_required' : 'failed');
     const ts = now();

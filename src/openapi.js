@@ -1449,6 +1449,113 @@ Mendaftarkan profil Chrome lokal baru. Setelah mendaftar:
           },
         },
       },
+      '/v1/accounts/{id}/cookies': {
+        post: {
+          tags: ['Accounts'],
+          summary: 'Import cookies Google Flow ke akun worker (Ala UseAPI)',
+          description: 'Mengimpor cookies dari browser ke profile headless dan memverifikasi akses ke flow.google.com tanpa perlu login manual GUI.',
+          parameters: [
+            {
+              name: 'id',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' },
+              example: 'acc_7b66ec07-5ee8-4c07-b355-32e67df1407f',
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    cookies: {
+                      oneOf: [
+                        { type: 'array', items: { type: 'object' }, description: 'Export JSON dari Cookie-Editor' },
+                        { type: 'string', description: 'Raw header Cookie string (SID=...; __Secure-1PSID=...)' },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: 'Cookies berhasil diverifikasi dan akun siap (ready)',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      data: {
+                        type: 'object',
+                        properties: {
+                          success: { type: 'boolean', example: true },
+                          state: { type: 'string', example: 'ready' },
+                          importedCount: { type: 'number', example: 14 },
+                          credits: { type: 'number', example: 100 },
+                          message: { type: 'string' },
+                        },
+                      },
+                      account: { $ref: '#/components/schemas/Account' },
+                    },
+                  },
+                },
+              },
+            },
+            400: { $ref: '#/components/responses/BadRequest' },
+            401: { $ref: '#/components/responses/Unauthorized' },
+            404: { $ref: '#/components/responses/NotFound' },
+          },
+        },
+      },
+      '/v1/cookies/quick-login': {
+        post: {
+          tags: ['Accounts'],
+          summary: 'Quick login via Cookies (Buat akun & login otomatis)',
+          description: 'Endpoint instan untuk setup worker Flow: otomatis membuat/memilih akun primary, menyuntikkan cookies, dan memverifikasi ke flow.google.com.',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    cookies: {
+                      oneOf: [
+                        { type: 'array', items: { type: 'object' } },
+                        { type: 'string' },
+                      ],
+                    },
+                    profileName: { type: 'string', default: 'primary' },
+                    label: { type: 'string', default: 'Primary Account' },
+                  },
+                  required: ['cookies'],
+                },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: 'Login berhasil dan akun siap generate video/foto',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      data: { type: 'object' },
+                      account: { $ref: '#/components/schemas/Account' },
+                    },
+                  },
+                },
+              },
+            },
+            400: { $ref: '#/components/responses/BadRequest' },
+          },
+        },
+      },
       '/v1/routing': {
         get: {
           tags: ['Routing & Projects'],

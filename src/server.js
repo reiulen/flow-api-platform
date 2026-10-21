@@ -157,9 +157,57 @@ app.get('/v1/accounts', async () => ({ data: store.listAccounts() }));
 app.post('/v1/accounts', async (request, reply) => {
   const input = parse(AccountInput, request.body);
   if (input.error) throw new AppError(400, 'validation_error', 'Input akun tidak valid', input.error);
-  const account = store.createAccount(input.data);
+  const { cookies, ...accountFields } = input.data;
+  const account = store.createAccount(accountFields);
+  if (cookies) {
+    const internalAcc = store.getAccountInternal(account.id);
+    const result = await adapter.importCookiesAndVerify(internalAcc, cookies);
+    reply.code(result.state === 'ready' ? 201 : 202);
+    return { data: store.getAccount(account.id), cookiesResult: result };
+  }
   reply.code(201);
-  return { data: account, next: `POST /v1/accounts/${account.id}/setup lalu login pada Chrome yang terbuka` };
+  return { data: account, next: `POST /v1/accounts/${account.id}/cookies untuk import cookies atau POST /v1/accounts/${account.id}/setup` };
+});
+app.post('/v1/cookies/quick-login', async (request, reply) => {
+  const rawBody = request.body || {};
+  const cookiesData = rawBody.cookies ?? rawBody;
+  if (!cookiesData) {
+    throw new AppError(400, 'validation_error', 'Cookies diperlukan (format JSON array Cookie-Editor atau header string)');
+  }
+  const profileName = typeof rawBody.profileName === 'string' ? rawBody.profileName : 'primary';
+  const label = typeof rawBody.label === 'string' ? rawBody.label : 'Primary Account';
+  
+  const accounts = store.listAccounts();
+  let account = accounts.find((a) => a.profileName === profileName);
+  if (!account) {
+    account = store.createAccount({ label, profileName, priority: 10 });
+  }
+  const internalAcc = store.getAccountInternal(account.id);
+  const result = await adapter.importCookiesAndVerify(internalAcc, cookiesData);
+  reply.code(result.state === 'ready' ? 200 : 400);
+  return {
+    data: result,
+    account: store.getAccount(account.id),
+  };
+});
+app.post('/v1/accounts/:id/cookies', async (request, reply) => {
+  const account = store.getAccountInternal(request.params.id);
+  if (!account) throw new AppError(404, 'account_not_found', 'Akun tidak ditemukan');
+  const rawBody = request.body;
+  const cookiesData = rawBody?.cookies ?? rawBody;
+  if (!cookiesData) {
+    throw new AppError(400, 'validation_error', 'Field cookies diperlukan');
+  }
+  const result = await adapter.importCookiesAndVerify(account, cookiesData);
+  reply.code(result.state === 'ready' ? 200 : 400);
+  return { data: result, account: store.getAccount(account.id) };
+});
+app.delete('/v1/accounts/:id/profile', async (request) => {
+  const account = store.getAccountInternal(request.params.id);
+  if (!account) throw new AppError(404, 'account_not_found', 'Akun tidak ditemukan');
+  await browsers.resetProfile(account);
+  store.markAccount(account.id, 'action_required', 0);
+  return { ok: true, message: `Profile untuk akun ${account.id} telah dihapus.` };
 });
 app.patch('/v1/accounts/:id', async (request) => {
   const input = parse(AccountUpdate, request.body);
@@ -230,7 +278,7 @@ async function createGeneration(request, reply, type, schema) {
     throw new AppError(400, 'invalid_idempotency_key', 'Idempotency-Key tidak valid');
   }
   const result = store.createJob({ type, accountId: body.accountId, request: { ...body, replyUrl: undefined },
-    replyUrl, webhookSecretBlob, idempotencyKey, maxAttempts: config.maxAttempts });
+    replyUrl, webhookSecretBlob, idempotencyKey, maxAttempts: Math.max(8, Number(config.maxAttempts) || 4) });
   const shouldWait = request.query?.wait === 'true' || request.query?.wait === '1' || request.headers['prefer'] === 'wait';
   if (shouldWait) {
     const timeoutMs = Math.min(Number(request.query?.timeoutMs ?? 90_000), 120_000);

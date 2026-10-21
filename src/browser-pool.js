@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 import { AppError } from './errors.js';
+import { parseCookieInput } from './cookies.js';
 
 function cleanStaleSingleton(profile) {
   for (const name of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
@@ -85,6 +86,21 @@ export class BrowserPool {
         page.on('dialog', async (dialog) => {
           await dialog.accept().catch(() => {});
         });
+
+        // Auto-load backup cookies.json if present
+        const cookieBackupPath = path.join(profile, 'cookies.json');
+        if (fs.existsSync(cookieBackupPath)) {
+          try {
+            const raw = fs.readFileSync(cookieBackupPath, 'utf8');
+            const parsed = parseCookieInput(raw);
+            if (parsed.length > 0) {
+              await context.addCookies(parsed);
+            }
+          } catch (err) {
+            console.warn('[BrowserPool] Failed to auto-load cookies.json for', profileName, err.message);
+          }
+        }
+
         const entry = { context, page };
         this.entries.set(account.id, entry);
         context.on('close', () => this.entries.delete(account.id));
@@ -100,6 +116,46 @@ export class BrowserPool {
       return await launchPromise;
     } finally {
       this.launching.delete(account.id);
+    }
+  }
+
+  async importCookies(account, cookiesInput) {
+    const cookies = parseCookieInput(cookiesInput);
+    if (cookies.length === 0) {
+      throw new AppError(400, 'invalid_cookies', 'Tidak ada cookies valid yang dapat diparsing. Pastikan format JSON array atau header string.');
+    }
+    await this.pageFor(account);
+    const entry = this.entries.get(account.id);
+    if (!entry?.context) {
+      throw new AppError(503, 'browser_unavailable', 'Browser context tidak tersedia untuk akun ini');
+    }
+
+    // Inject into active context
+    await entry.context.addCookies(cookies);
+
+    // Save backup to profile folder
+    const profileName = account.profile_name ?? account.profileName ?? account.id;
+    const profile = path.join(this.config.profileDir, profileName);
+    fs.mkdirSync(profile, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(path.join(profile, 'cookies.json'), JSON.stringify(cookies, null, 2), { mode: 0o600 });
+
+    return cookies.length;
+  }
+
+  async resetProfile(account) {
+    const existing = this.entries.get(account.id);
+    if (existing) {
+      this.entries.delete(account.id);
+      try { await existing.context.close(); } catch {}
+    }
+    const profileName = account.profile_name ?? account.profileName ?? account.id;
+    const profile = path.join(this.config.profileDir, profileName);
+    try {
+      if (fs.existsSync(profile)) {
+        fs.rmSync(profile, { recursive: true, force: true });
+      }
+    } catch (err) {
+      console.warn('[BrowserPool] Failed to remove profile dir:', err.message);
     }
   }
 
@@ -127,4 +183,5 @@ export class BrowserPool {
     this.entries.clear();
   }
 }
+
 

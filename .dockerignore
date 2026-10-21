@@ -1,0 +1,13 @@
+node_modules/
+profiles/
+data/
+*.mp4
+*.wav
+*.m4a
+*.log
+.git/
+.env
+web/
+editing/
+scratch/
+studio/

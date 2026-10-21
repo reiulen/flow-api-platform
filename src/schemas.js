@@ -5,6 +5,7 @@ export const AccountInput = z.object({
   profileName: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/), projectId: z.string().uuid().optional(),
   maxConcurrency: z.literal(1).default(1),
   priority: z.number().int().min(1).max(1000).default(100),
+  cookies: z.union([z.string(), z.array(z.any()), z.record(z.string(), z.any())]).optional(),
 }).strict();
 
 export const AccountUpdate = z.object({

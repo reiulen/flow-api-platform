@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 
 const bool = (name, fallback) => process.env[name] == null
@@ -8,6 +9,26 @@ const int = (name, fallback) => {
   return Number.isFinite(value) ? value : fallback;
 };
 
+function resolveChromePath() {
+  if (process.env.CHROME_EXECUTABLE_PATH && fs.existsSync(process.env.CHROME_EXECUTABLE_PATH)) {
+    return process.env.CHROME_EXECUTABLE_PATH;
+  }
+  const candidates = [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/snap/bin/chromium',
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return process.platform === 'darwin'
+    ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    : '/usr/bin/chromium';
+}
+
 export function loadConfig(cwd = process.cwd()) {
   const apiKey = process.env.FLOW_API_KEY ?? '';
   if (apiKey.length < 32) throw new Error('FLOW_API_KEY minimal 32 karakter');
@@ -15,14 +36,14 @@ export function loadConfig(cwd = process.cwd()) {
   const masterKey = Buffer.from(master, 'base64');
   if (masterKey.length !== 32) throw new Error('FLOW_MASTER_KEY harus base64 dari tepat 32 byte');
   return {
-    host: process.env.HOST ?? '127.0.0.1',
+    host: process.env.HOST ?? (process.env.DOCKER ? '0.0.0.0' : '127.0.0.1'),
     port: int('PORT', 8787),
     apiKey,
     masterKey,
     dataDir: path.resolve(cwd, process.env.DATA_DIR ?? './data'),
     profileDir: path.resolve(cwd, process.env.PROFILE_DIR ?? './profiles'),
-    chromePath: process.env.CHROME_EXECUTABLE_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    headless: bool('FLOW_HEADLESS', false),
+    chromePath: resolveChromePath(),
+    headless: bool('FLOW_HEADLESS', process.platform === 'linux'),
     concurrency: Math.max(1, int('FLOW_WORKER_CONCURRENCY', 2)),
     jobTimeoutMs: int('FLOW_JOB_TIMEOUT_MS', 900_000),
     pollIntervalMs: int('FLOW_POLL_INTERVAL_MS', 15_000),

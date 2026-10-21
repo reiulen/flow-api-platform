@@ -16,6 +16,12 @@ function urls(value, out = new Set()) {
   return [...out];
 }
 
+function isFlowMediaUrl(u) {
+  if (typeof u !== 'string') return false;
+  if (/ogw|googleusercontent\.com\/a[/-]|gstatic\.com|favicon|accounts\.google|profile|avatar|\.gif/i.test(u)) return false;
+  return /flow\.google\.com\/asb\/|googleusercontent\.com\/asb\/|flow-content\.google/i.test(u);
+}
+
 function extractMediaIds(contentsPayload) {
   const ids = new Set();
   if (!contentsPayload || !Array.isArray(contentsPayload)) return ids;
@@ -100,6 +106,55 @@ export class FlowAdapter {
     return { accountId: account.id, state: waiting ? 'waiting_for_login' : 'ready', url: page.url() };
   }
 
+  async importCookiesAndVerify(account, cookiesInput) {
+    const count = await this.browsers.importCookies(account, cookiesInput);
+    const page = await this.browsers.pageFor(account);
+    await page.goto(ORIGIN, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForTimeout(2000);
+
+    const isLogin = page.url().includes('accounts.google.com') ||
+      await page.getByText(/sign in|masuk/i).first().isVisible({ timeout: 4000 }).catch(() => false);
+
+    if (isLogin) {
+      this.store.markAccount(account.id, 'action_required', 0);
+      return {
+        success: false,
+        state: 'action_required',
+        importedCount: count,
+        message: 'Cookies berhasil dimasukkan tetapi halaman Flow meminta login. Pastikan cookies disalin saat status akun sedang aktif login di flow.google.com.',
+        url: page.url(),
+      };
+    }
+
+    let projId = account.project_id || null;
+    try {
+      projId = await this.projectId(account, page);
+    } catch (e) {
+      console.warn('[FlowAdapter] Failed to resolve project ID on cookie import:', e.message);
+    }
+
+    let credits = null;
+    try {
+      credits = await this.creditSnapshot(account);
+      if (credits?.remaining !== null && credits?.remaining !== undefined) {
+        this.store.updateCredits(account.id, credits.remaining, credits.raw);
+      }
+    } catch (e) {
+      console.warn('[FlowAdapter] Failed to snapshot credits on cookie import:', e.message);
+    }
+
+    this.store.markAccount(account.id, 'ready', 100);
+    return {
+      success: true,
+      state: 'ready',
+      importedCount: count,
+      accountId: account.id,
+      projectId: projId,
+      credits: credits?.remaining ?? null,
+      message: 'Cookies valid! Akun siap digunakan untuk generate video dan gambar.',
+    };
+  }
+
   async projectId(account, page) {
     let id = account.project_id;
     if (id) {
@@ -145,20 +200,42 @@ export class FlowAdapter {
     const projectId = job.request.projectId ?? binding?.flowProjectId ?? await this.projectId(account, page);
     const sourcePath = `/project/${projectId}`;
 
-    if (job.checkpoint?.phase === 'submitted' && job.checkpoint?.accountId === account.id && job.checkpoint?.projectId === projectId) {
-      return this.waitForResult(page, job, projectId, job.checkpoint);
-    }
-
     if (job.type === 'video_chain') {
       return this.executeVideoChain(page, job, account, projectId, sourcePath);
     }
 
-    await page.goto(`${ORIGIN}${sourcePath}`, { waitUntil: 'domcontentloaded' });
+    let lastNetworkError = null;
+    const responseHandler = async (res) => {
+      try {
+        if (res.url().includes('batchexecute') && res.url().includes('ogiZ0b')) {
+          const text = await res.text().catch(() => '');
+          console.log(`[FlowAdapter] [${account.label}] 🔍 ogiZ0b RAW: ${text.slice(0, 300).replace(/\n/g, ' ')}`);
+          if (text.includes('PUBLIC_ERROR_UNUSUAL_ACTIVITY')) {
+            lastNetworkError = new AppError(429, 'rate_limit_exceeded', 'Google Flow: Aktivitas yang tidak biasa (PUBLIC_ERROR_UNUSUAL_ACTIVITY)');
+          }
+        }
+      } catch {}
+    };
+    page.on('response', responseHandler);
+
+    try {
+      await page.goto(`${ORIGIN}${sourcePath}`, { waitUntil: 'domcontentloaded' });
+    const promptBoxPreload = page.locator('.ProseMirror, [contenteditable="true"], textarea').first();
+    await promptBoxPreload.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+    await page.waitForFunction(() => !!window.WIZ_global_data?.cfb2h, { timeout: 15000 }).catch(() => {});
+
+    // Clean up any old error cards from previous attempts
+    const oldErrorTile = page.locator('flow-error-tile button, .error-tile button, button:has-text("delete_forever"), button[aria-label*="delete" i]').first();
+    if (await oldErrorTile.isVisible().catch(() => false)) {
+      await oldErrorTile.click().catch(() => {});
+      await page.waitForTimeout(400);
+    }
+
     const baseline = await callRpc(page, RPC.contents, [`projects/${projectId}`, null, null, null, [1]], sourcePath);
     const baselineHash = crypto.createHash('sha256').update(JSON.stringify(baseline)).digest('hex');
     const baselineUrls = urls(baseline);
     const domUrls = await page.evaluate(() => {
-      const imgs = Array.from(document.querySelectorAll('img.image')).map((i) => i.src);
+      const imgs = Array.from(document.querySelectorAll('img.image, img')).map((i) => i.src);
       const vids = Array.from(document.querySelectorAll('video, video source')).map((v) => v.src);
       return [...imgs, ...vids];
     }).catch(() => []);
@@ -166,6 +243,11 @@ export class FlowAdapter {
       if (u) baselineUrls.push(u);
     }
     const baselineIds = extractMediaIds(baseline);
+    const baselineItems = extractMediaItems(baseline);
+    for (const it of baselineItems) {
+      if (it.itemId) baselineIds.add(it.itemId);
+      if (it.mediaId) baselineIds.add(it.mediaId);
+    }
 
     if (job.type === 'video_upscale') {
       const upscaleResult = await this.triggerUpscaleOnPage(page, projectId, { mediaIds: job.request.mediaId ? [job.request.mediaId] : [] }, { baselineIds, baselineUrls });
@@ -201,61 +283,97 @@ export class FlowAdapter {
     const promptBox = page.locator('.ProseMirror, [contenteditable="true"], textarea').filter({ visible: true }).first();
     await promptBox.click().catch(() => {});
     await page.waitForTimeout(200);
+
+    // Select all and clear existing text cleanly
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A').catch(() => {});
     await page.keyboard.press('Backspace').catch(() => {});
-    await page.waitForTimeout(100);
-    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => {});
-    const copied = await page.evaluate(async (text) => {
-      try {
-        await navigator.clipboard.writeText(text);
-        return true;
-      } catch {
-        return false;
-      }
-    }, job.request.prompt).catch(() => false);
+    await page.waitForTimeout(200);
 
-    if (copied) {
-      await promptBox.focus();
-      await page.keyboard.press(process.platform === 'darwin' ? 'Meta+V' : 'Control+V');
-    } else {
-      await page.keyboard.insertText(job.request.prompt);
+    // Insert text via keyboard for native ProseMirror transaction dispatch
+    await page.keyboard.insertText(job.request.prompt).catch(() => {});
+    await page.waitForTimeout(400);
+
+    let promptCurrentText = (await promptBox.innerText().catch(() => '')).trim();
+    if (!promptCurrentText) {
+      await promptBox.fill(job.request.prompt).catch(() => {});
+      await page.waitForTimeout(400);
+      promptCurrentText = (await promptBox.innerText().catch(() => '')).trim();
     }
-    await page.waitForTimeout(1200);
+
+    if (!promptCurrentText) {
+      throw new AppError(422, 'prompt_entry_failed', 'Gagal memasukkan teks prompt ke Flow prompt box');
+    }
+    await page.waitForTimeout(500);
 
     const button = page.locator('button.generate-icon-button, button[aria-label*="generation" i], button[aria-label*="Start" i], button[aria-label*="pembuatan" i], button:has-text("arrow_forward")')
       .or(page.getByRole('button', { name: /start generation|start creation|mulai pembuatan|generate|create/i }))
       .filter({ visible: true })
       .first();
 
+    await button.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+
     if (!await button.isEnabled().catch(() => false)) {
       const text = await page.locator('body').innerText().catch(() => '');
       if (/insufficient|not enough|habis|kredit.*0|0.*credit/i.test(text)) {
         throw new AppError(409, 'account_credits_exhausted', 'Kredit akun Flow habis');
       }
-      await promptBox.press('Enter').catch(() => {});
+      await promptBox.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter').catch(() => {});
       await page.waitForTimeout(500);
     }
 
     if (!await button.isEnabled().catch(() => false)) {
-      // Give Angular / ProseMirror form validation up to 3 seconds to unblock
       await button.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
     }
 
     if (!await button.isEnabled().catch(() => false)) {
+      const inlineErr = await page.locator('mat-error, .mat-mdc-form-field-error, .error-message, [role="alert"]').first().innerText().catch(() => '');
+      if (inlineErr) {
+        throw new AppError(422, 'generation_failed_by_flow', `Google Flow: ${inlineErr.trim()}`);
+      }
       throw new AppError(409, 'generation_not_ready', 'Tombol generate belum siap di Flow');
     }
 
-    await button.hover().catch(() => {});
-    await page.waitForTimeout(250);
-    await button.click();
+    console.log(`[FlowAdapter] [${account.label}] Tombol generate aktif. Mengklik generate untuk job ${job.id}...`);
+    // Random human jitter to avoid simultaneous burst clicks
+    await page.waitForTimeout(300 + Math.floor(Math.random() * 500));
+    const box = await button.boundingBox().catch(() => null);
+    if (box) {
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 }).catch(() => {});
+      await page.waitForTimeout(100);
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
+    } else {
+      await button.click().catch(() => {});
+    }
+    
+    // Wait for Flow to dispatch RPC and clear prompt box (up to 3.5s)
+    let cleared = false;
+    for (let c = 0; c < 7; c++) {
+      await page.waitForTimeout(500);
+      const text = (await promptBox.innerText().catch(() => '')).trim();
+      if (!text) {
+        cleared = true;
+        break;
+      }
+    }
+    console.log(`[FlowAdapter] [${account.label}] Selesai klik generate. Box cleared: ${cleared}`);
 
-    // Check immediately for any instant error snackbar (within 600ms of clicking)
-    await page.waitForTimeout(600);
-    const instantToast = page.locator('.cdk-overlay-container mat-snack-bar-container, .cdk-overlay-container simple-snack-bar').first();
-    if (await instantToast.isVisible().catch(() => false)) {
-      const errText = (await instantToast.innerText().catch(() => '')).trim();
-      if (/failed|error|violate|policy|couldn't|tidak dapat|gagal|batas penggunaan|limit/i.test(errText)) {
-        throw new AppError(422, 'generation_failed_by_flow', `Google Flow menolak/gagal membuat video: ${errText}`);
+    if (!cleared && await button.isEnabled().catch(() => false)) {
+      // Fallback only if prompt box was not cleared and button is still enabled
+      await promptBox.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter').catch(() => {});
+      await page.waitForTimeout(800);
+    }
+
+    // Check immediately for any instant error snackbar, dialog, or alert
+    const errorSelector = '.cdk-overlay-container mat-snack-bar-container, .cdk-overlay-container .mat-mdc-snack-bar-container, .cdk-overlay-container simple-snack-bar, .cdk-overlay-container [role="alert"], mat-dialog-container, .mat-mdc-dialog-container, [role="alert"].error';
+    for (let c = 0; c < 3; c++) {
+      await page.waitForTimeout(400);
+      const instantToast = page.locator(errorSelector).first();
+      if (await instantToast.isVisible().catch(() => false)) {
+        const errText = (await instantToast.innerText().catch(() => '')).trim();
+        if (/failed|error|violate|policy|couldn't|tidak dapat|gagal|batas penggunaan|limit|unusual activity|aktivitas yang tidak biasa|usage limit/i.test(errText)) {
+          const isLimit = /batas penggunaan|limit|try again later|usage limit|unusual activity/i.test(errText);
+          throw new AppError(isLimit ? 429 : 422, isLimit ? 'rate_limit_exceeded' : 'generation_failed_by_flow', `Google Flow menolak/gagal membuat video: ${errText}`);
+        }
       }
     }
     await page.waitForTimeout(600);
@@ -264,17 +382,19 @@ export class FlowAdapter {
       await approveBtnPre.click().catch(() => {});
       await page.waitForTimeout(500);
     }
-    // Dismiss or delete any preexisting failed cards on the canvas
-    const oldErrorCard = page.locator('div:has-text("Failed") button:has-text("delete"), div:has-text("Failed") button:has-text("delete_forever"), div:has-text("Gagal") button:has-text("delete"), div:has-text("Gagal") button:has-text("delete_forever"), div:has-text("Gagal") button[aria-label*="delete" i], div:has-text("Failed") button[aria-label*="delete" i]').first();
+    // Dismiss or delete any preexisting failed tiles on the canvas
+    const oldErrorCard = page.locator('flow-error-tile button[aria-label="Delete"], .error-tile button[aria-label="Delete"], button:has-text("delete_forever"), div:has-text("Failed") button[aria-label*="delete" i]').first();
     if (await oldErrorCard.isVisible().catch(() => false)) {
       await oldErrorCard.click().catch(() => {});
       await page.waitForTimeout(400);
     }
-    const errorCardSelector = '[role="alert"], div:has-text("Failed"), div:has-text("Gagal"), mat-card:has-text("Failed"), mat-card:has-text("Gagal"), .error-card';
+    const errorCardSelector = 'flow-error-tile, .error-tile, [role="alert"], div:has-text("Failed"), div:has-text("Gagal"), mat-card:has-text("Failed"), mat-card:has-text("Gagal"), .error-card';
     const baselineErrorCount = await page.locator(errorCardSelector).count().catch(() => 0);
     const checkpoint = {
+      ...(job.checkpoint || {}),
       phase: 'submitted',
       accountId: account.id,
+      accountLabel: account.label,
       projectId,
       baselineHash,
       baselineUrls,
@@ -283,7 +403,7 @@ export class FlowAdapter {
       submittedAt: new Date().toISOString(),
     };
     this.store.checkpoint(job.id, checkpoint);
-    const result = await this.waitForResult(page, { ...job, checkpoint }, projectId, checkpoint);
+    const result = await this.waitForResult(page, { ...job, checkpoint }, projectId, checkpoint, () => lastNetworkError);
 
     // If 1080p resolution requested for video, trigger upscale
     if (job.type === 'video' && String(job.request?.resolution).toLowerCase() === '1080p') {
@@ -299,6 +419,9 @@ export class FlowAdapter {
       } catch {}
     }
     return result;
+    } finally {
+      page.off('response', responseHandler);
+    }
   }
 
   async triggerUpscaleOnPage(page, projectId, baseResult, checkpoint) {
@@ -386,16 +509,19 @@ export class FlowAdapter {
       .or(page.locator('button:has-text("Agent"), button:has-text("Agen")'))
       .filter({ visible: true })
       .first();
-    if (await agentChip.isVisible({ timeout: 2000 }).catch(() => false)) {
+    if (await agentChip.isVisible({ timeout: 1500 }).catch(() => false)) {
       const isChecked = await agentChip.evaluate((el) => {
         return el.classList.contains('agent-mode-chip-checked') ||
+          el.classList.contains('mat-mdc-chip-selected') ||
+          el.classList.contains('selected') ||
+          el.classList.contains('active') ||
           el.getAttribute('aria-checked') === 'true' ||
           el.getAttribute('aria-pressed') === 'true' ||
-          /agent|agen/i.test(el.innerText.trim());
+          el.getAttribute('aria-selected') === 'true';
       }).catch(() => false);
       if (isChecked) {
         await agentChip.click().catch(() => {});
-        await page.waitForTimeout(600);
+        await page.waitForTimeout(400);
       }
     }
 
@@ -403,36 +529,75 @@ export class FlowAdapter {
     const promptBoxPre = page.locator('.ProseMirror, [contenteditable="true"], textarea').first();
     await promptBoxPre.waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
 
-    const trigger = page.locator('button.settings-trigger-button, button[aria-label*="Settings trigger" i], button[aria-label*="Pemicu setelan" i]')
-      .or(page.locator('button:has-text("Banana"), button:has-text("Veo"), button:has-text("Omni")'))
-      .or(page.locator('form, [class*="prompt"]').locator('button').filter({ hasText: /Video|Image|Gambar/i }))
+    const settingsPanel = page.locator('flow-prompt-box-settings, .cdk-overlay-pane, [role="dialog"]').first();
+    const trigger = page.locator([
+      'flow-prompt-box button:has-text("Banana")',
+      'flow-prompt-box button:has-text("Nano")',
+      'flow-prompt-box button:has-text("Veo")',
+      'flow-prompt-box button:has-text("Omni")',
+      'flow-prompt-box button:has-text("Imagen")',
+      'flow-prompt-box button.settings-trigger-button',
+      'button:has-text("Banana")',
+      'button:has-text("Veo")',
+      'button:has-text("Omni")',
+      'button:has-text("Imagen")',
+      'flow-prompt-box button:has-text("Video")',
+      'flow-prompt-box button:has-text("Image")',
+      'flow-prompt-box button:has-text("Gambar")',
+      'form button:has-text("Video")',
+      'form button:has-text("Image")',
+      'form button:has-text("Gambar")',
+      'button.settings-trigger-button',
+      'button[aria-label*="Settings trigger" i]',
+      'button[aria-label*="Pemicu setelan" i]',
+      '.prompt-container button.settings-trigger-button',
+      'flow-prompt-box button[aria-haspopup="dialog"]',
+      'flow-prompt-box button[aria-haspopup="menu"]'
+    ].join(', '))
       .filter({ visible: true })
       .first();
 
-    await trigger.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
-    if (!await trigger.isVisible().catch(() => false)) {
-      // Second attempt: close drawer and click agent chip if still up
-      if (await closeSidebarBtn.isVisible().catch(() => false)) {
-        await closeSidebarBtn.click().catch(() => {});
-        await page.waitForTimeout(600);
-      }
-      const retryAgent = page.locator('.agent-mode-chip, button:has-text("Agent"), button:has-text("Agen")').first();
-      if (await retryAgent.isVisible().catch(() => false)) {
-        await retryAgent.click().catch(() => {});
-        await page.waitForTimeout(600);
-      }
-      if (!await trigger.isVisible().catch(() => false)) {
-        console.warn('[FlowAdapter] Warning: settings trigger button not found after 15s');
+    if (await trigger.isVisible().catch(() => false)) {
+      const triggerText = (await trigger.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+      const isBanana = !request.model || /banana/i.test(request.model);
+      const isBanana2 = !request.model || /banana.*2|narwhal/i.test(request.model);
+      const wants16x9 = !request.aspectRatio || request.aspectRatio === '16:9' || request.aspectRatio === 'landscape';
+      const wantsX1 = !request.count || Number(request.count) === 1;
+
+      // Fast-bypass: if trigger already matches image + Nano Banana 2.1 + 16:9 + x1, avoid opening modal
+      if (!isVideo && isBanana2 && wants16x9 && wantsX1 &&
+          /nano banana 2/i.test(triggerText) && /crop_16_9|16:9/i.test(triggerText) && /x1/i.test(triggerText)) {
+        console.log(`[FlowAdapter] ⚡ Setelan sudah sesuai (${triggerText}). Langsung bypass modal setelan.`);
         return;
       }
     }
 
-    const settingsPanel = page.locator('flow-prompt-box-settings');
     if (!await settingsPanel.isVisible().catch(() => false)) {
-      await trigger.click().catch(() => {});
-      await settingsPanel.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
-      await page.waitForTimeout(200);
+      await trigger.waitFor({ state: 'visible', timeout: 3500 }).catch(() => {});
+      if (!await trigger.isVisible().catch(() => false)) {
+        if (await closeSidebarBtn.isVisible().catch(() => false)) {
+          await closeSidebarBtn.click().catch(() => {});
+          await page.waitForTimeout(300);
+        }
+        await trigger.waitFor({ state: 'visible', timeout: 1500 }).catch(() => {});
+      }
+
+      if (await trigger.isVisible().catch(() => false)) {
+        await trigger.click().catch(() => {});
+        await settingsPanel.waitFor({ state: 'visible', timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(200);
+      } else if (!await settingsPanel.isVisible().catch(() => false)) {
+        console.warn('[FlowAdapter] Warning: settings trigger button not found (continuing with default canvas settings)');
+        return;
+      }
     }
+
+    try {
+      const pBtns = await page.locator('flow-prompt-box button').allInnerTexts().catch(() => []);
+      const sBtns = await settingsPanel.locator('button, [role="button"], mat-select, [role="combobox"]').allInnerTexts().catch(() => []);
+      console.log('[FlowAdapter] prompt-box buttons:', JSON.stringify(pBtns.map(b => b.replace(/\s+/g, ' ').trim())));
+      console.log('[FlowAdapter] settingsPanel buttons:', JSON.stringify(sBtns.map(b => b.replace(/\s+/g, ' ').trim())));
+    } catch {}
 
     const selectToggle = async (pattern, timeout = 3000) => {
       const toggle = settingsPanel.locator('mat-button-toggle').filter({ hasText: pattern }).first();
@@ -501,26 +666,29 @@ export class FlowAdapter {
         targetPattern = /Nano Banana 2 Lite/i;
       } else if (modelLower.includes('pro') && (modelLower.includes('banana') || modelLower.includes('nano_banana'))) {
         targetPattern = /Nano Banana Pro/i;
-      } else if (modelLower.includes('banana') || modelLower.includes('narwhal')) {
-        targetPattern = /Nano Banana 2(?!\s*Lite)/i;
+      } else if (modelLower.includes('banana') || modelLower.includes('narwhal') || modelLower.includes('2.1') || modelLower.includes('2_1')) {
+        targetPattern = /Nano Banana 2(\.1)?(?!\s*Lite)|Nano Banana(?!.*(Pro|Lite))/i;
       }
     }
 
     if (targetPattern) {
-      const modelBtn = settingsPanel.locator('button:has-text("arrow_drop_down")').filter({ visible: true }).first();
+      const modelBtn = settingsPanel.locator('button:has-text("arrow_drop_down"), button:has-text("Banana"), button:has-text("Nano"), button:has-text("Omni"), button:has-text("Veo"), button[aria-haspopup="menu"]').filter({ visible: true }).first();
       if (await modelBtn.isVisible().catch(() => false)) {
         const currentText = await modelBtn.innerText().catch(() => '');
         if (!targetPattern.test(currentText)) {
+          console.log(`[FlowAdapter] Model mismatch: current="${currentText.replace(/\s+/g, ' ').trim()}", clicking dropdown for target=${targetPattern}...`);
           await modelBtn.click().catch(() => {});
           await page.waitForTimeout(400);
-          const option = page.locator('.mat-mdc-menu-panel [role="menuitem"], mat-menu-panel [role="menuitem"], [role="menu"] [role="menuitem"]')
+          const option = page.locator('.mat-mdc-menu-panel [role="menuitem"], mat-menu-panel [role="menuitem"], [role="menu"] [role="menuitem"], .cdk-overlay-container [role="menuitem"]')
             .filter({ hasText: targetPattern })
             .filter({ visible: true })
             .first();
           if (await option.isVisible().catch(() => false)) {
+            console.log(`[FlowAdapter] Selecting model option: ${await option.innerText().catch(() => '')}`);
             await option.click().catch(() => {});
             await page.waitForTimeout(500); // Allow menu to close & model toggles to mount
           } else {
+            console.warn(`[FlowAdapter] Warning: model option not found for pattern ${targetPattern}`);
             await page.keyboard.press('Escape').catch(() => {});
             await page.waitForTimeout(200);
           }
@@ -578,6 +746,34 @@ export class FlowAdapter {
 
     // 8. Assertive Verification & Auto-Correction via Trigger Pill
     let triggerText = (await trigger.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+
+    // Verify Model
+    if (targetPattern && !targetPattern.test(triggerText)) {
+      console.log(`[FlowAdapter] Model verify check: triggerText="${triggerText}" does not match target=${targetPattern}. Opening panel to correct...`);
+      if (!await settingsPanel.isVisible().catch(() => false)) {
+        await trigger.click().catch(() => {});
+        await page.waitForTimeout(400);
+      }
+      const modelBtn = settingsPanel.locator('button:has-text("arrow_drop_down"), button:has-text("Banana"), button:has-text("Nano"), button:has-text("Omni"), button:has-text("Veo"), button[aria-haspopup="menu"]').filter({ visible: true }).first();
+      if (await modelBtn.isVisible().catch(() => false)) {
+        await modelBtn.click().catch(() => {});
+        await page.waitForTimeout(400);
+        const option = page.locator('.mat-mdc-menu-panel [role="menuitem"], mat-menu-panel [role="menuitem"], [role="menu"] [role="menuitem"], .cdk-overlay-container [role="menuitem"]')
+          .filter({ hasText: targetPattern })
+          .filter({ visible: true })
+          .first();
+        if (await option.isVisible().catch(() => false)) {
+          console.log(`[FlowAdapter] Correcting model option: ${await option.innerText().catch(() => '')}`);
+          await option.click().catch(() => {});
+          await page.waitForTimeout(500);
+        } else {
+          await page.keyboard.press('Escape').catch(() => {});
+        }
+      }
+      await page.keyboard.press('Escape').catch(() => {});
+      await page.waitForTimeout(300);
+      triggerText = (await trigger.innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+    }
 
     // Verify Video mode
     if (isVideo && !/video/i.test(triggerText)) {
@@ -663,16 +859,52 @@ export class FlowAdapter {
     }
   }
 
-  async waitForResult(page, job, projectId, checkpoint) {
-    const maxWaitMs = job.type === 'image' ? 90_000 : this.config.jobTimeoutMs;
+  async resolveMediaUrls(page, urlList, isVideo) {
+    const resolved = [];
+    for (const u of urlList) {
+      if (!isVideo && !u.startsWith('data:') && (u.includes('/asb/') || !u.includes('flow-content.google'))) {
+        try {
+          const resp = await page.request.get(u, { timeout: 30000 });
+          if (resp.ok()) {
+            const buf = await resp.body();
+            const cType = resp.headers()['content-type'] || 'image/png';
+            if (!cType.includes('text/html') && buf[0] !== 0x3c && buf.length > 5000) {
+              resolved.push(`data:${cType};base64,${buf.toString('base64')}`);
+              continue;
+            }
+          }
+        } catch (err) {
+          console.warn('[flow-adapter] resolveMediaUrls error:', err.message);
+        }
+      }
+      resolved.push(u);
+    }
+    return resolved;
+  }
+
+  async waitForResult(page, job, projectId, checkpoint, checkNetworkError = null) {
+    const maxWaitMs = job.type === 'image' ? 45_000 : this.config.jobTimeoutMs;
     const deadline = Date.now() + maxWaitMs;
     const sourcePath = `/project/${projectId}`;
     const beforeHash = checkpoint.baselineHash;
     const beforeIds = new Set(checkpoint.baselineIds ?? []);
     const oldUrls = new Set(checkpoint.baselineUrls ?? []);
-    const pollInterval = Math.min(this.config.pollIntervalMs, 3000);
+    const pollInterval = Math.min(this.config.pollIntervalMs, 2500);
+    const label = checkpoint?.accountLabel || job.checkpoint?.accountLabel || 'flow';
 
     while (Date.now() < deadline) {
+      if (checkNetworkError) {
+        const netErr = checkNetworkError();
+        if (netErr) {
+          const deleteBtn = page.locator('button[aria-label="Delete"], button:has-text("delete_forever"), button:has-text("delete")').first();
+          if (await deleteBtn.isVisible().catch(() => false)) {
+            await deleteBtn.click().catch(() => {});
+            await page.waitForTimeout(300);
+          }
+          throw netErr;
+        }
+      }
+
       await sleep(pollInterval);
 
       // Auto-approve agent prompt if it appears during execution
@@ -682,10 +914,11 @@ export class FlowAdapter {
       }
 
       // Immediate detection of Flow error toasts or safety policy rejections in CDK overlay
-      const errorToast = page.locator('.cdk-overlay-container mat-snack-bar-container, .cdk-overlay-container simple-snack-bar').first();
+      const errorToastSelector = '.cdk-overlay-container mat-snack-bar-container, .cdk-overlay-container .mat-mdc-snack-bar-container, .cdk-overlay-container simple-snack-bar, .cdk-overlay-container [role="alert"], mat-dialog-container, .mat-mdc-dialog-container';
+      const errorToast = page.locator(errorToastSelector).first();
       if (await errorToast.isVisible().catch(() => false)) {
         const errorText = (await errorToast.innerText().catch(() => '')).trim();
-        if (/failed|error|violate|policy|couldn't|tidak dapat|gagal/i.test(errorText)) {
+        if (/failed|error|violate|policy|couldn't|tidak dapat|gagal|batas penggunaan|limit|unusual activity|aktivitas yang tidak biasa|usage limit|try again later/i.test(errorText)) {
           const dismissBtn = errorToast.locator('button').first();
           if (await dismissBtn.isVisible().catch(() => false)) {
             await dismissBtn.click().catch(() => {});
@@ -693,28 +926,58 @@ export class FlowAdapter {
             await page.keyboard.press('Escape').catch(() => {});
           }
           await page.screenshot({ path: '/Users/reihanpraja/.gemini/antigravity-ide/brain/cff15285-550f-4c93-a2a4-ef71dcfe3172/scratch/latest_flow_error.png' }).catch(() => {});
-          throw new AppError(422, 'generation_failed_by_flow', `Google Flow menolak/gagal membuat video: ${errorText}`);
+          const isLimit = /batas penggunaan|limit|try again later|usage limit|unusual activity|aktivitas yang tidak biasa/i.test(errorText);
+          throw new AppError(isLimit ? 429 : 422, isLimit ? 'rate_limit_exceeded' : 'generation_failed_by_flow', `Google Flow menolak/gagal: ${errorText}`);
         }
       }
 
-      // Detection of newly appeared error cards or usage limit banners appearing on the canvas
-      const errorCardSelector = '[role="alert"], div:has-text("Failed"), div:has-text("Gagal"), mat-card:has-text("Failed"), mat-card:has-text("Gagal"), .error-card';
-      const errorCards = page.locator(errorCardSelector);
-      const errCount = await errorCards.count().catch(() => 0);
-      if (errCount > (checkpoint.baselineErrorCount || 0)) {
-        const latestCard = errorCards.first();
-        const errText = (await latestCard.innerText().catch(() => '')).trim();
-        if (/failed|error|violate|policy|couldn't|tidak dapat|gagal|batas penggunaan|limit|unusual activity|aktivitas yang tidak biasa|usage limit|try again later/i.test(errText)) {
+      // Direct detection of unusual activity, bot check, or usage limit anywhere on the page
+      const flagText = page.getByText(/aktivitas yang tidak biasa|unusual activity|batas penggunaan|usage limit|reached your usage limit/i).first();
+      if (await flagText.isVisible().catch(() => false)) {
+        await page.screenshot({ path: '/Users/reihanpraja/.gemini/antigravity-ide/brain/cff15285-550f-4c93-a2a4-ef71dcfe3172/scratch/latest_flow_error.png' }).catch(() => {});
+        const errText = (await flagText.innerText().catch(() => '')).trim();
+        console.warn(`[FlowAdapter] ⚠️ Deteksi aktivitas tidak biasa / limit pada kanvas Flow: "${errText.slice(0, 100)}"`);
+        const deleteBtn = page.locator('button[aria-label="Delete"], button:has-text("delete_forever"), button:has-text("delete")').first();
+        if (await deleteBtn.isVisible().catch(() => false)) {
+          await deleteBtn.click().catch(() => {});
+          await page.waitForTimeout(300);
+        }
+        throw new AppError(429, 'rate_limit_exceeded', `Google Flow: ${errText.slice(0, 150)}`);
+      }
+
+      // Detection of newly appeared generic error cards
+      const errorCardSelector = 'flow-error-tile, .error-tile, [role="alert"]';
+      const errorCard = page.locator(errorCardSelector).first();
+      if (await errorCard.isVisible().catch(() => false)) {
+        const errText = (await errorCard.innerText().catch(() => '')).trim();
+        if (/failed|error|violate|policy|couldn't|tidak dapat|gagal|batas penggunaan|limit|unusual activity|aktivitas yang tidak biasa|usage limit/i.test(errText)) {
           await page.screenshot({ path: '/Users/reihanpraja/.gemini/antigravity-ide/brain/cff15285-550f-4c93-a2a4-ef71dcfe3172/scratch/latest_flow_error.png' }).catch(() => {});
-          const isLimit = /batas penggunaan|limit|try again later|usage limit/i.test(errText);
-          throw new AppError(isLimit ? 429 : 422, isLimit ? 'rate_limit_exceeded' : 'generation_failed_by_flow', `Google Flow menolak/gagal membuat video: ${errText}`);
+          const isLimit = /batas penggunaan|limit|try again later|usage limit|unusual activity|aktivitas yang tidak biasa/i.test(errText);
+          const deleteBtn = errorCard.locator('button[aria-label="Delete"], button:has-text("delete_forever"), button:has-text("delete")').first();
+          if (await deleteBtn.isVisible().catch(() => false)) {
+            await deleteBtn.click().catch(() => {});
+            await page.waitForTimeout(300);
+          }
+          throw new AppError(isLimit ? 429 : 422, isLimit ? 'rate_limit_exceeded' : 'generation_failed_by_flow', `Google Flow gagal: ${errText.slice(0, 150)}`);
         }
       }
+
+      // Dismiss expiration opt-in banner if present
+      const optInBanner = page.locator('button:has-text("Opt in")').first();
+      if (await optInBanner.isVisible().catch(() => false)) {
+        const dismissBtn = page.locator('button:has-text("Opt in") ~ button, button[aria-label="Dismiss"], button[aria-label="Tutup"]').first();
+        if (await dismissBtn.isVisible().catch(() => false)) {
+          await dismissBtn.click().catch(() => {});
+        }
+      }
+
+
 
       let current;
       try {
         current = await callRpc(page, RPC.contents, [`projects/${projectId}`, null, null, null, [1]], sourcePath);
-      } catch {
+      } catch (err) {
+        if (Date.now() % 5000 < 2500) console.warn(`[FlowAdapter] [${label}] RPC.contents error: ${err.message}`);
         continue;
       }
       if (!current) continue;
@@ -725,6 +988,7 @@ export class FlowAdapter {
       const newIds = [...currentIds].filter((id) => !beforeIds.has(id));
 
       if (newItems.length > 0 || newIds.length > 0) {
+        console.log(`[FlowAdapter] 🎯 [${label}] Mendapatkan item baru! newItems=${newItems.length}, newIds=${newIds.length}`);
         const publicUrls = [];
         const mediaItems = [];
         const isVideo = job.type === 'video' || job.type === 'video_chain' || job.type === 'video_upscale';
@@ -743,8 +1007,8 @@ export class FlowAdapter {
               }
             }
             const allUrls = urls(mediaData);
-            const foundUrls = allUrls.filter((u) => /flow-content\.google|flow\.google\.com\/asb|googleusercontent\.com/i.test(u));
-            const candidateUrls = foundUrls.length ? foundUrls : allUrls.filter((u) => !/accounts\.google|gstatic\.com\/favicon/i.test(u));
+            const foundUrls = allUrls.filter((u) => isFlowMediaUrl(u));
+            const candidateUrls = foundUrls.length ? foundUrls : allUrls.filter((u) => isFlowMediaUrl(u));
             if (candidateUrls.length) {
               const videoUrls = candidateUrls.filter((u) => /video\//i.test(u) || /\.mp4/i.test(u));
               const imageUrls = candidateUrls.filter((u) => /image\//i.test(u) || /\/asb\//i.test(u) || /\.(png|jpe?g|webp)/i.test(u));
@@ -774,40 +1038,34 @@ export class FlowAdapter {
           } catch {}
         }
 
-        // DOM image fallback if RPC.media did not return URLs but image is visible on page
-        if (publicUrls.length === 0 && !isVideo) {
-          const domNewUrls = await page.evaluate(() => {
-            return Array.from(document.querySelectorAll('img.image, img'))
-              .map((i) => i.src)
-              .filter((s) => /flow\.google\.com\/asb|googleusercontent\.com|flow-content\.google/i.test(s));
-          }).catch(() => []);
-          for (const dUrl of domNewUrls) {
-            if (dUrl && !oldUrls.has(dUrl)) {
-              publicUrls.push(dUrl);
-              mediaItems.push({
-                id: candidateItems[0]?.itemId || 'dom-image',
-                type: 'image',
-                url: dUrl,
-              });
-            }
-          }
-        }
+
 
         if (publicUrls.length > 0) {
           const uniqueUrls = [...new Set(publicUrls)];
+          const resolvedUrls = await this.resolveMediaUrls(page, uniqueUrls, isVideo);
+          const finalItems = mediaItems.map((item, idx) => ({
+            ...item,
+            url: resolvedUrls[idx] || resolvedUrls[0] || item.url,
+            imageUrl: resolvedUrls[idx] || resolvedUrls[0] || item.imageUrl,
+          }));
           return {
             projectId,
             type: job.type,
-            url: uniqueUrls[0],
-            media: uniqueUrls,
-            items: mediaItems,
+            url: resolvedUrls[0] || uniqueUrls[0],
+            media: resolvedUrls,
+            items: finalItems.length ? finalItems : resolvedUrls.map((u, idx) => ({ id: `media-${Date.now()}-${idx}`, type: isVideo ? 'video' : 'image', url: u, imageUrl: u })),
             mediaIds: newIds,
           };
         }
       }
+
     }
     await page.screenshot({ path: '/Users/reihanpraja/.gemini/antigravity-ide/brain/cff15285-550f-4c93-a2a4-ef71dcfe3172/scratch/timeout_screen.png' }).catch(() => {});
-    throw new AppError(504, 'generation_timeout', 'Generation belum selesai sebelum timeout');
+    const uiAlert = (await page.locator('.cdk-overlay-container, mat-dialog-container, [role="alert"], flow-error-tile, .error-message').first().innerText().catch(() => '')).trim();
+    const promptText = (await page.locator('.ProseMirror, [contenteditable="true"], textarea').first().innerText().catch(() => '')).trim();
+    let timeoutDetail = `Generation belum selesai sebelum timeout (${maxWaitMs / 1000}s)`;
+    if (uiAlert) timeoutDetail += ` [Alert: ${uiAlert.replace(/\s+/g, ' ').slice(0, 150)}]`;
+    throw new AppError(504, 'generation_timeout', timeoutDetail);
   }
 
   async setFrameSlot(page, slotType = 'start', imagePath) {
