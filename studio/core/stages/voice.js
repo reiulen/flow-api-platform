@@ -19,7 +19,7 @@ export function tokenize(text, style) {
   }
   if (last < text.length) pieces.push({ text: text.slice(last) });
   return pieces
-    .map((p) => (p.text !== undefined ? { text: p.text.replace(/\*([^*]+)\*/g, '$1').replace(/\s+/g, ' ') } : p))
+    .map((p) => (p.text !== undefined ? { text: p.text.replace(/\[(?:LAUGHS?|CHUCKLES?|SIGHS?|GROANS?|COUGHS?|GASP|SNICKERS?)\]/gi, '').replace(/\*([^*]+)\*/g, '$1').replace(/\s+/g, ' ') } : p))
     .filter((p) => p.pause || p.text.trim());
 }
 
@@ -80,8 +80,9 @@ const providers = {
     fs.renameSync(audioFilePath, mp3);
     let words = null;
     if (metadataFilePath && fs.existsSync(metadataFilePath)) {
-      words = parseEdgeMetadata(fs.readFileSync(metadataFilePath, 'utf8'));
-      fs.rmSync(metadataFilePath, { force: true });
+      try {
+        words = parseEdgeMetadata(fs.readFileSync(metadataFilePath, 'utf8'));
+      } catch {}
     }
     return { src: mp3, words };
   },
@@ -98,7 +99,10 @@ const providers = {
     const pauseText = (p) => (isVoiceInworld ? `<break time="${p.pause.toFixed(1)}s" />` : p.boundary ? '\n\n' : '... ');
     const text = pieces.map((p) => (p.pause ? pauseText(p) : applyPron(p.text, segment.pron).trim())).join(' ').replace(/ {2,}/g, ' ').trim();
     const defaultVoice = isVoiceInworld ? 'Tristan' : 'Puck';
-    const voiceName = voice.voice || defaultVoice;
+    let voiceName = voice.voice || defaultVoice;
+    if (isVoiceInworld && (voiceName.toLowerCase() === 'aria' || voiceName.toLowerCase().endsWith('/aria'))) {
+      voiceName = 'Victoria';
+    }
     let model;
     if (isVoiceInworld) {
       const v = voiceName.replace(/^inworld\//, '');
@@ -269,9 +273,22 @@ export async function runVoice({ project, script, voice, style, config, concurre
   if (!provider) throw new Error(`voice: unknown provider ${voice.provider}`);
   const batched = BATCHED.has(voice.provider) && config && config.voice.chunkSeconds > 0;
   const limit = makeLimiter(config?.voice.rpm ?? 0);
-  const call = (args, label) => withRetries(() => limit(() => provider(args)), label);
+  const resolveVoice = (segment) => {
+    const spk = (segment.speaker || segment.character || segment.voice || '').toLowerCase();
+    if (spk && voice.cast?.[spk]) {
+      const entry = voice.cast[spk];
+      const castOverride = typeof entry === 'string' ? { voice: entry } : entry;
+      return { ...voice, ...castOverride };
+    }
+    return voice;
+  };
+  const call = (args, label) => withRetries(() => limit(() => (providers[args.voice?.provider] || provider)(args)), label);
+
   // Audio is reused only while the text, pronunciations and voice are unchanged.
-  const keyOf = (segment) => hash({ v: 2, text: segment.text, pron: segment.pron || [], tone: segment.tone || '', provider: voice.provider, voice: voice.voice || '', rate: voice.rate || '', model: voice.model || process.env.STUDIO_VOICE_MODEL || '' });
+  const keyOf = (segment) => {
+    const v = resolveVoice(segment);
+    return hash({ v: 3, text: segment.text, pron: segment.pron || [], tone: segment.tone || '', provider: v.provider, voice: v.voice || '', rate: v.rate || '', model: v.model || process.env.STUDIO_VOICE_MODEL || '' });
+  };
   const paths = (segment) => { const b = path.join(dir, segment.seg_id); return { base: b, wav: `${b}.wav`, meta: `${b}.json` }; };
   const cachedMeta = (segment) => {
     const { wav, meta } = paths(segment);
@@ -287,11 +304,12 @@ export async function runVoice({ project, script, voice, style, config, concurre
       const cur = chunks.at(-1);
       const prevIdx = cur ? script.segments.indexOf(cur.at(-1)) : -2;
       const fits = cur && actOf(cur[0].seg_id) === actOf(seg.seg_id) && script.segments.indexOf(seg) === prevIdx + 1
+        && resolveVoice(cur[0]).voice === resolveVoice(seg).voice
         && cur.reduce((n, s) => n + estSeconds(s, style), 0) + estSeconds(seg, style) <= config.voice.chunkSeconds;
       if (fits) cur.push(seg); else chunks.push([seg]);
     }
     for (const chunk of chunks.filter((c) => c.length > 1)) {
-      const ok = await voiceChunk({ chunk, dir, call, keyOf, paths, voice, style, config });
+      const ok = await voiceChunk({ chunk, dir, call, keyOf, paths, voice: resolveVoice(chunk[0]), style, config });
       if (!ok) console.log(`[voice] ${chunk[0].seg_id}..${chunk.at(-1).seg_id}: could not split cleanly, voicing those segments one by one`);
     }
   }
@@ -302,7 +320,8 @@ export async function runVoice({ project, script, voice, style, config, concurre
     if (cached) return { seg_id: segment.seg_id, file: path.relative(project.dir, wav), duration_s: round(cached.duration), words: cached.words };
 
     const pieces = tokenize(segment.text, style);
-    const res = await call({ segment, pieces, outBase: base, voice, style }, segment.seg_id);
+    const activeVoice = resolveVoice(segment);
+    const res = await call({ segment, pieces, outBase: base, voice: activeVoice, style }, segment.seg_id);
     await toWav(res.src, wav);
     let words = res.words;
     let method = 'engine';

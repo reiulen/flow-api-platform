@@ -2,11 +2,13 @@
 // always produce the same shot list. All taste decisions about time live here, not in the LLM.
 import { ShotList } from '../contracts.js';
 import { round, seededRandom } from '../util.js';
+import { assignMeters, assignTwist, linkMeters, meterLabelFor, montageCut, partSpec, titleScene } from '../story.js';
+import { beatGrid, cutOf } from '../music-plan.js';
 
 const FOOTAGE = new Set(['REAL', 'ARCHIVAL', 'NEWS']);
 const EXPLAINER = new Set(['MAP', 'TECH']);
 
-export function buildShotList({ script, vo, visual, style, seed, title }) {
+export function buildShotList({ script, vo, visual, style, seed, title, music = null }) {
   const rand = seededRandom(seed);
   const p = style.pacing;
   const n = style.narration;
@@ -107,10 +109,15 @@ export function buildShotList({ script, vo, visual, style, seed, title }) {
     if (dur <= 0.05) continue;
     if (span.special) {
       // Black beats are pure black; the title card after the hook carries the film title.
-      shots.push(baseShot(span, span.start, dur, 'TYPE', 'black', span.special === 'title' ? { motion: { template: 'title', data: { title } } } : {}));
+      const titleMotion = style.story?.enabled ? { template: 'story', data: titleScene(title, null, { seed }) } : { template: 'title', data: { title } };
+      shots.push(baseShot(span, span.start, dur, style.story?.enabled && span.special === 'title' ? 'TECH' : 'TYPE', 'black', span.special === 'title' ? { motion: titleMotion } : {}));
       continue;
     }
     const type = span.beat.visual_type;
+    if (span.beat.motion?.template === 'story') {
+      pushStory(shots, span, span.start, dur, rand, style, seed, music);
+      continue;
+    }
     if (EXPLAINER.has(type) && span.beat.motion) {
       const explainLen = Math.min(dur, p.explainer.max);
       if (explainLen >= 4) {
@@ -122,8 +129,8 @@ export function buildShotList({ script, vo, visual, style, seed, title }) {
     if (type === 'FLOW') {
       const isAct1 = span.act === 1;
       const act1Max = p.hook?.target ? p.hook.target : 3.5;
-      const usable = isAct1 ? act1Max : (style.flow?.duration_s ? (style.flow.duration_s - 1) : 7);
-      const parts = Math.max(1, Math.ceil(dur / usable));
+      const usable = isIllustrated ? Math.max(dur, 6) : (isAct1 ? act1Max : (style.flow?.duration_s ? (style.flow.duration_s - 1) : 7));
+      const parts = isIllustrated ? 1 : Math.max(1, Math.ceil(dur / usable));
       for (let i = 0; i < parts; i++) {
         const len = dur / parts;
         const shot = baseShot(span, span.start + i * len, len, 'FLOW', len > p.footage.max ? 'hold' : 'footage', {
@@ -137,6 +144,26 @@ export function buildShotList({ script, vo, visual, style, seed, title }) {
     }
     const fallbackType = isIllustrated ? 'FLOW' : 'REAL';
     pushFootage(shots, span, span.start, dur, FOOTAGE.has(type) ? type : fallbackType, rand, style);
+  }
+
+  // The picture breathes with the music: each scene knows where the beats of its act fall.
+  if (style.story?.enabled && music) {
+    const grid = beatGrid(music, shots);
+    const AMP = { 1: 0, 2: 0.02, 3: 0.012, 4: 0, 5: 0.026, 6: 0.032 };
+    for (const sh of shots) {
+      const g = grid[sh.act]; const d = sh.motion?.data;
+      if (!g || !d || d.title) continue;
+      d.beat = { t0: round(sh.start_s - g.anchor, 3), period: round(g.period, 4), amp: d.montage_cut ? 0.032 : (AMP[sh.act] ?? 0.012) };
+    }
+  }
+
+  // The running meter of a story film glides from each scene's value to the next.
+  if (style.story?.enabled) {
+    const story = shots.filter((x) => x.motion?.template === 'story');
+    const text = `${title || ''} ${script.segments.map((x) => x.text).join(' ')}`;
+    if (style.story.meter !== false) assignMeters(story.map((x) => ({ start: x.start_s, end: x.start_s + x.duration_s, act: x.act, data: x.motion.data })), { label: meterLabelFor(text), resolveAct: style.story.resolve_act || 5 });
+    if (style.story.twist !== false) assignTwist(story.map((x) => ({ start: x.start_s, end: x.start_s + x.duration_s, act: x.act, data: x.motion.data })), { resolveAct: style.story.resolve_act || 5 });
+    linkMeters(story.map((x) => x.motion.data));
   }
 
   // Ids, sequences and transitions.
@@ -180,9 +207,59 @@ function baseShot(span, start, duration, visualType, shotClass, extra = {}) {
   };
 }
 
+// Story spans become several shots of one scene; later parts continue the action from another angle.
+function pushStory(shots, span, start, dur, rand, style, seed, music) {
+  const p = style.pacing;
+  const resolveAct = style.story.resolve_act || 5;
+  const montage = span.beat.motion.data.montage;
+  if (montage?.length) {
+    // A loop of recurring set-ups, one cut every two beats of this film's tempo.
+    const cut = (music && cutOf(music[span.act]?.bpm)) || montageCut(seed);
+    let n = Math.max(2, Math.round(dur / cut));
+    const lens = Array.from({ length: n }, () => cut);
+    lens[n - 1] = dur - (n - 1) * cut;
+    if (n > 2 && lens[n - 1] < cut * 0.6) { lens[n - 2] += lens[n - 1]; lens.pop(); n -= 1; }
+    let t = start;
+    lens.forEach((len, i) => {
+      const data = { ...montage[i % montage.length], montage_cut: cut };
+      shots.push(baseShot(span, t, i === n - 1 ? start + dur - t : len, 'TECH', 'fast', { motion: { template: 'story', data } }));
+      t += len;
+    });
+    return;
+  }
+  const data0 = { ...span.beat.motion.data }; // never mutate the director's scene: the same beats may be edited again
+  if (data0.resolved === undefined || data0.resolved === false) data0.resolved = data0.resolved || span.act >= resolveAct;
+  const cfg = style.story.shot_s || { min: 3, target: 4.8, max: 6.8 };
+  const isHook = span.act === 1;
+  const target = isHook ? (p.hook?.target || 3) : cfg.target;
+  const max = isHook ? (p.hook?.max || 4.2) : cfg.max;
+  const min = isHook ? (p.hook?.min || 2) : cfg.min;
+  let parts = Math.max(1, Math.round(dur / target));
+  while (parts > 1 && dur / parts < min) parts -= 1;
+  while (dur / parts > max) parts += 1;
+  const weights = Array.from({ length: parts }, () => 0.88 + rand() * 0.24);
+  const sum = weights.reduce((a, b) => a + b, 0);
+  let t = start;
+  weights.forEach((w, i) => {
+    const len = i === parts - 1 ? start + dur - t : (dur * w) / sum;
+    const shotClass = len > p.hold.min ? 'hold' : len < p.footage.min ? 'fast' : 'footage';
+    shots.push(baseShot(span, t, len, 'TECH', shotClass, { motion: { template: 'story', data: partSpec(data0, i, parts) } }));
+    t += len;
+  });
+}
+
 // Footage spans become several shots. Cinematic spans hold longer; information spans cut at footage pace.
 function pushFootage(shots, span, start, dur, type, rand, style) {
   const p = style.pacing;
+  const isIllustrated = (style.visual_mix?.footage?.[1] || 0) === 0;
+  if (isIllustrated) {
+    const isFlow = type === 'FLOW';
+    shots.push(baseShot(span, start, dur, type, dur > p.footage.max ? 'hold' : 'footage', {
+      _part: 0,
+      ...(isFlow ? { flow: { reconstruction: Boolean(span.beat?.flow?.reconstruction), spec: span.beat?.flow || {} }, fallback_chain: [] } : {}),
+    }));
+    return;
+  }
   const isHook = span.act === 1;
   const cinematic = span.mode === 'CINEMATIC' || span.purpose === 'C' || span.purpose === 'R';
   const target = isHook ? (p.hook?.target || 3.0) : (cinematic ? (p.hold.min + p.hold.max) / 2 * 0.75 : p.footage.target);
@@ -322,7 +399,7 @@ function buildOverlays({ shots, script, placements, voBySeg, style }) {
         shot_id: targetShot.shot_id,
         start_s: round(targetShot.start_s),
         duration_s: round(Math.min(targetShot.duration_s, 5.5)),
-        data: { channel: 'ROME UNSCROLLED' },
+        data: { channel: style.channel_name || process.env.STUDIO_CHANNEL_NAME || 'ANCIENT FOOTNOTES' },
         motion_file: null,
       });
     }

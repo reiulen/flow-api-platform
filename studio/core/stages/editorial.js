@@ -45,7 +45,7 @@ export async function probeFootage(footageProbe, raw) {
 export async function scoutTopics({ llm, style, genre, count = 8, exclude = [], seedIdeas = '', footageProbe }) {
   const out = await llm.json({
     stage: 'topics', schema: TopicsOut, system: houseRules(style),
-    prompt: topicsPrompt({ genre, count, exclude, seedIdeas }),
+    prompt: topicsPrompt({ genre, count, exclude, seedIdeas, story: Boolean(style.story?.enabled) }),
   });
   const candidates = [];
   for (const [i, c] of out.candidates.entries()) {
@@ -75,7 +75,7 @@ export async function scoutTopics({ llm, style, genre, count = 8, exclude = [], 
 
 // Automated G1: pick the best unused topic that clears the footage bar (or history illustration bar).
 export function pickTopic(topics, used = []) {
-  const isIllustrated = ['ancient_history', 'frontier_logistics', 'forensic_engineering', 'survival_physiology', 'shadow_economics', 'fitness_essay'].includes(topics.genre) || topics.genre?.includes('history');
+  const isIllustrated = ['ancient_history', 'frontier_logistics', 'forensic_engineering', 'survival_physiology', 'shadow_economics', 'fitness_essay', 'storybook_stickman'].includes(topics.genre) || topics.genre?.includes('history');
   const usedSet = new Set(used.map((t) => t.toLowerCase()));
   const minFootage = isIllustrated ? 1 : 3;
   const usable = topics.candidates.filter((c) => !usedSet.has(c.title.toLowerCase()) && c.scores.footage >= minFootage && c.scores.risk <= 3);
@@ -294,6 +294,12 @@ export function isListLike(sentence) {
   return middle.length >= 2 ? middle.every((p) => words(p) <= 5) : middle.length === 1 && parts.length >= 4;
 }
 
+// In story genres, 'Day 47', 'Year 3' or '5:00' are scene markers, not factual claims.
+function storyNumbersRemoved(text, style) {
+  if (!style.story?.enabled) return text;
+  return text.replace(/\b(day|days|week|weeks|month|months|year|years|hour|hours|step|steps|round|rep|reps|time|times|number|chapter|page)\s+(\d+|one|two|three)\b/gi, ' ').replace(/\b\d{1,2}:\d{2}\b/g, ' ').replace(/\b\d{1,2}\s?(a\.?m\.?|p\.?m\.?)/gi, ' ');
+}
+
 export function lintAct(segments, { style, research, budget, actNo }) {
   const problems = [];
   const claimIds = new Set(research.claims.map((c) => c.claim_id));
@@ -311,7 +317,7 @@ export function lintAct(segments, { style, research, budget, actNo }) {
     if (countWords(s.text) > 60) problems.push({ msg: `${s.seg_id} is ${countWords(s.text)} words (max 55)` });
     const unknown = s.claims.filter((c) => !claimIds.has(c));
     if (unknown.length) problems.push({ msg: `${s.seg_id} cites unknown claims ${unknown.join(', ')}`, hard: true });
-    if (/\d/.test(spoken) && !s.claims.length) problems.push({ msg: `${s.seg_id} states a number without citing a claim`, hard: true });
+    if (/\d/.test(storyNumbersRemoved(spoken, style)) && !s.claims.length) problems.push({ msg: `${s.seg_id} states a number without citing a claim`, hard: true });
     for (const st of s.stats) if (!claimIds.has(st.claim_id)) problems.push({ msg: `${s.seg_id} stat card cites unknown claim ${st.claim_id}`, hard: true });
     const badMarkup = s.text.match(/\[(?!PAUSE \d(\.\d+)?\]|BEAT\]|TONE: (quiet|normal|firm)\])[^\]]*\]/g);
     if (badMarkup) problems.push({ msg: `${s.seg_id} has invalid markup ${badMarkup.join(' ')}` });

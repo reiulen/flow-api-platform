@@ -1,12 +1,19 @@
 {
   "genre": "survival_physiology",
-  "style_name": "Extreme Survival Physiology (2D Cinematic Storybook Stickman)",
+  "style_name": "Extreme Survival Physiology (Clean 2D Digital Vector Cartoon Stickman)",
+
+  "voice": {
+    "provider": "inworld",
+    "voice": "Tristan",
+    "model": "inworld-tts-2",
+    "tone": "cold, measured, clinical documentary baritone"
+  },
 
   "acts": [
-    { "act": 1, "name": "The Paradox Hook", "share": 0.08, "mode": "CINEMATIC", "goal": "Begin at the biological tipping point: the moment blood shunts inward or oxygen saturation plunges. An eerie paradox of the human body." },
-    { "act": 2, "name": "The Fragile Routine", "share": 0.18, "mode": "INFORMATION", "goal": "The solitary explorer stickman enduring the quiet routine in extreme terrain, unaware of the subtle biological cascade beginning." },
-    { "act": 3, "name": "The Biological Domino", "share": 0.54, "mode": "INFORMATION", "goal": "Microscopic breakdown of physiological failure: cellular glycolysis, vasoconstriction, paradoxical undressing, alveolar collapse step by step." },
-    { "act": 4, "name": "The Cold Epilogue", "share": 0.20, "mode": "CINEMATIC", "goal": "The haunting quiet of human survival limits, forensic autopsy deductions, and the terrifying biological boundary between life and death." }
+    { "act": 1, "name": "The Trigger & Biological Inversion Hook", "share": 0.08, "timecode": "00:00 - 01:00", "mode": "CINEMATIC", "goal": "The tipping point: core temperature plunges, oxygen cuts off. The biological inversion where the body's survival mechanism turns into a deadly trap." },
+    { "act": 2, "name": "The Compensation Phase", "share": 0.20, "timecode": "01:00 - 04:00", "mode": "INFORMATION", "goal": "Extreme sacrifice of peripheral circulation (vasoconstriction, shivering thermogenesis) to keep brain and heart alive." },
+    { "act": 3, "name": "The Biological Trap", "share": 0.52, "timecode": "04:00 - 08:00", "mode": "INFORMATION", "goal": "Compensation collapses into terminal pathology: nitrogen narcosis, paradoxical undressing, cellular dehydration, blood acidosis." },
+    { "act": 4, "name": "The Final Verdict", "share": 0.20, "timecode": "08:00 - 15:00+", "mode": "CINEMATIC", "goal": "Absolute cellular threshold, forensic autopsy findings, and modern medical science takeaways on human survival limits." }
   ],
 
   "visual_mix": {
@@ -25,7 +32,7 @@
   "look": {
     "footage_filter": "",
     "grain": "",
-    "still_zoom": 0.02
+    "still_zoom": 0.05
   },
 
   "transitions": {
@@ -60,19 +67,20 @@
   },
 
   "flow": {
-    "model": "nano-banana-pro",
+    "model": "nano-banana-2",
     "resolution": "1080p",
     "aspect_ratio": "16:9",
     "duration_s": 8,
     "count": 1,
-    "character_guide": "Minimalist stickman explorer character with smooth off-white round head, simple black dot eyes, thin black stick limbs, wearing a thick heavy fur-trimmed parka jacket with realistic cloth drape folds",
-    "look": "Wide 2D cinematic storybook illustration, hand-painted matte digital art, European graphic novel aesthetic (bande dessinée / ligne claire), uncluttered composition, generous negative space, atmospheric depth. Minimalist stickman explorer character with smooth off-white round head, shivering simple black dot eyes, thin black stick limbs, wearing a thick heavy fur-trimmed parka jacket with realistic cloth drape folds, holding a warm glowing copper hurricane lantern. Environment: dusk snow mountain ridge, gentle whisper of blowing snow fog, warm golden lantern light casting long shadows across untouched blue snow. Single continuous 16:9 widescreen frame. Single camera view. Absolutely NO comic book panels, NO multi-panel grids, NO split screens, NO borders.",
+    "character_guide": "Minimalist stickman explorer with thin black stick limbs, a smooth off-white round head with expressive cartoon face, wearing a thick winter parka with smooth fabric gradient shading and soft fur trim, warm mittens, and insulated boots.",
+    "look": "Clean 2D digital vector cartoon illustration, modern webcomic aesthetic, bold smooth black outlines, flat cel-shading with smooth vibrant color gradients, polished vector finish. Minimalist stickman explorer with thin black stick limbs, a smooth off-white round head with expressive cartoon face, wearing a thick winter parka with smooth fabric gradient shading and soft fur trim, warm mittens, and insulated boots, holding a glowing warm copper hurricane lantern. Environment: icy dusk snow mountain ridge, gentle blizzard fog, warm amber lantern light casting radial glowing gradients onto snow surfaces and character. Layered atmospheric depth, clean cinematic composition. Single continuous 16:9 widescreen frame. Single camera view. Absolutely NO comic book panels, NO multi-panel grids, NO split screens, NO borders.",
     "avoid_extra": [
-      "3d render", "cgi", "photorealism", "glossy plastic", "hyperdetailed textures",
-      "excessive particles", "lens flare", "neon glare", "cluttered background", "shiny skin",
-      "volumetric chaos", "comic panels", "comic strip", "multi-panel", "split screen",
-      "grid layout", "triptych", "comic borders", "multiple frames", "collage",
-      "panel dividers", "speech bubbles", "anime"
+      "pencil sketch", "graphite", "rough hatching", "colored pencil", "charcoal", "rough paper texture",
+      "3D render", "CGI", "photorealism", "glossy plastic texture", "hyperdetailed noise",
+      "anatomical realism", "realistic human face", "realistic human nose", "realistic wrinkles", "realistic nostrils",
+      "comic panels", "comic strip", "multi-panel", "split screen", "grid layout",
+      "triptych", "comic borders", "multiple frames", "collage", "panel dividers",
+      "speech bubbles", "anime", "gore", "mutilation", "blood spatters"
     ]
   },
 
@@ -81,16 +89,58 @@
   },
 
   "audio": {
-    "music_functions": ["ice_drone", "heartbeat_slow", "wind_ambient", "biological_tension", "quiet_epilogue"]
+    "voice_preset": "George or Marcus (ElevenLabs)",
+    "stability": "50% - 55%",
+    "clarity": "75% - 80%",
+    "style_exaggeration": "10% - 15%",
+    "pacing_wpm": "135 - 145",
+    "engineering_pause": "[pause 0.8s]",
+    "music_functions": ["ice_drone", "heartbeat_slow", "wind_ambient", "biological_tension", "quiet_epilogue"],
+    "bgm_level": "-18 dB under voiceover"
   },
 
   "editorial": {
-    "voice": "Cold, clinical, yet intensely intimate medical-investigative narrator. Speaks in a calm, lowered register with deliberate silent pauses when core body temperature drops by a single decimal. Never rushes. Deadpan observational delivery with zero panic.",
+    "voice": "Investigative documentary baritone narrator. Authoritative, calm, clinical yet intensely vivid with subtle dry deadpan wit. Treats audience as intelligent adults. Short punchy sentences under 15 words.",
+    "hook_protocol": {
+      "pattern": "The Biological Inversion",
+      "zero_fluff": "Never open with welcomes, 'Have you ever wondered', or historical overviews.",
+      "first_sentence": "Sentence 1 (0:00-0:06) must contrast a natural biological defense with its deadly reality. E.g., 'At minus twenty degrees, your brain doesn't die of cold. It dies of panic.'",
+      "the_stakes": "Line 0:06-0:30 establishes the fatal organ breakdown threshold within 30 seconds."
+    },
     "rules": [
-      "Micro-substance: cite cellular chemistry, core temperature thresholds in Celsius/Fahrenheit, milliequivalents of electrolyte shift, and heart rate decelerations.",
-      "Visceral sensory reality: the metallic taste of severe hypoxia, the silent numbness of freezing nerve fibers, the deceptive warmth of terminal paradoxical undressing.",
-      "Analogies: compare metabolic heat dissipation to a leaking radiator, arterial constriction to a closed river dam.",
-      "4-Act structure: The Paradox Hook -> The Fragile Routine -> The Biological Domino -> The Cold Epilogue."
+      "Cite cellular chemistry, core temperature thresholds in Celsius/Fahrenheit, electrolyte shifts, and heart rate decelerations.",
+      "Ground scenes in visceral sensory reality: metallic taste of hypoxia, silent numbness of freezing nerve fibers, deceptive warmth of paradoxical undressing.",
+      "Use physical analogies: metabolic heat dissipation compared to a leaking radiator, arterial constriction to a closed dam.",
+      "Structure follows the 4-act hour-by-hour collapse: Trigger -> Compensation -> Biological Trap -> Final Verdict."
     ]
+  },
+
+  "publishing": {
+    "category": "Education",
+    "education_type": "None",
+    "target_rpm": "$15 - $30 (Tier 1 US/UK/CA/AU)",
+    "high_ctr_titles": [
+      "Why Freezing to Death Makes You Feel Burning Hot (The Hypothermia Paradox)",
+      "The Nitrogen Rapture: What 100 Meters of Ocean Depth Does to the Human Brain",
+      "Hour 72 Without Water: The Exact Sequence of Cellular Dehydration",
+      "The Death Zone: What Breathing at 8,000 Meters Does to Red Blood Cells",
+      "The CO2 Trap: Why Cave Spelunkers Suffocate Without Ever Feeling Out of Breath"
+    ],
+    "thumbnail_specs": {
+      "aspect_ratio": "16:9",
+      "model": "nano-banana-2",
+      "composition_rules": [
+        "Foreground Left (1/3 of frame): Close-up bust of stickman explorer with exaggerated expression (shivering, eyes wide with cold shock, ripping parka)",
+        "Background Right: Visually exaggerated extreme environment (howling snow blizzard, frozen ice cavern, dark abyss)",
+        "Upper Third: Clean negative space for bold 2-3 word yellow text hook",
+        "STRICT: Absolutely NO text, words, letters, logos, banners in the image generation prompt"
+      ],
+      "text_overlay_guide": {
+        "words": "BURNING HOT? / NO OXYGEN? / HOUR 72",
+        "font": "Arial Black, Impact, sans-serif",
+        "color": "#FFE600",
+        "stroke": "14px #000000"
+      }
+    }
   }
 }

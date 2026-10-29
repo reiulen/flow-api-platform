@@ -3,6 +3,7 @@ import path from 'node:path';
 import { AudioPlan, Edl } from '../contracts.js';
 import { AssetDb } from './assets.js';
 import { hash, readJson, round, seededRandom } from '../util.js';
+import { buildStoryAudio } from '../story-audio.js';
 
 const FOOTAGE = new Set(['REAL', 'ARCHIVAL', 'NEWS', 'FLOW']);
 const NAT = new Set(['REAL', 'ARCHIVAL', 'NEWS']);
@@ -17,21 +18,57 @@ export function buildEdl({ project, shotList, style, config }) {
   const repairs = [];
   const items = [];
   try {
+    let currentSeq = null;
+    let seqShotIndex = 0;
+    let timelineT = 0;
     for (const shot of shotList.shots) {
+      if (items.length > 0 && shot.start_s > timelineT + 0.05) {
+        const gapLen = round(shot.start_s - timelineT, 3);
+        items.push({
+          shot_id: `ACT-BREAK-${items.length}`,
+          kind: 'black',
+          src: null,
+          src_in: 0,
+          speed: 1,
+          scale: 1,
+          start_s: timelineT,
+          duration_s: gapLen,
+          transition_in: { type: 'fade_black', dur_s: Math.min(1.0, round(gapLen * 0.35, 3)) },
+          look: false,
+          nat: false,
+          _room: 0,
+        });
+        timelineT = shot.start_s;
+      }
+
+      if (shot.seq_id && shot.seq_id === currentSeq) {
+        seqShotIndex++;
+      } else {
+        currentSeq = shot.seq_id || null;
+        seqShotIndex = 0;
+      }
       const media = mediaFor(shot, db, project, config, style);
       if (!media) {
         repairs.push({ shot_id: shot.shot_id, at_s: shot.start_s, visual_type: shot.visual_type });
         const last = items.at(-1);
         if (last?.gap) last.duration_s = round(last.duration_s + shot.duration_s);
         else items.push({ gap: true, shot_id: shot.shot_id, start_s: shot.start_s, duration_s: shot.duration_s });
+        timelineT = round(shot.start_s + shot.duration_s, 3);
         continue;
       }
+      let srcIn = media.src_in || 0;
+      const prev = items.at(-1);
+      if (prev && !prev.gap && prev.src === media.src && media.kind === 'video') {
+        srcIn = round((prev.src_in || 0) + prev.duration_s * (prev.speed || 1), 3);
+      }
+      const scale = seqShotIndex === 0 ? 1.0 : seqShotIndex === 1 ? 1.15 : 1.25;
       items.push({
         shot_id: shot.shot_id,
         kind: media.kind,
         src: media.src || null,
-        src_in: media.src_in || 0,
+        src_in: srcIn,
         speed: media.speed || 1,
+        scale,
         start_s: shot.start_s,
         duration_s: shot.duration_s,
         transition_in: { type: shot.transition_in, dur_s: style.transitions.durations[shot.transition_in] || 0 },
@@ -39,6 +76,7 @@ export function buildEdl({ project, shotList, style, config }) {
         nat: NAT.has(shot.visual_type) && media.kind === 'video',
         _room: media.room ?? 0,
       });
+      timelineT = round(shot.start_s + shot.duration_s, 3);
     }
   } finally {
     db.close();
@@ -47,6 +85,23 @@ export function buildEdl({ project, shotList, style, config }) {
   items.forEach((gap, i) => { if (gap.gap) fillGap(gap, items[i - 1], items[i + 1]); });
   const clips = items.filter((x) => !x.gap && x.duration_s > 0.01);
   if (!clips.length) clips.push({ shot_id: shotList.shots[0]?.shot_id || 'none', kind: 'black', src: null, src_in: 0, speed: 1, start_s: 0, duration_s: shotList.duration_s, transition_in: { type: 'fade_black', dur_s: 1 }, look: false, nat: false });
+
+  // Ensure video covers the full timeline with a graceful fade to black so audio is never truncated
+  const currentTotal = round(clips.reduce((acc, c) => acc + c.duration_s, 0), 3);
+  if (currentTotal < shotList.duration_s + 0.5) {
+    clips.push({
+      shot_id: 'SH-OUTRO',
+      kind: 'black',
+      src: null,
+      src_in: 0,
+      speed: 1,
+      start_s: currentTotal,
+      duration_s: round(shotList.duration_s - currentTotal + 1.5, 3),
+      transition_in: { type: 'fade_black', dur_s: 1.0 },
+      look: false,
+      nat: false,
+    });
+  }
 
   // Overlays follow the final clip windows, so a number card over a repaired shot is kept.
   for (const clip of clips) {
@@ -162,7 +217,81 @@ function musicFunctionForAct(actNo, totalActs, style) {
   return defaultFunctions[idx];
 }
 
-export function buildAudioPlan({ project, shotList, vo, script, style, config }) {
+export function syncShotListWithVo({ shotList, vo, script }) {
+  if (!vo?.segments?.length || !script?.segments?.length || !shotList?.shots?.length) return shotList;
+  const voDurMap = new Map(vo.segments.map((s) => [s.seg_id, s.duration_s]));
+  const shotsBySeg = new Map();
+  for (const s of shotList.shots) {
+    const ref = s.seg_refs?.[0];
+    if (ref && voDurMap.has(ref)) {
+      if (!shotsBySeg.has(ref)) shotsBySeg.set(ref, []);
+      shotsBySeg.get(ref).push(s);
+    }
+  }
+
+  let t = 0.8; // lead-in
+  let currentAct = script.segments[0]?.act || 1;
+  const newPlacements = [];
+  const newShots = [];
+
+  for (const seg of script.segments) {
+    const dur = voDurMap.get(seg.seg_id);
+    if (!dur) continue;
+    if (seg.act !== currentAct) {
+      t += 2.8; // act break pause
+      currentAct = seg.act;
+    }
+    const segStart = round(t, 3);
+    newPlacements.push({
+      seg_id: seg.seg_id,
+      start_s: segStart,
+      duration_s: dur,
+    });
+
+    const shots = shotsBySeg.get(seg.seg_id) || [];
+    if (shots.length > 0) {
+      const oldTotal = shots.reduce((acc, s) => acc + s.duration_s, 0);
+      const targetDuration = dur + 0.35; // shot window covers speech + natural gap
+      let shotT = segStart;
+      const cutLen = shots[0].motion?.data?.montage_cut;
+      const grid = cutLen && shots.every((x) => x.motion?.data?.montage_cut === cutLen);
+      for (let si = 0; si < shots.length; si++) {
+        const sh = { ...shots[si] };
+        const ratio = oldTotal > 0 ? sh.duration_s / oldTotal : 1 / shots.length;
+        // montage cuts keep their exact length (they are locked to the score); the last cut takes the slack
+        const newDur = grid ? round(si === shots.length - 1 ? Math.max(0.5, targetDuration - cutLen * (shots.length - 1)) : cutLen, 3) : round(targetDuration * ratio, 3);
+        sh.start_s = round(shotT, 3);
+        sh.duration_s = newDur;
+        newShots.push(sh);
+        shotT += newDur;
+      }
+    }
+    t += dur + 0.35;
+  }
+
+  t += 4.0;
+  const totalDuration = round(t, 3);
+
+  const shotStartMap = new Map(newShots.map((s) => [s.shot_id, s.start_s]));
+  const updatedOverlays = (shotList.overlays || []).map((ov) => {
+    const shotStart = shotStartMap.get(ov.shot_id);
+    return {
+      ...ov,
+      start_s: shotStart != null ? round(shotStart + 0.5, 3) : ov.start_s,
+    };
+  });
+
+  return {
+    ...shotList,
+    duration_s: totalDuration,
+    vo_placements: newPlacements,
+    shots: newShots.length ? newShots : shotList.shots,
+    overlays: updatedOverlays,
+  };
+}
+
+export function buildAudioPlan({ project, shotList: rawShotList, vo, script, style, config }) {
+  const shotList = syncShotListWithVo({ shotList: rawShotList, vo, script });
   const a = style.audio;
   const total = shotList.duration_s;
   const rand = seededRandom(`${project.id}:music`);
@@ -199,8 +328,9 @@ export function buildAudioPlan({ project, shotList, vo, script, style, config })
     noMusic.push({ s: round(cand.start_s), e: round(Math.min(total, cand.start_s + len)) });
   }
 
-  const music = [];
-  const tracks = loadLibrary(config, 'music');
+  const storyAudio = style.story?.enabled ? buildStoryAudio({ project, shotList, actSpans, regions, noMusic, total, style, config }) : null;
+  const music = storyAudio ? storyAudio.music : [];
+  const tracks = storyAudio ? [] : loadLibrary(config, 'music');
   if (tracks.length) {
     const used = new Set();
     for (const span of actSpans) {
@@ -230,7 +360,7 @@ export function buildAudioPlan({ project, shotList, vo, script, style, config })
   }
 
   const ambience = [];
-  const amb = loadLibrary(config, 'ambience');
+  const amb = storyAudio ? [] : loadLibrary(config, 'ambience');
   if (amb.length) {
     const seqs = new Map();
     for (const s of shotList.shots) {
@@ -251,10 +381,21 @@ export function buildAudioPlan({ project, shotList, vo, script, style, config })
   const sfxClick = path.join(config.libraryDir, 'sfx', 'click.wav');
   const sfxPage = path.join(config.libraryDir, 'sfx', 'page_turn.wav');
   const sfxWhoosh = path.join(config.libraryDir, 'sfx', 'whoosh_soft.wav');
+  const sfxBoom = path.join(config.libraryDir, 'sfx', 'cinematic_boom.wav');
 
   // 0. Opening Sound Design: Cinematic whoosh/impact at frame 0 to immediately seize viewer attention
+  if (fs.existsSync(sfxBoom)) {
+    sfx.push({ file: sfxBoom, at_s: 0.0, gain_db: -4 });
+  }
   if (fs.existsSync(sfxWhoosh)) {
-    sfx.push({ file: sfxWhoosh, at_s: 0.0, gain_db: -8 });
+    sfx.push({ file: sfxWhoosh, at_s: 0.1, gain_db: -5 });
+  }
+
+  // Act boundary cinematic impacts
+  if (fs.existsSync(sfxBoom)) {
+    for (const span of actSpans.slice(1)) {
+      sfx.push({ file: sfxBoom, at_s: round(span.s), gain_db: -5 });
+    }
   }
 
   // 1. Subscribe overlay clicks
@@ -275,13 +416,15 @@ export function buildAudioPlan({ project, shotList, vo, script, style, config })
     if (shot.start_s - lastSfxAt < 3.5) continue; // Debounce so SFX don't crowd each other
 
     if ((t === 'page_turn' || t === 'parchment_reveal' || t === 'slide_left') && fs.existsSync(sfxPage)) {
-      sfx.push({ file: sfxPage, at_s: round(shot.start_s - 0.05), gain_db: -12 });
+      sfx.push({ file: sfxPage, at_s: round(shot.start_s - 0.05), gain_db: -8 });
       lastSfxAt = shot.start_s;
     } else if ((t === 'dissolve_slow' || t === 'dissolve') && fs.existsSync(sfxWhoosh) && (shot.mode === 'CINEMATIC' || shot.purpose === 'R')) {
-      sfx.push({ file: sfxWhoosh, at_s: round(shot.start_s - 0.15), gain_db: -15 });
+      sfx.push({ file: sfxWhoosh, at_s: round(shot.start_s - 0.15), gain_db: -7 });
       lastSfxAt = shot.start_s;
     }
   }
+
+  if (storyAudio) { sfx.length = 0; sfx.push(storyAudio.sfx); }
 
   return AudioPlan.parse({ duration_s: total, vo: voTrack, music, ambience, sfx, vo_regions: regions, no_music: noMusic, key: hash(voTrack) });
 }

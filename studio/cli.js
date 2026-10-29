@@ -67,6 +67,9 @@ async function scout(genre, count, seed) {
   return topics;
 }
 
+// A style may set its own natural length (the story genre is 8 minutes); everything else keeps 25.
+const defaultMinutes = (genre) => { try { return Number(loadStyle(config, genre).default_minutes) || 25; } catch { return 25; } };
+
 function createFromTopic(genre, topic, minutes) {
   const brief = newBrief({ genre, title: topic.title, question: topic.central_question, angle: topic.angle, minutes, topicId: topic.topic_id });
   Project.create(config, brief);
@@ -124,10 +127,10 @@ const commands = {
       const topics = readJson(topicsFile(config, opt.genre));
       const topic = topics.candidates.find((c) => c.topic_id === opt.topic);
       if (!topic) throw new Error(`topic ${opt.topic} not found`);
-      id = createFromTopic(opt.genre, topic, Number(opt.minutes || 25));
+      id = createFromTopic(opt.genre, topic, Number(opt.minutes || defaultMinutes(opt.genre)));
     } else {
       if (!opt.title || !opt.question) throw new Error('--title and --question are required without --topic');
-      id = createFromTopic(opt.genre, { title: opt.title, central_question: opt.question, angle: opt.angle || '' }, Number(opt.minutes || 25));
+      id = createFromTopic(opt.genre, { title: opt.title, central_question: opt.question, angle: opt.angle || '' }, Number(opt.minutes || defaultMinutes(opt.genre)));
     }
     console.log(id);
   },
@@ -147,7 +150,7 @@ const commands = {
       let topic = pickTopic(topics, used);
       if (!topic) { topics = await scout(opt.genre, Math.max(8, count * 2), opt.seed || ''); topic = pickTopic(topics, used); }
       if (!topic) throw new Error('no usable topic left');
-      ids.push(createFromTopic(opt.genre, topic, Number(opt.minutes || 25)));
+      ids.push(createFromTopic(opt.genre, topic, Number(opt.minutes || defaultMinutes(opt.genre))));
     }
     for (const id of ids) {
       try {

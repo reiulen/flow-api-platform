@@ -1,4 +1,4 @@
-# Editorial Bible — Ancient History & Daily Life (Rome Unscrolled Aesthetic)
+# Editorial Bible — Ancient History & Daily Life (Ancient Footnotes Signature Aesthetic)
 
 ## 1. Identitas & Misi Saluran
 Saluran ini menyajikan dokumenter naratif sejarah kuno (Romawi Kuno, Yunani, Mesir, dll.) dengan sudut pandang manusiawi: bukan dari catatan kaisar di istana marmer, melainkan dari kenyataan hidup sehari-hari rakyat jelata (*plebeian*), budak, pedagang, dan prajurit di garis depan.

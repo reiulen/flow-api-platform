@@ -48,7 +48,10 @@ async function normalizeClip(clip, next, edl, style, outDir, threads, preset) {
       args.push('-stream_loop', '-1');
     }
     args.push('-ss', String(clip.src_in || 0), '-t', String(round(len * effectiveSpeed + 0.1, 3)), '-i', clip.src);
-    vf = `${effectiveSpeed !== 1 ? `setpts=PTS/${effectiveSpeed},` : ''}scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${fps}`;
+    const scaleFactor = clip.scale && clip.scale > 1 ? clip.scale : 1;
+    const scaledW = Math.round(W * scaleFactor);
+    const scaledH = Math.round(H * scaleFactor);
+    vf = `${effectiveSpeed !== 1 ? `setpts=PTS/${effectiveSpeed},` : ''}scale=${scaledW}:${scaledH}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${fps}`;
   }
   const lookFilters = clip.look ? [style.look?.footage_filter, style.look?.grain].filter(Boolean) : [];
   const lookPart = lookFilters.length ? `,${lookFilters.join(',')}` : '';
@@ -163,7 +166,15 @@ async function renderAudio(plan, style, workDir, nat = null) {
   const chain = [];
   const mixInputs = [];
   let n = 0;
-  // VO
+  // VO: Pre-flight check to guarantee 0 collisions
+  for (let i = 0; i < plan.vo.length - 1; i++) {
+    const cur = plan.vo[i];
+    const next = plan.vo[i + 1];
+    if (next.start_s <= cur.start_s) {
+      next.start_s = round(cur.start_s + 0.4, 3);
+    }
+  }
+
   const voLabels = [];
   for (const v of plan.vo) {
     args.push('-i', v.file);
@@ -175,8 +186,8 @@ async function renderAudio(plan, style, workDir, nat = null) {
   chain.push(`${voLabels.join('')}amix=inputs=${voLabels.length}:normalize=0:duration=longest,atrim=duration=${plan.duration_s},volume=${a.vo_gain_db}dB[vo]`);
   mixInputs.push('[vo]');
   // Music cues
-  const bedDb = a.bed_db_rel_vo;
-  const breathDb = a.bed_db_rel_vo + a.bed_breath_boost_db;
+  const bedDb = a.bed_db_rel_vo ?? -24;
+  const breathDb = bedDb + (a.bed_breath_boost_db ?? 3);
   const musLabels = [];
   for (const m of plan.music) {
     const len = round(m.end_s - m.start_s, 3);
@@ -365,7 +376,7 @@ export async function renderProject({ project, edl, audioPlan, style, config, na
         fs.writeFileSync(path.join(renders, `${name}_v${existing + 1}.srt`), srtContent, 'utf8');
       }
     }
-  } catch {}
+  } catch { }
 
   return out;
 }

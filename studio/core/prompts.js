@@ -1,3 +1,7 @@
+import { SETUP_NAMES, vocabText } from './story.js';
+
+const SETUP_TEXT = `${SETUP_NAMES.join(', ')} (bed_alarm: head on the pillow beside the 5:00 clock; alarm_slam: close-up clock and a fist on snooze; couch_phone: blue light on a face, answered by desk work; desk: asleep on the books, answered by typing; fridge: midnight light; street: a slow walk, answered by running in rain or dusk; bag: gloves and a red bag; pushups; calendar: crossed-out days; mirror: the figure and its reflection; stairs; summit; hug: sitting alone in a spotlight)`;
+
 // Compiled instructions for every LLM stage. The model receives everything it needs here:
 // it never reads skills, bibles or code at generation time. Keep in sync with studio/bibles.
 
@@ -47,8 +51,11 @@ Fact standards
 ${(ed.rules || []).map((r) => `- ${r}`).join('\n')}`;
 }
 
-export function topicsPrompt({ genre, count, exclude, seedIdeas, evidence }) {
-  return `Propose ${count} documentary topics for the "${genre}" channel.
+const STORY_TOPIC_NOTE = `This channel tells each topic as one person's repeated moment, drawn as a minimalist cartoon figure (no stock footage exists for it). A good topic can be shown as a loop of concrete scenes with time markers (Day 1, Day 47, Year 3): a room, an object, a habit, a cost. Prefer topics whose mechanism has a physical picture (a battery, a coin stack, a wall, a clock). For the footage score, rate how easily the topic becomes a sequence of such scenes; footage_query may be empty.
+`;
+
+export function topicsPrompt({ genre, count, exclude, seedIdeas, evidence, story = false }) {
+  return `${story ? STORY_TOPIC_NOTE : ''}Propose ${count} documentary topics for the "${genre}" channel.
 
 Each topic must be built around a contradiction or paradox that makes people curious, e.g. "Why X is still used even though everyone knows its weakness".
 Title format: a question or a claim containing a contradiction ("Why Aircraft Carriers Are So Hard to Sink"), never a history title ("The History of the USS Nimitz").
@@ -261,6 +268,7 @@ Return {"shots":[{"shot_id":"...","motion":{"template":"...","data":{...}} or nu
 }
 
 export function visualPrompt({ style, act, segments, research }) {
+  if (style.story?.enabled) return storyVisualPrompt({ style, act, segments, research });
   const isIllustrated = (style.visual_mix?.footage?.[1] || 0) === 0;
   const types = isIllustrated
     ? `FLOW: ${style.style_name || '2D style illustration'} (primary visual for all characters, environments, narrative scenes, actions, and concepts).
@@ -430,3 +438,55 @@ ${shotSummary}`;
 }
 
 const pct = ([a, b]) => `${Math.round(a * 100)}-${Math.round(b * 100)}%`;
+
+// Story genres: the visual director does not pick footage, it directs a closed vocabulary of
+// animated scenes. The renderer (motion/story) and core/story.js guarantee that any answer draws.
+export function storyVisualPrompt({ style, act, segments, research }) {
+  const first = act.act === 1;
+  return `You are the director of a quiet animated short: one small cream-coloured cartoon figure in a world that belongs to THIS story only. There is no footage and no map, no voice-over: the film is told by pictures, a few handwritten words, music and sound. Every beat is either ONE SCENE or ONE MONTAGE built from the vocabulary below. Anything outside it is discarded. The editor adds the markers and the sound; never draw a percentage bar.
+
+Act ${act.act} "${act.name}": ${act.goal}
+
+How the film is directed (follow it):
+1. Build a world for this story. Pick two or three places that fit what the person does (a loft studio, a balcony, a kitchen, a classroom, a library, a harbour, a lab) and come back to them, so the viewer learns the world. Do not use a bedroom with an alarm clock, a gym with a punching bag or a dark void with a spotlight unless the story is literally about them.
+2. One recurring object carries the story (a plant, a stack of paper, a lamp, a jar of coins). Show it in the first minute and again at the turn and in the last shot; let it change a little each time.
+3. Start slow. Single scenes held for five to seven seconds: one picture, one feeling. A close object alone (insert) is as good as a face: a count of views, a calendar, a dialog box, the plant.
+4. Rollercoaster: a rise that looks like winning, a drop that hurts more because of it, a long flat stretch where nothing changes, a silence, one small decision, a slow climb with setbacks, the payoff. Never go straight up.
+5. A MONTAGE is a loop of recurring set-ups with a marker that jumps (WEEK 3, MONTH 4). Use it only to show time passing, no more than two per film, and never the same set-up twice in a row.
+6. Dramatic irony is allowed: cut to a place the person cannot see (under the soil, the other side of the wall) so the viewer knows something he does not.
+7. The payoff answers the first image (same place, same object, changed). It is quiet and specific, never a boast.
+
+Set-ups for montage items, if you use one (setup names exactly): ${SETUP_TEXT}
+Montage item = { "setup": name, "state": "low" | "up", "tag": "DAY 47" (marker, rising across the film, never repeating; empty to let it climb on its own), "count": crossed days for calendar else 0 }.
+
+Vocabulary for single scenes (use these words exactly):
+${vocabText()}
+
+Single-scene fields:
+- env, time, pose, face. pose_to (optional) moves into a second pose of the same kind at pose_at (0.2-0.85); face_to is the expression after it.
+- facing right (default) or left; at: left, center or right, or empty.
+- props: up to 3 objects that carry the beat's meaning. A bag means the figure hits it; reach means it reaches for the alarm; type means a laptop is there. hold: an item in the hand.
+- zoom: wide for the world, mid for the figure at work, close for a face. A close face with a big tag is how a decision is shown.
+- say: the inner voice, handwritten, max 5 words, lowercase ("you're lazy", "why even try"). Only when the narration has just made the accusation. Empty most of the time.
+- line: a short caption, max 9 words, that restates the strongest phrase of the beat. Empty on at least half the beats.
+- tag: story marker for time jumps, only when the beat moves time.
+- shadow: true when the figure is accused or doubted (the inner critic appears). At most one beat in five.
+- fx: speed, impact, sweat, dust, rain, snow, embers, letters (the words of the say drifting around the figure).
+- cam: push is the default slow move; static for stillness; shake for impact.
+- growth: 0 to 1, how far the recurring plant or seed has come, for scenes in the loft studio, the balcony or under the soil; otherwise 0.
+- Numbers are 0 when unused: pose_at, say_at, flash, growth.
+
+Rules:
+- A beat has either a scene (montage = []) or a montage (scene = null), never both.
+- Show what the sentence DOES. "She quit again" is sit_hug in an empty room, not a door.
+- Keep the film's world: a dark, quiet life. Everyday places carry it (bedroom, kitchen at night, desk, street, gym, stairs, summit at dawn). Use a topic place (harbor, market, hospital, bank, arena, cave, cliff) only when the narration is literally about it.
+- Never the same env + pose twice in a row outside a montage. Night is the problem, dawn is the turn, dusk is the cost.
+- Cinematic segments: 1 beat, a wide quiet scene, camera push. Information segments: 2-4 beats, each one physical picture of the mechanism (battery for energy, coins for cost, calendar for streaks, scales for trade-offs, wall for obstacles, chart_up for rises and falls).
+- Facts: if a beat visualises a claim, list its claim_id in claims. Props may show only numbers that appear in that claim or are story markers (Day 47).
+${first ? '- Act 1: the first beat is one concrete scene (zoom mid or wide) with at most one prop and no say. The accusation lands in the second or third beat. Return 2 cold_open scenes (atmosphere only, no text, montage empty).\n' : '- cold_open must be an empty array.\n'}
+Narration segments (word lists are 0-indexed; from_word is where the beat starts; the first beat starts at 0):
+${segments.map((s2) => `${s2.seg_id} [${s2.mode}/${s2.purpose}/${s2.density}] ${s2.words.map((w, i) => `${i}:${w}`).join(' ')}`).join('\n')}
+
+Claims:
+${research.claims.map((c) => `${c.claim_id} ${c.text}`).join('\n')}`;
+}

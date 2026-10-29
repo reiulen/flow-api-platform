@@ -1,12 +1,19 @@
 {
   "genre": "forensic_engineering",
-  "style_name": "Forensic Engineering & System Catastrophes (2D Cinematic Storybook Stickman)",
+  "style_name": "Extreme Industrial Protocols & Catastrophe SOPs (Clean 2D Digital Vector Cartoon Stickman)",
+
+  "voice": {
+    "provider": "inworld",
+    "voice": "Tristan",
+    "model": "inworld-tts-2",
+    "tone": "investigative forensic interrogator, deliberate and measured countdown pace"
+  },
 
   "acts": [
-    { "act": 1, "name": "The Paradox Hook", "share": 0.08, "mode": "CINEMATIC", "goal": "Open with an extreme paradox or the critical minute before total system failure. Hook with a jarring micro-detail." },
-    { "act": 2, "name": "The Fragile Routine", "share": 0.18, "mode": "INFORMATION", "goal": "Introduce the everyday technician stickman performing standard operating procedures while catastrophic tension builds." },
-    { "act": 3, "name": "The Mechanical Domino", "share": 0.54, "mode": "INFORMATION", "goal": "Deconstruct the failure sequence step-by-step. Exact shear stress, rusted valves, circuit overloads explained with everyday analogies." },
-    { "act": 4, "name": "The Cold Epilogue", "share": 0.20, "mode": "CINEMATIC", "goal": "Chilling aftermath, costly structural lessons, and the unsettling realization that this fragile system still operates around us today." }
+    { "act": 1, "name": "The Warning Beacon & Ticking Clock Hook", "share": 0.08, "timecode": "00:00 - 01:00", "mode": "CINEMATIC", "goal": "An analog meter shifts 2mm past the safe redline. Alarm beacon sirens blare. The 60-second ticking countdown clock begins." },
+    { "act": 2, "name": "The Manual Mandate", "share": 0.20, "timecode": "01:00 - 04:00", "mode": "INFORMATION", "goal": "Steps 1, 2, and 3 dictated by the heavy binder manual to prevent catastrophic explosion under extreme operator stress." },
+    { "act": 3, "name": "The Mechanical Breakdown", "share": 0.52, "timecode": "04:00 - 08:00", "mode": "INFORMATION", "goal": "Why emergency procedures failed: seized bypass valve, radio cross-talk, micro-corrosion on backup sensors, thermal cavitation cascade." },
+    { "act": 4, "name": "The Industrial Legacy", "share": 0.20, "timecode": "08:00 - 15:00+", "mode": "CINEMATIC", "goal": "Costly structural post-mortem, new safety regulations born from the disaster, and the haunting realization of modern infrastructure fragility." }
   ],
 
   "visual_mix": {
@@ -25,7 +32,7 @@
   "look": {
     "footage_filter": "",
     "grain": "",
-    "still_zoom": 0.02
+    "still_zoom": 0.05
   },
 
   "transitions": {
@@ -48,6 +55,7 @@
   "colors": {
     "safety_amber": "#E5A93C",
     "rust_iron": "#A74328",
+    "hazard_red": "#E63946",
     "damp_concrete": "#6C757D",
     "industrial_navy": "#1B263B",
     "brass": "#C9A227",
@@ -55,24 +63,25 @@
   },
 
   "labels": {
-    "reconstruction": "SYSTEM ANATOMY RECONSTRUCTION",
-    "illustrative": "FORENSIC PROCESS DIAGRAM"
+    "reconstruction": "EMERGENCY SOP SEQUENCE RECONSTRUCTION",
+    "illustrative": "FORENSIC SYSTEM CATASTROPHE DIAGRAM"
   },
 
   "flow": {
-    "model": "nano-banana-pro",
+    "model": "nano-banana-2",
     "resolution": "1080p",
     "aspect_ratio": "16:9",
     "duration_s": 8,
     "count": 1,
-    "character_guide": "Minimalist stickman technician character with smooth off-white round head, simple black dot eyes, thin black stick limbs, wearing matte yellow safety hardhat and bright orange safety vest with realistically draped cloth folds",
-    "look": "Wide 2D cinematic storybook illustration, hand-painted matte digital art, European graphic novel aesthetic (bande dessinée / ligne claire), uncluttered composition, generous negative space, atmospheric depth. Minimalist stickman technician character with smooth off-white round head, simple black dot eyes, thin black stick limbs, wearing matte yellow safety hardhat and bright orange safety vest with realistically draped cloth folds. Industrial environment: rusted machine valves, analog gauge dials, damp reinforced concrete walls, single local warm light source from an amber indicator beacon or hanging tungsten work lamp. Single continuous 16:9 widescreen frame. Single camera view. Absolutely NO comic book panels, NO multi-panel grids, NO split screens, NO borders.",
+    "character_guide": "Minimalist stickman technician with thin black stick limbs, a smooth off-white round head with expressive cartoon eyes, wearing an oversized bright yellow hard hat, safety goggles, and a clean orange utility vest with smooth color gradient shading.",
+    "look": "Clean 2D digital vector cartoon illustration, modern webcomic aesthetic, bold smooth black outlines, flat cel-shading with smooth vibrant color gradients, polished vector finish. Minimalist stickman technician with thin black stick limbs, a smooth off-white round head with expressive cartoon eyes, wearing an oversized bright yellow hard hat, safety goggles, and a clean orange utility vest with smooth color gradient shading. Industrial environment: rusted machine valves, analog gauge dials past the redline, damp reinforced concrete walls, single local dynamic light source from a flashing red industrial hazard beacon or warm amber alarm console casting radial glowing gradients onto surfaces and character. Layered atmospheric depth, clean cinematic composition. Single continuous 16:9 widescreen frame. Single camera view. Absolutely NO comic book panels, NO multi-panel grids, NO split screens, NO borders.",
     "avoid_extra": [
-      "3d render", "cgi", "photorealism", "glossy plastic", "hyperdetailed textures",
-      "excessive particles", "lens flare", "neon glare", "cluttered background", "shiny skin",
-      "volumetric chaos", "comic panels", "comic strip", "multi-panel", "split screen",
-      "grid layout", "triptych", "comic borders", "multiple frames", "collage",
-      "panel dividers", "speech bubbles", "anime"
+      "pencil sketch", "graphite", "rough hatching", "colored pencil", "charcoal", "rough paper texture",
+      "3D render", "CGI", "photorealism", "glossy plastic texture", "hyperdetailed noise",
+      "anatomical realism", "realistic human face", "realistic human nose", "realistic wrinkles", "realistic nostrils",
+      "comic panels", "comic strip", "multi-panel", "split screen", "grid layout",
+      "triptych", "comic borders", "multiple frames", "collage", "panel dividers",
+      "speech bubbles", "anime"
     ]
   },
 
@@ -81,16 +90,58 @@
   },
 
   "audio": {
-    "music_functions": ["tension", "clock_ticking", "investigation", "ominous_drone", "aftermath_reflection"]
+    "voice_preset": "Marcus or George (ElevenLabs)",
+    "stability": "50% - 55%",
+    "clarity": "75% - 80%",
+    "style_exaggeration": "10% - 15%",
+    "pacing_wpm": "135 - 145",
+    "engineering_pause": "[pause 0.8s]",
+    "music_functions": ["tension", "clock_ticking", "investigation", "ominous_drone", "aftermath_reflection"],
+    "bgm_level": "-18 dB under voiceover"
   },
 
   "editorial": {
-    "voice": "Investigative, technical forensic interrogator with quiet, measured deadpan wit. Pacing is deliberate and relaxed with dramatic silent pauses right after delivering crucial microscopic failure numbers (bolt millimeters, steam PSI, fatigue micro-fractures). Never uses generic sensationalism or hyperbole. Explains mechanical dominos with visceral physical clarity.",
+    "voice": "Investigative technical forensic interrogator with quiet, measured deadpan wit. Pacing is deliberate with dramatic silent pauses right after delivering critical engineering metrics (bolt millimeters, steam PSI, fatigue micro-fractures). Never sensationalist. Explains mechanical dominos with visceral clarity.",
+    "hook_protocol": {
+      "pattern": "The Ticking Clock",
+      "zero_fluff": "Never open with pleasantries, 'Have you ever wondered', or historical intros.",
+      "first_sentence": "Sentence 1 (0:00-0:06) must present a specific gauge redline or emergency countdown timer. E.g., 'When this reactor pressure needle hits the redline, the binder manual on the console leaves exactly sixty seconds before four billion dollars of hardware vaporizes.'",
+      "the_stakes": "Line 0:06-0:30 establishes the catastrophic failure and domino chain if SOP is not executed."
+    },
     "rules": [
-      "Zero fluff: start in second 1 with the critical micro-anomaly (a vibrating 12mm bolt, an overlooked pressure gauge needle, a 4-degree oil temperature spike).",
+      "Zero fluff: start in second 1 with the critical micro-anomaly (a vibrating 12mm bolt, an overlooked pressure needle, a 4-degree oil temperature spike).",
       "Micro-substance: cite exact engineering schematics, metallurgical micro-cracks, and specific manual log entries.",
       "Everyday analogies: break down complex physics (cavitation, hydrogen embrittlement, harmonic resonance) into relatable physical mechanics.",
-      "4-Act structure: The Paradox Hook -> The Fragile Routine -> The Mechanical Domino -> The Cold Epilogue."
+      "Structure follows the second-by-second protocol: Warning Beacon -> Manual Mandate -> Mechanical Breakdown -> Industrial Legacy."
     ]
+  },
+
+  "publishing": {
+    "category": "Education",
+    "education_type": "None",
+    "target_rpm": "$20 - $35+ (Tier 1 US/UK/CA/AU)",
+    "high_ctr_titles": [
+      "The 60-Second Protocol When a Nuclear Reactor Loses All Primary Coolant",
+      "Saturation Diving: The Exact 28-Day Procedure Inside a Pressurized Steel Chamber",
+      "What Submarine Crews Are Ordered to Do When the Pressure Hull Breaches at 200m",
+      "Blowout Preventer Failure: The 3 Minutes Before an Offshore Oil Rig Explodes",
+      "The Runway Incursion Protocol: How Air Traffic Controllers Handle a Fog Blindspot"
+    ],
+    "thumbnail_specs": {
+      "aspect_ratio": "16:9",
+      "model": "nano-banana-2",
+      "composition_rules": [
+        "Foreground Left (1/3 of frame): Close-up bust of stickman technician with oversized yellow hard hat and safety goggles, sweating or holding heavy wrench in panic",
+        "Background Right: Rusted industrial control console with screaming analog gauge needle past the redline and glowing red alarm beacon",
+        "Upper Third: Clean negative space for bold 2-3 word yellow text hook",
+        "STRICT: Absolutely NO text, words, letters, logos, banners in the image generation prompt"
+      ],
+      "text_overlay_guide": {
+        "words": "60 SECONDS? / CAN IT BLOW? / BREACH AT 200M",
+        "font": "Arial Black, Impact, sans-serif",
+        "color": "#FFE600",
+        "stroke": "14px #000000"
+      }
+    }
   }
 }

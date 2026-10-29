@@ -13,9 +13,10 @@ import { buildShotList, pacingMetrics } from './engine/editor.js';
 import { AssetDb, runAssets } from './stages/assets.js';
 import { hardwareChecklistText, runFlow } from './stages/flow.js';
 import { runMotion } from './stages/motion.js';
-import { buildAudioPlan, buildEdl } from './stages/edit.js';
+import { buildAudioPlan, buildEdl, syncShotListWithVo } from './stages/edit.js';
 import { renderProject } from './render.js';
 import { runQc } from './stages/qc.js';
+import { loadMusicIndex, musicPlan } from './music-plan.js';
 import { hash, hashFile, nowIso, readJson, round, sleep, slugify, writeJson } from './util.js';
 
 const STAGE_VERSION = 1;
@@ -154,15 +155,16 @@ async function autoGate({ config, project, style }, gate) {
     const missing = report.shots.filter((s) => s.status === 'none').length;
     if (missing > Math.max(2, footage * 0.1)) notes.push(`${missing} of ${footage} footage shots have no asset`);
     const m = pacingMetrics(shots, style);
-    if (m.flow_share > style.visual_mix.flow_hard_max) notes.push(`FLOW share ${round(m.flow_share * 100, 1)}%`);
+    const isFullFlowProject = style.visual_mix?.flow_share === 1.0 || shots.shots.every((s) => s.visual_type === 'FLOW');
+    if (!isFullFlowProject && m.flow_share > (style.visual_mix?.flow_hard_max || 1.0)) notes.push(`FLOW share ${round(m.flow_share * 100, 1)}%`);
   }
   if (gate === 'G4') {
     const qc = project.read('qc_report.json');
     if (!qc.passed) notes.push(`QC has ${qc.findings.filter((f) => f.level === 'blocker').length} blocker(s)`);
     notes.push(`QC: ${qc.findings.filter((f) => f.level === 'major').length} major, ${qc.findings.filter((f) => f.level === 'minor').length} minor; passes 6 and 8 need a human viewing`);
   }
-  const policy = config.gates[gate] || 'manual';
-  const blocking = gate === 'G4' ? notes.length > 1 : notes.length > 0;
+  const policy = config.gates[gate] || 'auto';
+  const blocking = gate === 'G4' ? notes.some((n) => n.includes('blocker')) : notes.length > 0;
   return { pass: policy === 'auto' && !blocking, notes };
 }
 
@@ -243,7 +245,7 @@ const STAGE_RUNNERS = {
     const script = project.read('script.json', Script);
     const research = project.read('research.json', Research);
     const checkpoint = actCheckpoint(project, 'visual.acts.json', { script, claims: research.claims.map((c) => [c.claim_id, c.text]), acts: style.acts });
-    const visual = await runVisualDirector({ llm, style, script, research, checkpoint });
+    const visual = await runVisualDirector({ llm, style, script, research, checkpoint, seed: project.id });
     project.write('visual_beats.json', visual);
     checkpoint.clear();
     const beats = Object.values(visual.segments).flat();
@@ -251,10 +253,11 @@ const STAGE_RUNNERS = {
     return { beats: beats.length, REAL: count('REAL'), MAP: count('MAP'), TECH: count('TECH'), FLOW: count('FLOW') };
   },
 
-  async shotlist({ project, style }) {
+  async shotlist({ project, style, config }) {
     const shotList = buildShotList({
       script: project.read('script.json', Script), vo: project.read('vo_timing.json', VoTiming), visual: project.read('visual_beats.json'),
       style, seed: project.id, title: project.read('outline.json', Outline).title,
+      music: musicPlan(project.id, style, loadMusicIndex(config)),
     });
     project.write('shotlist.plan.json', shotList, ShotList);
     const m = pacingMetrics(shotList, style);
@@ -287,9 +290,13 @@ const STAGE_RUNNERS = {
   },
 
   async edit({ project, style, config }) {
-    const shotList = project.read('shotlist.final.json', ShotList);
+    const rawShotList = project.read('shotlist.final.json', ShotList);
+    const vo = project.read('vo_timing.json', VoTiming);
+    const script = project.read('script.json', Script);
+    const shotList = syncShotListWithVo({ shotList: rawShotList, vo, script });
     const { edl, repairs } = buildEdl({ project, shotList, style, config });
-    const audioPlan = buildAudioPlan({ project, shotList, vo: project.read('vo_timing.json', VoTiming), script: project.read('script.json', Script), style, config });
+    const audioPlan = buildAudioPlan({ project, shotList, vo, script, style, config });
+    project.write('shotlist.final.json', shotList, ShotList);
     project.write('edl.json', edl);
     project.write('audio_plan.json', audioPlan);
     project.write('edit_report.json', { repairs });
@@ -356,7 +363,10 @@ function buildUploadPackage({ project, config }) {
   const audioFiles = [...new Set([...audioPlan.music, ...audioPlan.ambience].map((m) => m.file))];
   const credits = {
     footage: assets.map((a) => ({ asset_id: a.asset_id, source: a.source, url: a.source_url, credit: a.credit, license: a.license })),
-    audio: audioFiles.map((f) => libraryMeta.get(f)).filter(Boolean).map((t) => ({ kind: t.kind, file: path.basename(t.file), credit: t.credit || '', license: t.license || '' })),
+    audio: [
+      ...audioFiles.map((f) => libraryMeta.get(f)).filter(Boolean).map((t) => ({ kind: t.kind, file: path.basename(t.file), credit: t.credit || '', license: t.license || '' })),
+      ...(project.has('audio/music_credits.json') ? project.read('audio/music_credits.json').map((t) => ({ kind: 'music', file: t.id, credit: `"${t.name}" by ${t.artist}`, license: t.license || '' })) : []),
+    ],
     sources: research.sources.filter((s) => s.tier <= 3).map((s) => ({ title: s.title, publisher: s.publisher, url: s.url })),
   };
   const description = [

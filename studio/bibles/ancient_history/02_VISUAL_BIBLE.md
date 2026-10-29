@@ -1,13 +1,18 @@
-# Visual Bible — Ancient History (Rome Unscrolled Aesthetic)
+# Visual Bible — Ancient History (Jalur 1 Storytime 2D Webcomic Aesthetic)
 
-## 1. Desain Karakter (Stick-Figure with Historical Soul)
-- **Kepala**: Bulat telur sederhana, warna kulit krem terang atau cokelat hangat alami, mata titik hitam minimalis, mulut garis ekspresif (senyum cemas, heran, mulut terbuka terkejut).
-- **Rambut**: Gaya rambut klasik sederhana (rambut pendek disisir ke depan ala Romawi untuk pria; sanggul kepang sederhana untuk wanita).
-- **Badan & Anggota Tubuh**: Garis hitam tegas (*ink lines*), tangan dan kaki minimalis tanpa anatomi hiper-realistis.
-- **Pakaian Historis Bertekstur**:
-  - Plebeian/Rakyat Biasa: *Tunica* wol sederhana setinggi lutut bertali pinggang, warna cokelat tanah atau putih kusam, sandal kulit *caligae*.
-  - Bangsawan/Patron: *Toga* putih gading tebal berlipat-lipat rapi dengan selempang ungu (*praetexta*).
-  - Prajurit/Legionary: Baju zirah lempeng perunggu/besi (*lorica segmentata*), helm berpial merah, pedang *gladius* di pinggang.
+## 1. Desain Karakter (2D Bean-Head Webcomic ala TheOdd1sOut / OverSimplified / Dovahhatty)
+- **Kepala & Wajah**: Kepala bulat lonjong halus kartun 2D bean-head (#FFFFFF), mata komik hitam ekspresif (titik hitam tebal, pupil bergetar panik, atau alis miring sombong/marah), mulut kartun dinamis (tersenyum lebar dengan gigi/lidah, teriak heboh, atau garis datar *deadpan*). DILARANG wajah fotorealistik/hidung realistis.
+- **Badan & Anggota Tubuh**: Proporsi kartun 2D *marshmallow/bean body* dengan tangan dan kaki kartun putih berkontur tinta hitam tegas (*thick clean black ink line art*), bukan garis lidi kurus.
+- **Diferensiasi Kostum & Karakter**:
+  - **The Epic Narrator**: Karakter dokumenter elegan berwibawa, atau peta animasi teatrikal.
+  - **Julius Caesar (Theodore)**: Karakter kartun aristokrat muda sombong (*smug*), toga putih dengan selempang ungu, mahkota daun laurel emas, ekspresi meremehkan lawan.
+  - **Senator Cato / The Realist (Tristan)**: Karakter tua letih, alis turun, tangan di pinggang, ekspresi sangat datar (*deadpan*) menghadapi kebodohan Romulus/Caesar.
+  - **Pirate Captain / Barbarian (Edward)**: Bajak laut Cilicia sangar tapi bloon, bandana pelaut, penutup mata, rompi robek, teriak marah dengan urat komik di dahi.
+  - **The Dramatic Queen / Female Lead (Aria)**: Elegan, hiasan kepala mewah, gerakan tangan dramatis teatrikal.
+- **HARAM MUTLAK**:
+  - Stickman hitam lidi (*black stick figure / thin line limbs*).
+  - Wajah realistis 3D CGI / AI mannequin.
+  - Hidung realistis manusia.
 
 ---
 

@@ -1,12 +1,19 @@
 {
   "genre": "shadow_economics",
-  "style_name": "Shadow Economics & Resource Cartels (2D Cinematic Storybook Stickman)",
+  "style_name": "Global Strategic Chokepoints & Hidden Monopolies (Clean 2D Digital Vector Cartoon Stickman)",
+
+  "voice": {
+    "provider": "inworld",
+    "voice": "Theodore",
+    "model": "inworld-tts-2",
+    "tone": "insider geopolitical intelligence analyst, cynical, authoritative, dry deadpan"
+  },
 
   "acts": [
-    { "act": 1, "name": "The Paradox Hook", "share": 0.08, "mode": "CINEMATIC", "goal": "A staggering economic paradox: why a beach is vanishing overnight, or why an empty oil tanker is worth more dead than alive. Hook with a quiet maritime or customs anomaly." },
-    { "act": 2, "name": "The Fragile Routine", "share": 0.18, "mode": "INFORMATION", "goal": "The lone investigator stickman inspecting a mundane shipping manifest or harbor gate under rainy streetlamps while a shadow cartel moves billions." },
-    { "act": 3, "name": "The Supply Chain Domino", "share": 0.54, "mode": "INFORMATION", "goal": "Deconstruct the illicit logistics network: shell company jurisdictions, AIS transponder spoofing, river dredgers, forged bills of lading." },
-    { "act": 4, "name": "The Cold Epilogue", "share": 0.20, "mode": "CINEMATIC", "goal": "The unpunished reality: how the legal economy quietly relies on the shadow commodity to survive, and how it touches everyday consumer goods." }
+    { "act": 1, "name": "The Illusion of Abundance & Fragility Hook", "share": 0.08, "timecode": "00:00 - 01:00", "mode": "CINEMATIC", "goal": "Show modern abundance (smartphones, power, concrete), then connect it to one fragile real-world bottleneck that could collapse it all in 48 hours." },
+    { "act": 2, "name": "The Chokepoint Reveal", "share": 0.20, "timecode": "01:00 - 04:00", "mode": "INFORMATION", "goal": "Pull back the world map: reveal the shallow 2km strait, single cleanroom in Europe, or four ocean trenches holding the global supply chain." },
+    { "act": 3, "name": "The Nightmare Scenario", "share": 0.52, "timecode": "04:00 - 08:00", "mode": "INFORMATION", "goal": "Second-by-second domino simulation of sabotage, grounded supertanker, or single-factory fire cutting off global civilization." },
+    { "act": 4, "name": "The Strategic Standoff", "share": 0.20, "timecode": "08:00 - 15:00+", "mode": "CINEMATIC", "goal": "The silent war between superpowers to maintain control over this bottleneck, and how everyday consumers remain unaware." }
   ],
 
   "visual_mix": {
@@ -25,7 +32,7 @@
   "look": {
     "footage_filter": "",
     "grain": "",
-    "still_zoom": 0.02
+    "still_zoom": 0.05
   },
 
   "transitions": {
@@ -55,24 +62,25 @@
   },
 
   "labels": {
-    "reconstruction": "CARTEL LOGISTICS RECONSTRUCTION",
-    "illustrative": "SUPPLY CHAIN FLOW DIAGRAM"
+    "reconstruction": "CHOKEPOINT LOGISTICS RECONSTRUCTION",
+    "illustrative": "GLOBAL SUPPLY CHAIN BOTTLE NECK DIAGRAM"
   },
 
   "flow": {
-    "model": "nano-banana-pro",
+    "model": "nano-banana-2",
     "resolution": "1080p",
     "aspect_ratio": "16:9",
     "duration_s": 8,
     "count": 1,
-    "character_guide": "Minimalist stickman investigator character with smooth off-white round head, simple black dot eyes, thin black stick limbs, wearing a simple beige trench coat with natural fabric folds and a simple dark fedora hat",
-    "look": "Wide 2D cinematic storybook illustration, hand-painted matte digital art, European graphic novel aesthetic (bande dessinée / ligne claire noir), uncluttered composition, generous negative space, atmospheric depth. Minimalist stickman investigator character with smooth off-white round head, simple black dot eyes, thin black stick limbs, wearing a simple beige trench coat with natural fabric folds and a simple dark fedora hat. Environment: night industrial container terminal dock, towering dark silhouette of an unflagged cargo freighter in rainy black water, sodium harbor light reflections on wet cracked pavement. Single continuous 16:9 widescreen frame. Single camera view. Absolutely NO comic book panels, NO multi-panel grids, NO split screens, NO borders.",
+    "character_guide": "Minimalist stickman investigator with thin black stick limbs, a smooth off-white round head with sharp observant dot eyes, wearing a classic tailored beige trench coat with soft fabric gradients and a dark fedora.",
+    "look": "Clean 2D digital vector cartoon illustration, modern webcomic aesthetic, bold smooth black outlines, flat cel-shading with smooth vibrant color gradients, polished vector finish. Minimalist stickman investigator with thin black stick limbs, a smooth off-white round head with sharp observant dot eyes, wearing a classic tailored beige trench coat with soft fabric gradients and a dark fedora. Environment: foggy container terminal dock, massive dark silhouette of an unflagged cargo freighter in rainy black water, warm amber sodium harbor lamp casting radial glowing reflections on wet cracked pavement. Layered atmospheric depth, clean cinematic composition. Single continuous 16:9 widescreen frame. Single camera view. Absolutely NO comic book panels, NO multi-panel grids, NO split screens, NO borders.",
     "avoid_extra": [
-      "3d render", "cgi", "photorealism", "glossy plastic", "hyperdetailed textures",
-      "excessive particles", "lens flare", "neon glare", "cluttered background", "shiny skin",
-      "volumetric chaos", "comic panels", "comic strip", "multi-panel", "split screen",
-      "grid layout", "triptych", "comic borders", "multiple frames", "collage",
-      "panel dividers", "speech bubbles", "anime"
+      "pencil sketch", "graphite", "rough hatching", "colored pencil", "charcoal", "rough paper texture",
+      "3D render", "CGI", "photorealism", "glossy plastic texture", "hyperdetailed noise",
+      "anatomical realism", "realistic human face", "realistic human nose", "realistic wrinkles", "realistic nostrils",
+      "comic panels", "comic strip", "multi-panel", "split screen", "grid layout",
+      "triptych", "comic borders", "multiple frames", "collage", "panel dividers",
+      "speech bubbles", "anime"
     ]
   },
 
@@ -81,15 +89,57 @@
   },
 
   "audio": {
-    "music_functions": ["noir_night", "rain_ambient", "foghorn", "financial_suspense", "cartel_aftermath"]
+    "voice_preset": "George or Marcus (ElevenLabs)",
+    "stability": "50% - 55%",
+    "clarity": "75% - 80%",
+    "style_exaggeration": "10% - 15%",
+    "pacing_wpm": "135 - 145",
+    "engineering_pause": "[pause 0.8s]",
+    "music_functions": ["noir_night", "rain_ambient", "foghorn", "financial_suspense", "cartel_aftermath"],
+    "bgm_level": "-18 dB under voiceover"
   },
 
   "editorial": {
-    "voice": "Cynical, sharp, investigative noir narrator. Speaks with understated authority and biting, deadpan wit. Paces sentences evenly, pausing calmly when revealing astronomical dollar amounts or counterfeit shipping tonnages.",
+    "voice": "Investigative insider geopolitics narrator. Cynical, sharp, authoritative with biting deadpan wit. Treats audience as intelligent adults. Pauses calmly when revealing astronomical monetary monopolies or fragile trade volumes.",
+    "hook_protocol": {
+      "pattern": "The Fragility of Everything",
+      "zero_fluff": "Never open with textbook overviews or 'In today's globalized economy'.",
+      "first_sentence": "Sentence 1 (0:00-0:06) must link an everyday object in the viewer's hand to a remote physical chokepoint. E.g., 'Right now, through a two-kilometer channel in Southeast Asia, one thousand two hundred oil tankers pass every week. Sink two barges here tonight, and a third of the world's factories run out of power before Friday.'",
+      "the_stakes": "Line 0:06-0:30 exposes how 48 hours of blockage paralyzes modern economic civilization."
+    },
     "rules": [
       "Micro-substance: cite real ship IMO numbers, specific customs tariff codes, maritime port registry flags of convenience, and dollar margin spreads per ton.",
-      "No glamorization: depict shadow cartels as ruthless, unglamorous logistics operations run on spreadsheets, bribes, and rusted barges.",
-      "4-Act structure: The Paradox Hook -> The Fragile Routine -> The Supply Chain Domino -> The Cold Epilogue."
+      "No glamorization: depict shadow cartels and monopolies as cold logistics operations run on spreadsheets, bribes, and rusted barges.",
+      "Structure follows the fragile vein formula: Illusion of Abundance -> Chokepoint Reveal -> Nightmare Scenario -> Strategic Standoff."
     ]
+  },
+
+  "publishing": {
+    "category": "Education",
+    "education_type": "None",
+    "target_rpm": "$20 - $40+ (Tier 1 US/UK/CA/AU)",
+    "high_ctr_titles": [
+      "The Single Machine in Europe That Holds the Entire Semiconductor World Hostage",
+      "Why 95% of Global Financial Transactions Run Through 4 Shallow Ocean Trenches",
+      "The Malacca Strait Dilemma: How to Starve an Entire Superpower in 72 Hours",
+      "The Dark Fleet: How 600 Unmarked Tankers Move Sanctioned Oil Undetected",
+      "The Global Sand Cartel: Why the World Is Running Out of Concrete"
+    ],
+    "thumbnail_specs": {
+      "aspect_ratio": "16:9",
+      "model": "nano-banana-2",
+      "composition_rules": [
+        "Foreground Left (1/3 of frame): Close-up bust of stickman investigator in fedora and trench coat with magnifying glass or sharp squinting expression",
+        "Background Right: Massive visual bottleneck (colossal cargo ship stuck sideways in narrow canal, single glowing lithography laser machine, or oceanic cable map)",
+        "Upper Third: Clean negative space for bold 2-3 word yellow text hook",
+        "STRICT: Absolutely NO text, words, letters, logos, banners in the image generation prompt"
+      ],
+      "text_overlay_guide": {
+        "words": "HOSTAGE? / 72 HOURS? / WHO OWNS THIS?",
+        "font": "Arial Black, Impact, sans-serif",
+        "color": "#FFE600",
+        "stroke": "14px #000000"
+      }
+    }
   }
 }

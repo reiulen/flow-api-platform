@@ -60,13 +60,13 @@
   },
 
   "flow": {
-    "model": "nano-banana-pro",
+    "model": "nano-banana-2",
     "resolution": "1080p",
     "aspect_ratio": "16:9",
     "duration_s": 8,
     "count": 1,
     "character_guide": "Minimalist 2D cartoon stick-figure frontier soldier or plebeian character with smooth off-white round head, simple black dot eyes, thin clean stick limbs, wearing authentic coarse wool tunic and cloak with natural fabric folds",
-    "look": "Wide 2D cinematic storybook illustration, hand-painted matte digital art, European graphic novel aesthetic (bande dessinée / ligne claire), Rome Unscrolled signature art style, uncluttered composition, generous negative space, atmospheric depth. Minimalist stickman frontier soldier or plebeian character with smooth off-white round head, simple black dot eyes, thin black stick limbs, wearing a simple rough coarse-weave wool tunic or cloak with realistically draped fabric folds, holding a wooden spear or wax tablet. Environment: weathered ancient stone wall with fine mortar cracks, dim flickering wall oil lamp casting warm amber glow, arched Roman aqueduct silhouetted in distant dawn haze. Single continuous 16:9 widescreen frame. Single camera view. Absolutely NO comic book panels, NO multi-panel grids, NO split screens, NO borders.",
+    "look": "Wide 2D cinematic storybook illustration, hand-painted matte digital art, European graphic novel aesthetic (bande dessinée / ligne claire), high-end historical documentary art style, uncluttered composition, generous negative space, atmospheric depth. Minimalist stickman frontier soldier or plebeian character with smooth off-white round head, simple black dot eyes, thin black stick limbs, wearing a simple rough coarse-weave wool tunic or cloak with realistically draped fabric folds, holding a wooden spear or wax tablet. Environment: weathered ancient stone wall with fine mortar cracks, dim flickering wall oil lamp casting warm amber glow, arched Roman aqueduct silhouetted in distant dawn haze. Single continuous 16:9 widescreen frame. Single camera view. Absolutely NO comic book panels, NO multi-panel grids, NO split screens, NO borders.",
     "avoid_extra": [
       "3d render", "cgi", "photorealism", "glossy plastic", "hyperdetailed textures",
       "excessive particles", "lens flare", "neon glare", "cluttered background", "shiny skin",

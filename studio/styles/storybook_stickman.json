@@ -1,0 +1,331 @@
+{
+  "genre": "storybook_stickman",
+  "style_name": "Storybook Stickman Essay (procedural HyperFrames animation, no generated footage)",
+  "default_minutes": 8,
+  "voice": {
+    "provider": "inworld",
+    "voice": "Tristan",
+    "model": "inworld-tts-2",
+    "tone": "low, dry, unhurried; says the hard line plainly and then stops"
+  },
+  "acts": [
+    {
+      "act": 1,
+      "name": "The Lie",
+      "share": 0.09,
+      "mode": "CINEMATIC",
+      "goal": "Open inside one concrete moment of the viewer's own life (a room, an hour, an object) and name the false belief or contradiction at the heart of the topic. One image, one accusation. No introduction."
+    },
+    {
+      "act": 2,
+      "name": "The Pattern",
+      "share": 0.17,
+      "mode": "INFORMATION",
+      "goal": "Show the same failure repeating, with time markers (Day 1, Day 47, Year 3, Hour 36). The audience should see the loop before it is explained."
+    },
+    {
+      "act": 3,
+      "name": "The Cause",
+      "share": 0.22,
+      "mode": "INFORMATION",
+      "goal": "Explain the real mechanism behind the pattern with one sourced fact per beat, each given a physical picture (a clock, a battery, a coin stack, a wall). Why it happens, not what to do yet."
+    },
+    {
+      "act": 4,
+      "name": "The Wall",
+      "share": 0.18,
+      "mode": "CINEMATIC",
+      "goal": "The cost and the pressure, and the lowest point. The moment it gets worse, the moment he almost quits, the thing that looks like the end. End the act back in the opening image (same couch, same hour) with nothing changed after a long time. Let it hurt for a few lines."
+    },
+    {
+      "act": 5,
+      "name": "The Turn",
+      "share": 0.2,
+      "mode": "INFORMATION",
+      "goal": "The turn. One small, concrete decision, made quietly, and then the slow climb with setbacks: shown repeated with time markers. The recurring object changes a little. Nothing triumphant yet."
+    },
+    {
+      "act": 6,
+      "name": "The Verdict",
+      "share": 0.14,
+      "mode": "CINEMATIC",
+      "goal": "A happy ending, earned. Pay off the opening image with its mirror (same place, same object, changed). He ends visibly higher than he began. Quiet and specific, never a boast. State the limit honestly in one line, then end on one plain line the viewer will repeat. No summary, no thanks."
+    }
+  ],
+  "narration": {
+    "wpm": 138,
+    "speech_share": [
+      0.74,
+      0.86
+    ],
+    "pause_per_min": [
+      4,
+      8
+    ],
+    "max_run_s": 26,
+    "breathing_every_s": 150,
+    "breathing_s": [
+      2,
+      4
+    ],
+    "act_break_s": [
+      1.5,
+      3
+    ],
+    "cold_open_s": 0.8,
+    "hook_lead_in_s": 0.8,
+    "pause_default_s": 0.7,
+    "beat_s": 1.8,
+    "banned_phrases": [
+      "today we're going to",
+      "in this video",
+      "hey guys",
+      "let's dive in",
+      "dive into",
+      "delve",
+      "in a world where",
+      "game-changer",
+      "game changer",
+      "it's not just",
+      "buckle up",
+      "stay tuned",
+      "smash that like",
+      "don't forget to subscribe",
+      "without further ado",
+      "fascinating world",
+      "unleash",
+      "tapestry",
+      "testament to",
+      "plays a crucial role",
+      "it's important to note",
+      "step out of your comfort zone",
+      "believe in yourself",
+      "level up",
+      "rise and grind",
+      "mindset shift",
+      "at the end of the day",
+      "in today's fast-paced world",
+      "it's all about",
+      "success is a journey",
+      "unlock your potential",
+      "your best self",
+      "take it to the next level",
+      "the secret to"
+    ]
+  },
+  "pacing": {
+    "asl_target": [
+      1.8,
+      6.2
+    ],
+    "hook": {
+      "min": 2.0,
+      "target": 3.0,
+      "max": 4.2
+    },
+    "footage": {
+      "min": 3.0,
+      "target": 4.6,
+      "max": 6.4
+    },
+    "fast": {
+      "min": 1.5,
+      "max": 3.0
+    },
+    "hold": {
+      "min": 4.5,
+      "max": 8.0
+    },
+    "hero": {
+      "max": 10.0
+    },
+    "explainer": {
+      "min": 3.0,
+      "max": 8.0,
+      "change_every": [
+        3,
+        6
+      ]
+    },
+    "static_max": 8.0,
+    "min_shot": 1.8,
+    "max_consecutive_info": 4,
+    "dense_block_max_s": 60,
+    "sequence_shots": [
+      3,
+      8
+    ],
+    "short_shot_time_share_max": 0.45
+  },
+  "story": {
+    "enabled": true,
+    "shot_s": {
+      "min": 3.2,
+      "target": 4.8,
+      "max": 6.8
+    },
+    "kit": {
+      "bars": false
+    },
+    "resolve_act": 5,
+    "music": {
+      "1": [
+        "metaphysik",
+        "lost_time",
+        "ossuary_6_air"
+      ],
+      "2": "=1",
+      "3": "=1",
+      "4": [
+        "time_travels",
+        "echoes_of_time_v2"
+      ],
+      "5": "=4",
+      "6": "=4",
+      "levels": {
+        "1": 0.8,
+        "4": 0.85
+      },
+      "dips": [
+        4
+      ]
+    },
+    "meter": false,
+    "twist": false
+  },
+  "visual_mix": {
+    "footage": [
+      0.0,
+      0.0
+    ],
+    "explainer": [
+      0.9,
+      1.0
+    ],
+    "flow": [
+      0.0,
+      0.08
+    ],
+    "flow_hard_max": 0.08
+  },
+  "black_beats": {
+    "min": 0,
+    "max": 2,
+    "duration_s": 1.2,
+    "with_title_s": 3.2
+  },
+  "look": {
+    "footage_filter": "",
+    "grain": "",
+    "still_zoom": 0.04
+  },
+  "transitions": {
+    "same_sequence": "cut",
+    "between_sources_information": "cut",
+    "between_sources_cinematic": "cut",
+    "explainer_boundary": "cut",
+    "time_jump": "dissolve_short",
+    "act_break": "fade_black",
+    "durations": {
+      "cut": 0,
+      "dissolve_short": 0.35,
+      "dissolve": 0.7,
+      "dissolve_slow": 1.2,
+      "fade_black": 0.9,
+      "match_cut": 0
+    }
+  },
+  "colors": {
+    "bg": "#0A0A0C",
+    "panel": "#14141A",
+    "info": "#F3EFE6",
+    "muted": "#8E8B84",
+    "threat": "#E5322D",
+    "warning": "#F0A53A",
+    "sensor": "#4DD0C4",
+    "friendly": "#8FD6FF",
+    "success": "#9BE15D",
+    "land": "#1B1B20",
+    "land_edge": "#34343C",
+    "water": "#0A0A0C",
+    "grid": "#1B1B20"
+  },
+  "labels": {
+    "reconstruction": "",
+    "illustrative": ""
+  },
+  "flow": {
+    "model": "nano-banana-2",
+    "resolution": "1080p",
+    "aspect_ratio": "16:9",
+    "duration_s": 8,
+    "count": 1,
+    "max_attempts": 3,
+    "character_guide": "Bean-bodied off-white cartoon figure with round head, simple dot eyes, stub limbs.",
+    "look": "Flat 2D cartoon on a near-black background, one saturated accent colour, single continuous 16:9 frame. Only used if the story renderer cannot build a shot."
+  },
+  "assets": {
+    "source_priority": [
+      "library"
+    ]
+  },
+  "audio": {
+    "lufs": -14,
+    "bed_db_rel_vo": -17,
+    "bed_breath_boost_db": 6,
+    "music_max_share": 0.9,
+    "no_music_every_s": 360,
+    "no_music_s": [
+      8,
+      16
+    ],
+    "ambience_db": -28,
+    "music_functions": [
+      "investigation",
+      "investigation",
+      "scale",
+      "threat",
+      "action",
+      "ending"
+    ]
+  },
+  "editorial": {
+    "voice": "A dry, unhurried narrator talking to one person in the dark. Second person. Short declarative lines, most under twelve words, then one longer sentence that carries the cause and effect. States the hard thing plainly and stops. No pep, no sermon, no jokes at the viewer's expense.",
+    "rules": [
+      "Write the way the reference short film DISCIPLINE is written: concrete moment first, accusation second, reversal last. 'Nobody is coming to save you. So save yourself.' The reversal reuses the words of the accusation.",
+      "Open on one physical scene in the viewer's life (an alarm at 5:00, a phone on a couch, a desk lamp at 2 a.m.). Never open with the topic name, a question about 'have you ever', a definition, or a statistic.",
+      "Use time markers as structure: Day 1, Day 47, Year 3, Hour 36, Step 4. Each marker is followed by exactly one change in the situation. Day numbers rise unevenly (1, 3, 12, 47, 150, 365), never in tidy steps.",
+      "Anaphora is allowed once per act at most: three lines that start the same way, the third one breaking the pattern.",
+      "One refrain per film, 3 to 7 words, said first in Act 1, broken in Act 4, and paid off in Act 6 (e.g. 'Day one, or one day.'). The final line is the refrain turned into an instruction or a choice.",
+      "The inner critic speaks in lowercase, in quotes, in one to four words ('you're lazy', 'why even try', 'tomorrow.'). It never explains itself. It appears in on-screen text only when the narration pauses.",
+      "Every fact is a physical picture before it is a number: a battery draining, a coin stack, a wall of crossed-out days. Say the picture first, the number second.",
+      "Numbers that are not facts (Day 47, 5:00, the 3rd time) are story markers and need no source. Every other number needs a claim.",
+      "Specific nouns beat abstractions: 'the 5:00 alarm', 'a cracked mirror', 'the third unread book', not 'challenges', 'obstacles', 'journey', 'potential'.",
+      "Never moralise. Never address 'you guys'. Never use a rhetorical question twice in a row. Never end with advice phrased as a slogan; end on an image or a plain fact.",
+      "No em dashes anywhere in narration or on-screen text. Use a comma, a period or a colon.",
+      "The film has exactly one twist, at the turn: the voice that accused the character is the part of him that never quit (the one still setting the alarm). Plant it early: someone set that alarm, and under the insults the critic sometimes says 'get up'. Pay it off in Act 5 in two or three plain lines, never explained at length.",
+      "The ending is happy and visible: he finishes clearly better than he started and the old critic walks beside him. The viewer should feel the climb, so keep the lowest point low and let the ending be the highest image of the film.",
+      "The middle is a long, specific slide. In Acts 2 to 4 give at least four separate setbacks, each in a new place or hour (rain on day eight, a late shift, the couch, a skipped week, a skipped year), each one a new concrete reason, never the same reason twice."
+    ]
+  },
+  "publishing": {
+    "category": "Education",
+    "education_type": "None",
+    "title_formulas": [
+      "Why [Common Habit] Fails in [Number] Days (And What It Is Really Doing)",
+      "The [Time] Rule Nobody Tells You About [Topic]",
+      "What Actually Happens to Your [Body / Money / Brain] When You [Action]",
+      "Why [Everyday Thing] Is Quietly [Consequence]"
+    ],
+    "thumbnail_specs": {
+      "aspect_ratio": "16:9",
+      "renderer": "story",
+      "max_words": 3,
+      "composition_rules": [
+        "The hero figure large on the left third, one clear emotion, lit by the video's accent colour from the right",
+        "One meaningful prop from the topic on the right third",
+        "Upper third left empty for a 2 to 3 word hook in the video's handwriting font"
+      ]
+    }
+  }
+}

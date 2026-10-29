@@ -13,7 +13,7 @@ export const TRANSITIONS = [
   'page_turn', 'page_turn_reverse', 'slide_left', 'slide_right', 'parchment_reveal', 'focus_blur', 'wipe_left'
 ];
 export const LICENSES = ['public_domain', 'open_commercial', 'stock_licensed', 'share_alike', 'non_commercial', 'editorial_only', 'fair_use_candidate', 'unknown'];
-export const MOTION_TEMPLATES = ['map', 'process', 'compare', 'trend', 'ranking', 'stat', 'chapter', 'title', 'label'];
+export const MOTION_TEMPLATES = ['map', 'process', 'compare', 'trend', 'ranking', 'stat', 'chapter', 'title', 'label', 'story'];
 
 const id = z.string().min(1);
 
@@ -81,6 +81,8 @@ export const Segment = z.object({
   seg_id: id,
   act: z.number().int().min(1).max(10),
   beat_id: z.string(),
+  speaker: z.string().optional(),
+  character: z.string().optional(),
   text: z.string().min(1),
   claims: z.array(z.string()).default([]),
   tone: z.enum(TONES).default('normal'),
@@ -89,7 +91,7 @@ export const Segment = z.object({
   mode: z.enum(MODES),
   pron: z.array(z.object({ word: z.string(), say: z.string() })).default([]),
   stats: z.array(z.object({ value: z.string(), label: z.string(), claim_id: z.string() })).default([]),
-});
+}).passthrough();
 export const Script = z.object({
   version: z.number().int(),
   title: z.string(),
@@ -175,7 +177,7 @@ export const FlowResult = z.object({
 
 export const EdlClip = z.object({
   clip_id: id, shot_id: z.string(), kind: z.enum(['video', 'image', 'motion', 'black']),
-  src: z.string().nullable(), src_in: z.number().default(0), speed: z.number().default(1), start_s: z.number(), duration_s: z.number(),
+  src: z.string().nullable(), src_in: z.number().default(0), speed: z.number().default(1), scale: z.number().default(1), start_s: z.number(), duration_s: z.number(),
   transition_in: z.object({ type: z.enum(TRANSITIONS), dur_s: z.number() }),
   look: z.boolean().default(true), nat: z.boolean().default(false), overlays: z.array(z.object({ src: z.string(), at_s: z.number(), duration_s: z.number() })).default([]),
 });
